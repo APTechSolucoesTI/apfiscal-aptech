@@ -23,7 +23,7 @@ import {
   MoreHorizontal, 
   ShieldCheck, 
   ShieldAlert,
-  X
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,6 +37,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { createFileRoute } from "@tanstack/react-router";
+import { fetchCompanyByCnpj } from "@/lib/companies.functions";
+import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+
 
 export const Route = createFileRoute("/_authenticated/companies")({
   component: Companies,
@@ -50,6 +54,36 @@ const mockCompanies = [
 
 function Companies() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [cnpj, setCnpj] = useState("");
+  const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
+  const [formData, setFormData] = useState({
+    razao: "",
+    fantasia: "",
+    uf: "",
+  });
+
+  const getCompany = useServerFn(fetchCompanyByCnpj);
+
+  const handleCnpjBlur = async () => {
+    const cleanCnpj = cnpj.replace(/\D/g, "");
+    if (cleanCnpj.length !== 14) return;
+
+    setIsLoadingCnpj(true);
+    try {
+      const data = await getCompany({ data: { cnpj: cleanCnpj } });
+      setFormData({
+        razao: data.nome,
+        fantasia: data.fantasia || "",
+        uf: data.uf,
+      });
+      toast.success("Dados da empresa carregados com sucesso!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao buscar CNPJ. Verifique se o número está correto.");
+    } finally {
+      setIsLoadingCnpj(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -68,21 +102,53 @@ function Companies() {
             <DialogHeader>
               <DialogTitle>Adicionar Nova Empresa</DialogTitle>
               <DialogDescription>
-                Informe os dados para cadastrar uma nova empresa no sistema.
+                Informe o CNPJ para buscar os dados automaticamente na base da Receita/SEFAZ.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="cnpj">CNPJ</Label>
-                <Input id="cnpj" placeholder="00.000.000/0000-00" />
+                <div className="relative">
+                  <Input 
+                    id="cnpj" 
+                    placeholder="00.000.000/0000-00" 
+                    value={cnpj}
+                    onChange={(e) => setCnpj(e.target.value)}
+                    onBlur={handleCnpjBlur}
+                  />
+                  {isLoadingCnpj && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="razao">Razão Social</Label>
-                <Input id="razao" placeholder="Razão Social completa" />
+                <Input 
+                  id="razao" 
+                  placeholder="Razão Social completa" 
+                  value={formData.razao}
+                  onChange={(e) => setFormData({ ...formData, razao: e.target.value })}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="fantasia">Nome Fantasia</Label>
-                <Input id="fantasia" placeholder="Nome Fantasia" />
+                <Input 
+                  id="fantasia" 
+                  placeholder="Nome Fantasia" 
+                  value={formData.fantasia}
+                  onChange={(e) => setFormData({ ...formData, fantasia: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="uf">UF</Label>
+                <Input 
+                  id="uf" 
+                  placeholder="Estado (Ex: SP)" 
+                  value={formData.uf}
+                  onChange={(e) => setFormData({ ...formData, uf: e.target.value })}
+                />
               </div>
             </div>
             <DialogFooter>
@@ -91,6 +157,7 @@ function Companies() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
       </div>
 
       <Card className="border-slate-200 shadow-sm">

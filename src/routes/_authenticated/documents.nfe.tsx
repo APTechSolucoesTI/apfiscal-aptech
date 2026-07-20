@@ -265,12 +265,11 @@ function NFeList() {
                         size="icon" 
                         className="h-8 w-8 text-blue-600 hover:bg-blue-50" 
                         title="Ver detalhes"
-                        onClick={() => {
-                          setSelectedDoc(doc);
-                          setIsDetailsOpen(true);
-                        }}
+                        asChild
                       >
-                        <Eye className="h-4 w-4" />
+                        <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
                       </Button>
 
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML">

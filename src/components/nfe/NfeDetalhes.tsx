@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, Download, FileText, Mail, XCircle, Clock, ChevronRight } from "lucide-react";
+import { Copy, Download, FileText, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2 } from "lucide-react";
 import { useState } from "react";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 

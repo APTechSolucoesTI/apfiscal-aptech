@@ -13,32 +13,32 @@ function Index() {
     {
       title: "Monitoramento em Tempo Real",
       description: "Detectamos qualquer NF-e emitida contra o seu CNPJ no exato momento da autorização.",
-      icon: <Clock className="h-6 w-6 text-blue-600" />,
+      icon: <Clock className="h-6 w-6 text-primary" />,
     },
     {
       title: "Manifestação Automática",
       description: "Automatize a Ciência da Operação para garantir o download imediato do XML.",
-      icon: <Zap className="h-6 w-6 text-blue-600" />,
+      icon: <Zap className="h-6 w-6 text-primary" />,
     },
     {
       title: "Segurança de Dados",
       description: "Armazenamento seguro de XMLs por 5 anos, conforme exigência legal da Receita Federal.",
-      icon: <ShieldCheck className="h-6 w-6 text-blue-600" />,
+      icon: <ShieldCheck className="h-6 w-6 text-primary" />,
     },
     {
       title: "Dashboards Financeiros",
       description: "Visão consolidada de compras, impostos e fornecedores em um único painel.",
-      icon: <BarChart3 className="h-6 w-6 text-blue-600" />,
+      icon: <BarChart3 className="h-6 w-6 text-primary" />,
     },
     {
       title: "Gestão de Certificados",
       description: "Controle centralizado de certificados A1 com avisos automáticos de expiração.",
-      icon: <Globe className="h-6 w-6 text-blue-600" />,
+      icon: <Globe className="h-6 w-6 text-primary" />,
     },
     {
       title: "Multi-Empresa",
       description: "Ideal para contabilidades e holdings: gerencie centenas de CNPJs em um só lugar.",
-      icon: <Users className="h-6 w-6 text-blue-600" />,
+      icon: <Users className="h-6 w-6 text-primary" />,
     },
   ];
 
@@ -74,10 +74,10 @@ function Index() {
       {/* Navigation */}
       <nav className="flex items-center justify-between px-6 py-4 border-b bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xl">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl">
             AP
           </div>
-          <span className="font-bold text-xl text-slate-900">APFiscal</span>
+          <span className="font-bold text-xl text-foreground">APFiscal</span>
         </div>
         <div className="hidden md:flex items-center gap-8">
           <a href="#recursos" className="text-sm font-medium text-slate-600 hover:text-blue-600">Recursos</a>
@@ -85,7 +85,7 @@ function Index() {
           <Button asChild variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
             <Link to="/login">Área do Cliente</Link>
           </Button>
-          <Button asChild className="bg-blue-600 hover:bg-blue-700">
+          <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground">
             <Link to="/register">Começar Grátis</Link>
           </Button>
         </div>
@@ -97,13 +97,13 @@ function Index() {
           Compliance Fiscal Inteligente
         </Badge>
         <h1 className="text-4xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">
-          Nunca mais perca uma <span className="text-blue-600">Nota Fiscal</span> emitida contra sua empresa.
+          Nunca mais perca uma <span className="text-primary">Nota Fiscal</span> emitida contra sua empresa.
         </h1>
         <p className="mt-6 text-xl text-slate-600 max-w-2xl mx-auto">
           Capture automaticamente NF-e, NFS-e e CT-e. Monitore manifestações, organize XMLs e evite fraudes com o APFiscal.
         </p>
         <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-          <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8">
+          <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8">
             <Link to="/register">Criar Conta Gratuita</Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="text-lg px-8">
@@ -140,9 +140,9 @@ function Index() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {plans.map((plan, i) => (
-              <Card key={i} className={`relative flex flex-col ${plan.popular ? 'border-blue-600 shadow-xl scale-105 z-10' : 'border-slate-200'}`}>
+              <Card key={i} className={`relative flex flex-col ${plan.popular ? 'border-primary shadow-xl scale-105 z-10' : 'border-border'}`}>
                 {plan.popular && (
-                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-primary text-primary-foreground text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                     Mais Escolhido
                   </div>
                 )}
@@ -165,7 +165,7 @@ function Index() {
                   </ul>
                 </CardContent>
                 <CardFooter>
-                  <Button asChild className={`w-full ${plan.popular ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-900 hover:bg-black'}`}>
+                  <Button asChild className={`w-full ${plan.popular ? 'bg-primary hover:bg-primary/90' : 'bg-foreground hover:bg-foreground/90'}`}>
                     <Link to={plan.price === "Sob consulta" ? "/login" : "/register"}>{plan.buttonText}</Link>
                   </Button>
                 </CardFooter>
@@ -176,12 +176,12 @@ function Index() {
       </section>
 
       {/* CTA Footer */}
-      <section className="px-6 py-20 bg-blue-600 text-white text-center">
+      <section className="px-6 py-20 bg-primary text-primary-foreground text-center">
         <h2 className="text-3xl font-bold mb-6">Pronto para automatizar seu fiscal?</h2>
         <p className="text-blue-100 mb-10 max-w-xl mx-auto">
           Junte-se a centenas de empresas que já eliminam erros manuais e multas com o APFiscal.
         </p>
-        <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-blue-50 px-10">
+        <Button asChild size="lg" className="bg-background text-primary hover:bg-secondary px-10">
           <Link to="/register">Começar Agora</Link>
         </Button>
       </section>
@@ -190,7 +190,7 @@ function Index() {
       <footer className="px-6 py-12 border-t bg-white">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+            <div className="h-6 w-6 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
               AP
             </div>
             <span className="font-bold text-slate-900">APFiscal</span>

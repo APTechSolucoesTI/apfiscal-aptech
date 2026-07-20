@@ -25,7 +25,6 @@ import { Route as AuthenticatedSettingsApiRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDocumentsNfseRouteImport } from './routes/_authenticated/documents.nfse'
 import { Route as AuthenticatedDocumentsNfeRouteImport } from './routes/_authenticated/documents.nfe'
 import { Route as AuthenticatedDocumentsCteRouteImport } from './routes/_authenticated/documents.cte'
-import { Route as AuthenticatedDocumentsNfeIndexRouteImport } from './routes/_authenticated/documents.nfe.index'
 import { Route as AuthenticatedDocumentsNfeNfeIdRouteImport } from './routes/_authenticated/documents.nfe.$nfeId'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -114,12 +113,6 @@ const AuthenticatedDocumentsCteRoute =
     path: '/cte',
     getParentRoute: () => AuthenticatedDocumentsRoute,
   } as any)
-const AuthenticatedDocumentsNfeIndexRoute =
-  AuthenticatedDocumentsNfeIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDocumentsNfeRoute,
-  } as any)
 const AuthenticatedDocumentsNfeNfeIdRoute =
   AuthenticatedDocumentsNfeNfeIdRouteImport.update({
     id: '/$nfeId',
@@ -144,7 +137,6 @@ export interface FileRoutesByFullPath {
   '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
-  '/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -157,12 +149,12 @@ export interface FileRoutesByTo {
   '/risk': typeof AuthenticatedRiskRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/documents/cte': typeof AuthenticatedDocumentsCteRoute
+  '/documents/nfe': typeof AuthenticatedDocumentsNfeRouteWithChildren
   '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/settings/api': typeof AuthenticatedSettingsApiRoute
   '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
-  '/documents/nfe': typeof AuthenticatedDocumentsNfeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -183,7 +175,6 @@ export interface FileRoutesById {
   '/_authenticated/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
-  '/_authenticated/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -204,7 +195,6 @@ export interface FileRouteTypes {
     | '/settings/certificates'
     | '/settings/members'
     | '/documents/nfe/$nfeId'
-    | '/documents/nfe/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -217,12 +207,12 @@ export interface FileRouteTypes {
     | '/risk'
     | '/settings'
     | '/documents/cte'
+    | '/documents/nfe'
     | '/documents/nfse'
     | '/settings/api'
     | '/settings/certificates'
     | '/settings/members'
     | '/documents/nfe/$nfeId'
-    | '/documents/nfe'
   id:
     | '__root__'
     | '/'
@@ -242,7 +232,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/certificates'
     | '/_authenticated/settings/members'
     | '/_authenticated/documents/nfe/$nfeId'
-    | '/_authenticated/documents/nfe/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -366,13 +355,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDocumentsCteRouteImport
       parentRoute: typeof AuthenticatedDocumentsRoute
     }
-    '/_authenticated/documents/nfe/': {
-      id: '/_authenticated/documents/nfe/'
-      path: '/'
-      fullPath: '/documents/nfe/'
-      preLoaderRoute: typeof AuthenticatedDocumentsNfeIndexRouteImport
-      parentRoute: typeof AuthenticatedDocumentsNfeRoute
-    }
     '/_authenticated/documents/nfe/$nfeId': {
       id: '/_authenticated/documents/nfe/$nfeId'
       path: '/$nfeId'
@@ -385,13 +367,11 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedDocumentsNfeRouteChildren {
   AuthenticatedDocumentsNfeNfeIdRoute: typeof AuthenticatedDocumentsNfeNfeIdRoute
-  AuthenticatedDocumentsNfeIndexRoute: typeof AuthenticatedDocumentsNfeIndexRoute
 }
 
 const AuthenticatedDocumentsNfeRouteChildren: AuthenticatedDocumentsNfeRouteChildren =
   {
     AuthenticatedDocumentsNfeNfeIdRoute: AuthenticatedDocumentsNfeNfeIdRoute,
-    AuthenticatedDocumentsNfeIndexRoute: AuthenticatedDocumentsNfeIndexRoute,
   }
 
 const AuthenticatedDocumentsNfeRouteWithChildren =

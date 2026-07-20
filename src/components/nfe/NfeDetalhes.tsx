@@ -88,7 +88,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                 </thead>
                 <tbody>
                   {mockNFe.items.map(item => (
-                    <tr key={item.id} className="border-b hover:bg-muted/50 cursor-pointer">
+                    <tr key={item.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => setSelectedItem(item)}>
                       <td className="p-4">{item.cod}</td>
                       <td className="p-4">{item.desc}</td>
                       <td className="p-4 text-right">{item.qtd}</td>

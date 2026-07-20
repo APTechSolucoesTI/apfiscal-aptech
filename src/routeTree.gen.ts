@@ -13,9 +13,18 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedRiskRouteImport } from './routes/_authenticated/risk'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCompaniesRouteImport } from './routes/_authenticated/companies'
+import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings.members'
+import { Route as AuthenticatedSettingsCertificatesRouteImport } from './routes/_authenticated/settings.certificates'
+import { Route as AuthenticatedSettingsApiRouteImport } from './routes/_authenticated/settings.api'
+import { Route as AuthenticatedDocumentsNfseRouteImport } from './routes/_authenticated/documents.nfse'
 import { Route as AuthenticatedDocumentsNfeRouteImport } from './routes/_authenticated/documents.nfe'
+import { Route as AuthenticatedDocumentsCteRouteImport } from './routes/_authenticated/documents.cte'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -36,6 +45,27 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRiskRoute = AuthenticatedRiskRouteImport.update({
+  id: '/risk',
+  path: '/risk',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedDocumentsRoute = AuthenticatedDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -46,11 +76,41 @@ const AuthenticatedCompaniesRoute = AuthenticatedCompaniesRouteImport.update({
   path: '/companies',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsMembersRoute =
+  AuthenticatedSettingsMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsCertificatesRoute =
+  AuthenticatedSettingsCertificatesRouteImport.update({
+    id: '/certificates',
+    path: '/certificates',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsApiRoute =
+  AuthenticatedSettingsApiRouteImport.update({
+    id: '/api',
+    path: '/api',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedDocumentsNfseRoute =
+  AuthenticatedDocumentsNfseRouteImport.update({
+    id: '/nfse',
+    path: '/nfse',
+    getParentRoute: () => AuthenticatedDocumentsRoute,
+  } as any)
 const AuthenticatedDocumentsNfeRoute =
   AuthenticatedDocumentsNfeRouteImport.update({
-    id: '/documents/nfe',
-    path: '/documents/nfe',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/nfe',
+    path: '/nfe',
+    getParentRoute: () => AuthenticatedDocumentsRoute,
+  } as any)
+const AuthenticatedDocumentsCteRoute =
+  AuthenticatedDocumentsCteRouteImport.update({
+    id: '/cte',
+    path: '/cte',
+    getParentRoute: () => AuthenticatedDocumentsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -59,7 +119,16 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/companies': typeof AuthenticatedCompaniesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/documents': typeof AuthenticatedDocumentsRouteWithChildren
+  '/notifications': typeof AuthenticatedNotificationsRoute
+  '/risk': typeof AuthenticatedRiskRoute
+  '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/documents/nfe': typeof AuthenticatedDocumentsNfeRoute
+  '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
+  '/settings/api': typeof AuthenticatedSettingsApiRoute
+  '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
+  '/settings/members': typeof AuthenticatedSettingsMembersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -67,7 +136,16 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/companies': typeof AuthenticatedCompaniesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/documents': typeof AuthenticatedDocumentsRouteWithChildren
+  '/notifications': typeof AuthenticatedNotificationsRoute
+  '/risk': typeof AuthenticatedRiskRoute
+  '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/documents/nfe': typeof AuthenticatedDocumentsNfeRoute
+  '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
+  '/settings/api': typeof AuthenticatedSettingsApiRoute
+  '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
+  '/settings/members': typeof AuthenticatedSettingsMembersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,7 +155,16 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/_authenticated/companies': typeof AuthenticatedCompaniesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/documents': typeof AuthenticatedDocumentsRouteWithChildren
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
+  '/_authenticated/risk': typeof AuthenticatedRiskRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/_authenticated/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/_authenticated/documents/nfe': typeof AuthenticatedDocumentsNfeRoute
+  '/_authenticated/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
+  '/_authenticated/settings/api': typeof AuthenticatedSettingsApiRoute
+  '/_authenticated/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
+  '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -87,7 +174,16 @@ export interface FileRouteTypes {
     | '/register'
     | '/companies'
     | '/dashboard'
+    | '/documents'
+    | '/notifications'
+    | '/risk'
+    | '/settings'
+    | '/documents/cte'
     | '/documents/nfe'
+    | '/documents/nfse'
+    | '/settings/api'
+    | '/settings/certificates'
+    | '/settings/members'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -95,7 +191,16 @@ export interface FileRouteTypes {
     | '/register'
     | '/companies'
     | '/dashboard'
+    | '/documents'
+    | '/notifications'
+    | '/risk'
+    | '/settings'
+    | '/documents/cte'
     | '/documents/nfe'
+    | '/documents/nfse'
+    | '/settings/api'
+    | '/settings/certificates'
+    | '/settings/members'
   id:
     | '__root__'
     | '/'
@@ -104,7 +209,16 @@ export interface FileRouteTypes {
     | '/register'
     | '/_authenticated/companies'
     | '/_authenticated/dashboard'
+    | '/_authenticated/documents'
+    | '/_authenticated/notifications'
+    | '/_authenticated/risk'
+    | '/_authenticated/settings'
+    | '/_authenticated/documents/cte'
     | '/_authenticated/documents/nfe'
+    | '/_authenticated/documents/nfse'
+    | '/_authenticated/settings/api'
+    | '/_authenticated/settings/certificates'
+    | '/_authenticated/settings/members'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -144,6 +258,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/risk': {
+      id: '/_authenticated/risk'
+      path: '/risk'
+      fullPath: '/risk'
+      preLoaderRoute: typeof AuthenticatedRiskRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/documents': {
+      id: '/_authenticated/documents'
+      path: '/documents'
+      fullPath: '/documents'
+      preLoaderRoute: typeof AuthenticatedDocumentsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -158,26 +300,103 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCompaniesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/members': {
+      id: '/_authenticated/settings/members'
+      path: '/members'
+      fullPath: '/settings/members'
+      preLoaderRoute: typeof AuthenticatedSettingsMembersRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/certificates': {
+      id: '/_authenticated/settings/certificates'
+      path: '/certificates'
+      fullPath: '/settings/certificates'
+      preLoaderRoute: typeof AuthenticatedSettingsCertificatesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/api': {
+      id: '/_authenticated/settings/api'
+      path: '/api'
+      fullPath: '/settings/api'
+      preLoaderRoute: typeof AuthenticatedSettingsApiRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/documents/nfse': {
+      id: '/_authenticated/documents/nfse'
+      path: '/nfse'
+      fullPath: '/documents/nfse'
+      preLoaderRoute: typeof AuthenticatedDocumentsNfseRouteImport
+      parentRoute: typeof AuthenticatedDocumentsRoute
+    }
     '/_authenticated/documents/nfe': {
       id: '/_authenticated/documents/nfe'
-      path: '/documents/nfe'
+      path: '/nfe'
       fullPath: '/documents/nfe'
       preLoaderRoute: typeof AuthenticatedDocumentsNfeRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedDocumentsRoute
+    }
+    '/_authenticated/documents/cte': {
+      id: '/_authenticated/documents/cte'
+      path: '/cte'
+      fullPath: '/documents/cte'
+      preLoaderRoute: typeof AuthenticatedDocumentsCteRouteImport
+      parentRoute: typeof AuthenticatedDocumentsRoute
     }
   }
 }
 
+interface AuthenticatedDocumentsRouteChildren {
+  AuthenticatedDocumentsCteRoute: typeof AuthenticatedDocumentsCteRoute
+  AuthenticatedDocumentsNfeRoute: typeof AuthenticatedDocumentsNfeRoute
+  AuthenticatedDocumentsNfseRoute: typeof AuthenticatedDocumentsNfseRoute
+}
+
+const AuthenticatedDocumentsRouteChildren: AuthenticatedDocumentsRouteChildren =
+  {
+    AuthenticatedDocumentsCteRoute: AuthenticatedDocumentsCteRoute,
+    AuthenticatedDocumentsNfeRoute: AuthenticatedDocumentsNfeRoute,
+    AuthenticatedDocumentsNfseRoute: AuthenticatedDocumentsNfseRoute,
+  }
+
+const AuthenticatedDocumentsRouteWithChildren =
+  AuthenticatedDocumentsRoute._addFileChildren(
+    AuthenticatedDocumentsRouteChildren,
+  )
+
+interface AuthenticatedSettingsRouteChildren {
+  AuthenticatedSettingsApiRoute: typeof AuthenticatedSettingsApiRoute
+  AuthenticatedSettingsCertificatesRoute: typeof AuthenticatedSettingsCertificatesRoute
+  AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
+}
+
+const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
+  AuthenticatedSettingsApiRoute: AuthenticatedSettingsApiRoute,
+  AuthenticatedSettingsCertificatesRoute:
+    AuthenticatedSettingsCertificatesRoute,
+  AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,
+}
+
+const AuthenticatedSettingsRouteWithChildren =
+  AuthenticatedSettingsRoute._addFileChildren(
+    AuthenticatedSettingsRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedCompaniesRoute: typeof AuthenticatedCompaniesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedDocumentsNfeRoute: typeof AuthenticatedDocumentsNfeRoute
+  AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRouteWithChildren
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
+  AuthenticatedRiskRoute: typeof AuthenticatedRiskRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCompaniesRoute: AuthenticatedCompaniesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedDocumentsNfeRoute: AuthenticatedDocumentsNfeRoute,
+  AuthenticatedDocumentsRoute: AuthenticatedDocumentsRouteWithChildren,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
+  AuthenticatedRiskRoute: AuthenticatedRiskRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
@@ -193,13 +412,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

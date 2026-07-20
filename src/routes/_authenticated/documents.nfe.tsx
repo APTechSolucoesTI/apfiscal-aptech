@@ -143,7 +143,7 @@ function NFeList() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">NF-e (Produtos)</h1>
-          <p className="text-slate-500 text-xs mt-1 italic">aja como um especialista em desenvolvimento lovable e implemente a seguinte funcionalidade: Clique no ícone 👁️ na coluna "Ações" da listagem da nota fiscal eletronica deverá abrir a tela de detalhamento completo da NF-e. Em (documents.nfe.tsx) usa &lt;Link to="/documents/nfe/$nfeId" params={&#123; nfeId: doc.id &#125;}&gt; que navega para a rota documents.nfe.$nfeId.tsx, renderizando o componente NfeDetalhes com todas as abas (Resumo, Itens, Impostos, Transporte, Cobrança, Adicionais, Histórico, XML).</p>
+          <p className="text-slate-500 text-xs mt-1 italic">aja como um especialista em desenvolvimento lovable e implemente a seguinte funcionalidade: Clique no ícone 👁️ na coluna "Ações" da listagem da nota fiscal eletronica deverá abrir a tela de detalhamento completo da NF-e. Em (documents.nfe.tsx) usa &lt;Link to="/documents/nfe/$nfeId" params={{"{"}} nfeId: doc.id {{"}"}}&gt; que navega para a rota documents.nfe.$nfeId.tsx, renderizando o componente NfeDetalhes com todas as abas (Resumo, Itens, Impostos, Transporte, Cobrança, Adicionais, Histórico, XML).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">

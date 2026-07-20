@@ -121,18 +121,29 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={() => window.history.back()}>Voltar</Button>
           <div>
-            <h1 className="text-xl font-bold">NF-e nº {mockNFe.ide.numero} — Série {mockNFe.ide.serie}</h1>
+            <h1 className="text-xl font-bold">NF-e nº {mockNFe.ide.numero} — Série {mockNFe.ide.serie} — Modelo {mockNFe.ide.modelo}</h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary" className="bg-green-100 text-green-800">Autorizada</Badge>
-              <span>Chave: 1234...5678</span>
-              <Button variant="ghost" size="icon" className="h-4 w-4"><Copy className="h-3 w-3"/></Button>
+              <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">Autorizada</Badge>
+              <span className="font-mono">{mockNFe.ide.chave}</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6" 
+                onClick={() => {
+                  navigator.clipboard.writeText(mockNFe.ide.chave);
+                  // toast? sonner is available
+                }}
+              >
+                <Copy className="h-3.5 w-3.5"/>
+              </Button>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline"><Download className="mr-2 h-4 w-4"/> XML</Button>
-          <Button variant="outline"><Download className="mr-2 h-4 w-4"/> DANFE</Button>
-          <Button variant="outline"><Mail className="mr-2 h-4 w-4"/> Email</Button>
+          <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4"/> XML</Button>
+          <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4"/> DANFE (PDF)</Button>
+          <Button variant="outline" size="sm"><Mail className="mr-2 h-4 w-4"/> Reenviar</Button>
+          <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10"><XCircle className="mr-2 h-4 w-4"/> Cancelar</Button>
         </div>
       </div>
 

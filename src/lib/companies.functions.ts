@@ -5,7 +5,7 @@ import cepPromise from "cep-promise";
 const CompanySchema = z.object({
   status: z.string(),
   cnpj: z.string(),
-  tipo: z.string(),
+  tipo: z.string().optional(),
   abertura: z.string().optional(),
   nome: z.string(),
   fantasia: z.string().optional(),
@@ -29,9 +29,8 @@ const CompanySchema = z.object({
 export type CompanyData = z.infer<typeof CompanySchema>;
 
 /**
- * Server function to fetch company data by CNPJ using the ReceitaWS API (free tier).
- * In a real-world scenario, you might want to use a more complete API like OpenCNPJ
- * or official gov APIs for IE/IM data, which often requires specific state lookups.
+ * Server function to fetch company data by CNPJ.
+ * Switched to BrasilAPI as it's more reliable and has better coverage for CNPJ data without the strict CORS/Rate limits of ReceitaWS free tier.
  */
 export const fetchCompanyByCnpj = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({ cnpj: z.string() }).parse(data))
@@ -43,30 +42,63 @@ export const fetchCompanyByCnpj = createServerFn({ method: "GET" })
     }
 
     try {
-      // Fetching from ReceitaWS (standard for basic data)
-      const response = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
+      console.log(`Fetching CNPJ ${cleanCnpj} via BrasilAPI...`);
+      // BrasilAPI is generally more stable and comprehensive for public Brazilian data
+      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
       
       if (!response.ok) {
-        throw new Error(`Erro na API de consulta: ${response.statusText}`);
+        if (response.status === 404) {
+           throw new Error("CNPJ não encontrado na base de dados.");
+        }
+        throw new Error(`Erro na API de consulta (Status ${response.status}): ${response.statusText}`);
       }
 
       const result = await response.json();
 
-      if (result.status === "ERROR") {
-        throw new Error(result.message || "CNPJ não encontrado.");
-      }
-
-      // IE and IM are harder to get from a single public API globally in Brazil 
-      // as they are state/city specific, but we'll mock them or prepare for them.
-      // In a real implementation, you'd integrate with Sintegra or specific state gateways.
-      
+      // Mapping BrasilAPI response to our internal CompanySchema
       return CompanySchema.parse({
-        ...result,
-        inscricao_estadual: "ISENTO", // Mock/Placeholder for demo
-        inscricao_municipal: "A consultar", // Mock/Placeholder for demo
+        status: "OK",
+        cnpj: result.cnpj,
+        tipo: result.descricao_identificador_matriz_filial,
+        abertura: result.data_inicio_atividade,
+        nome: result.razao_social,
+        fantasia: result.nome_fantasia || "",
+        uf: result.uf,
+        municipio: result.municipio,
+        logradouro: result.logradouro,
+        numero: result.numero,
+        bairro: result.bairro,
+        cep: result.cep,
+        email: result.email || "",
+        telefone: result.ddd_telefone_1 || "",
+        situacao: result.descricao_situacao_cadastral,
+        atividades_economicas: [
+          { code: result.cnae_fiscal?.toString() || "", text: result.cnae_fiscal_descricao || "" }
+        ],
+        inscricao_estadual: "ISENTO",
+        inscricao_municipal: "A consultar",
       });
     } catch (error) {
       console.error("Error fetching CNPJ:", error);
+      
+      // Fallback to ReceitaWS if BrasilAPI fails for some reason
+      try {
+        console.log(`Attempting fallback to ReceitaWS for CNPJ ${cleanCnpj}...`);
+        const fallbackResponse = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
+        if (fallbackResponse.ok) {
+          const fallbackResult = await fallbackResponse.json();
+          if (fallbackResult.status !== "ERROR") {
+             return CompanySchema.parse({
+                ...fallbackResult,
+                inscricao_estadual: "ISENTO",
+                inscricao_municipal: "A consultar",
+             });
+          }
+        }
+      } catch (fallbackError) {
+        console.error("Fallback also failed:", fallbackError);
+      }
+
       throw error instanceof Error ? error : new Error("Erro inesperado ao buscar CNPJ.");
     }
   });

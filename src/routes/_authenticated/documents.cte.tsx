@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { 
   Table, 
@@ -18,8 +19,22 @@ import {
   Search, 
   Download, 
   Eye, 
+  ArrowUpDown,
+  Info
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useSortableData } from "@/hooks/use-sortable-data";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+
 
 export const Route = createFileRoute("/_authenticated/documents/cte")({
   component: CTeList,
@@ -38,7 +53,12 @@ const mockDocs = [
 ];
 
 function CTeList() {
+  const { items: sortedDocs, requestSort, sortConfig } = useSortableData(mockDocs);
+  const [selectedDoc, setSelectedDoc] = useState<typeof mockDocs[0] | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
   return (
+
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -60,17 +80,46 @@ function CTeList() {
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Número</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Transportadora</TableHead>
+              <TableRow className="bg-slate-50/50">
+                <TableHead 
+                  className="cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('numero')}
+                >
+                  <div className="flex items-center gap-1">
+                    Número <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('data')}
+                >
+                  <div className="flex items-center gap-1">
+                    Data <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('transportadora')}
+                >
+                  <div className="flex items-center gap-1">
+                    Transportadora <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
                 <TableHead>Origem/Destino</TableHead>
-                <TableHead>Valor</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('valor')}
+                >
+                  <div className="flex items-center gap-1">
+                    Valor <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockDocs.map((doc) => (
+              {sortedDocs.map((doc) => (
+
                 <TableRow key={doc.id}>
                   <TableCell className="font-medium">{doc.numero}</TableCell>
                   <TableCell>{new Date(doc.data).toLocaleDateString('pt-BR')}</TableCell>
@@ -78,7 +127,17 @@ function CTeList() {
                   <TableCell>{doc.origem} {'->'} {doc.destino}</TableCell>
                   <TableCell>{doc.valor}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon"><Eye className="h-4 w-4" /></Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => {
+                        setSelectedDoc(doc);
+                        setIsDetailsOpen(true);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+
                   </TableCell>
                 </TableRow>
               ))}
@@ -86,6 +145,52 @@ function CTeList() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes do CT-e</DialogTitle>
+            <DialogDescription>
+              Informações do Conhecimento de Transporte Eletrônico.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedDoc && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Número</Label>
+                  <p className="font-medium">{selectedDoc.numero}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Data de Emissão</Label>
+                  <p className="font-medium">{new Date(selectedDoc.data).toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-slate-500">Transportadora</Label>
+                  <p className="font-medium">{selectedDoc.transportadora}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Origem</Label>
+                  <p className="font-medium">{selectedDoc.origem}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Destino</Label>
+                  <p className="font-medium">{selectedDoc.destino}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Valor do Frete</Label>
+                  <p className="font-bold text-blue-600">{selectedDoc.valor}</p>
+                </div>
+              </div>
+              <Separator />
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

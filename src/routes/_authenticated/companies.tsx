@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { 
   Table, 
   TableBody, 
@@ -23,49 +23,34 @@ import {
   MoreHorizontal, 
   ShieldCheck, 
   ShieldAlert,
-  ShieldX,
-  FileText
+  X
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/companies")({
   component: Companies,
 });
 
 const mockCompanies = [
-  {
-    id: "1",
-    cnpj: "12.345.678/0001-90",
-    razao_social: "Tecnologia e Inovação Brasil LTDA",
-    nome_fantasia: "TechBrasil",
-    uf: "SP",
-    certificado: "Válido",
-    expira_em: "2026-05-20",
-    status: "active"
-  },
-  {
-    id: "2",
-    cnpj: "98.765.432/0001-10",
-    razao_social: "Comércio de Alimentos Estrela Sul",
-    nome_fantasia: "Estrela Sul",
-    uf: "RS",
-    certificado: "Expirando",
-    expira_em: "2026-07-30",
-    status: "warning"
-  },
-  {
-    id: "3",
-    cnpj: "45.678.901/0001-22",
-    razao_social: "Logística Nacional S.A.",
-    nome_fantasia: "LogNacional",
-    uf: "MG",
-    certificado: "Válido",
-    expira_em: "2026-12-15",
-    status: "active"
-  }
+  { id: "1", cnpj: "12.345.678/0001-90", razao_social: "Tecnologia e Inovação Brasil LTDA", nome_fantasia: "TechBrasil", uf: "SP", certificado: "Válido", expira_em: "2026-05-20", status: "active" },
+  { id: "2", cnpj: "98.765.432/0001-10", razao_social: "Comércio de Alimentos Estrela Sul", nome_fantasia: "Estrela Sul", uf: "RS", certificado: "Expirando", expira_em: "2026-07-30", status: "warning" },
+  { id: "3", cnpj: "45.678.901/0001-22", razao_social: "Logística Nacional S.A.", nome_fantasia: "LogNacional", uf: "MG", certificado: "Válido", expira_em: "2026-12-15", status: "active" }
 ];
 
 function Companies() {
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -73,9 +58,39 @@ function Companies() {
           <h1 className="text-2xl font-bold text-slate-900">Empresas (CNPJs)</h1>
           <p className="text-slate-500">Gerencie as empresas e filiais da sua organização.</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="mr-2 h-4 w-4" /> Nova Empresa
-        </Button>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="mr-2 h-4 w-4" /> Nova Empresa
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Adicionar Nova Empresa</DialogTitle>
+              <DialogDescription>
+                Informe os dados para cadastrar uma nova empresa no sistema.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="cnpj">CNPJ</Label>
+                <Input id="cnpj" placeholder="00.000.000/0000-00" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="razao">Razão Social</Label>
+                <Input id="razao" placeholder="Razão Social completa" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fantasia">Nome Fantasia</Label>
+                <Input id="fantasia" placeholder="Nome Fantasia" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit" className="bg-blue-600">Salvar Empresa</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card className="border-slate-200 shadow-sm">

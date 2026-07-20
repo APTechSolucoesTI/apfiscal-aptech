@@ -143,7 +143,7 @@ function NFeList() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">NF-e (Produtos)</h1>
-          <p className="text-slate-500">Acompanhe as notas fiscais de produto emitidas contra seus CNPJs.</p>
+          <p className="text-slate-500">exibir a nova tela contendo o detalhamento completo da NF-e ao clicar em ver detalhes na listagem da NF-e</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">

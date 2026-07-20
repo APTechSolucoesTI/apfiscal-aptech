@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Copy, Download, FileText, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 
 // Mock data

@@ -52,6 +52,12 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 
 
 export const Route = createFileRoute("/_authenticated/companies")({
@@ -74,6 +80,7 @@ function Companies() {
     razao: "",
     fantasia: "",
     cnae: "",
+    cnaes: [] as { code: string; text: string; main?: boolean }[],
     ie: "",
     im: "",
     cep: "",
@@ -85,6 +92,7 @@ function Companies() {
     uf: "",
     email: "",
     telefone: "",
+    responsavel: "",
   });
 
   const getCompany = useServerFn(fetchCompanyByCnpj);
@@ -109,7 +117,9 @@ function Companies() {
         cep: data.cep.replace(/\D/g, ""),
         email: data.email || "",
         telefone: data.telefone || "",
-        cnae: data.atividades_economicas?.[0]?.text || "",
+        cnae: data.atividades_economicas?.find(c => c.main)?.text || "",
+        cnaes: data.atividades_economicas || [],
+        responsavel: data.responsavel || "",
         ie: data.inscricao_estadual || "",
         im: data.inscricao_municipal || "",
       }));
@@ -165,183 +175,226 @@ function Companies() {
                 Cadastrar Nova Empresa
               </DialogTitle>
               <DialogDescription>
-                Utilizamos as bases da Receita Federal e Correios para preencher os dados automaticamente.
+                Utilizamos o BrasilAPI para preencher os dados automaticamente via CNPJ e CEP.
               </DialogDescription>
             </DialogHeader>
             
-            <ScrollArea className="flex-1 px-6">
-              <div className="grid gap-6 py-4">
-                {/* Identificação Básica */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <Building className="h-4 w-4 text-blue-600" />
-                    Identificação
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="cnpj">CNPJ <span className="text-red-500">*</span></Label>
-                      <div className="relative">
-                        <Input 
-                          id="cnpj" 
-                          placeholder="00.000.000/0000-00" 
-                          value={cnpj}
-                          onChange={(e) => setCnpj(e.target.value)}
-                          onBlur={handleCnpjBlur}
-                          className="font-mono"
-                        />
-                        {isLoadingCnpj && (
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="razao">Razão Social <span className="text-red-500">*</span></Label>
-                      <Input 
-                        id="razao" 
-                        placeholder="Razão Social completa" 
-                        value={formData.razao}
-                        onChange={(e) => setFormData({ ...formData, razao: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="fantasia">Nome Fantasia</Label>
-                      <Input 
-                        id="fantasia" 
-                        placeholder="Nome Fantasia" 
-                        value={formData.fantasia}
-                        onChange={(e) => setFormData({ ...formData, fantasia: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="cnae">CNAE Principal</Label>
-                      <Input 
-                        id="cnae" 
-                        placeholder="Ex: 6201-5/01" 
-                        value={formData.cnae}
-                        onChange={(e) => setFormData({ ...formData, cnae: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <Separator className="bg-slate-100" />
-
-                {/* Inscrições Fiscais */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <Info className="h-4 w-4 text-blue-600" />
+            <Tabs defaultValue="cadastrais" className="flex-1 flex flex-col overflow-hidden">
+              <div className="px-6 border-b">
+                <TabsList className="w-full justify-start rounded-none h-12 bg-transparent gap-6 p-0">
+                  <TabsTrigger 
+                    value="cadastrais" 
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
+                  >
+                    Dados Cadastrais
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="endereco"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
+                  >
+                    Endereço
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="fiscais"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
+                  >
                     Dados Fiscais
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="ie">Inscrição Estadual</Label>
-                      <Input 
-                        id="ie" 
-                        placeholder="IE" 
-                        value={formData.ie}
-                        onChange={(e) => setFormData({ ...formData, ie: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="im">Inscrição Municipal</Label>
-                      <Input 
-                        id="im" 
-                        placeholder="IM" 
-                        value={formData.im}
-                        onChange={(e) => setFormData({ ...formData, im: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
-                <Separator className="bg-slate-100" />
-
-                {/* Endereço */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <MapPin className="h-4 w-4 text-blue-600" />
-                    Localização
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="cep">CEP <span className="text-red-500">*</span></Label>
-                      <div className="relative">
+              <ScrollArea className="flex-1">
+                <div className="p-6">
+                  <TabsContent value="cadastrais" className="mt-0 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="cnpj">CNPJ <span className="text-red-500">*</span></Label>
+                        <div className="relative">
+                          <Input 
+                            id="cnpj" 
+                            placeholder="00.000.000/0000-00" 
+                            value={cnpj}
+                            onChange={(e) => setCnpj(e.target.value)}
+                            onBlur={handleCnpjBlur}
+                            className="font-mono"
+                          />
+                          {isLoadingCnpj && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="razao">Razão Social <span className="text-red-500">*</span></Label>
                         <Input 
-                          id="cep" 
-                          placeholder="00000-000" 
-                          value={formData.cep}
-                          onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                          onBlur={handleCepBlur}
-                          className="font-mono"
+                          id="razao" 
+                          placeholder="Razão Social completa" 
+                          value={formData.razao}
+                          onChange={(e) => setFormData({ ...formData, razao: e.target.value })}
                         />
-                        {isLoadingCep && (
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="fantasia">Nome Fantasia</Label>
+                        <Input 
+                          id="fantasia" 
+                          placeholder="Nome Fantasia" 
+                          value={formData.fantasia}
+                          onChange={(e) => setFormData({ ...formData, fantasia: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="responsavel">Responsável pela Empresa</Label>
+                        <Input 
+                          id="responsavel" 
+                          placeholder="Nome do responsável" 
+                          value={formData.responsavel}
+                          onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="email">E-mail do Responsável</Label>
+                        <Input 
+                          id="email" 
+                          type="email"
+                          placeholder="email@empresa.com" 
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="ie">Inscrição Estadual</Label>
+                        <Input 
+                          id="ie" 
+                          placeholder="IE" 
+                          value={formData.ie}
+                          onChange={(e) => setFormData({ ...formData, ie: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="im">Inscrição Municipal</Label>
+                        <Input 
+                          id="im" 
+                          placeholder="IM" 
+                          value={formData.im}
+                          onChange={(e) => setFormData({ ...formData, im: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="endereco" className="mt-0 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="cep">CEP <span className="text-red-500">*</span></Label>
+                        <div className="relative">
+                          <Input 
+                            id="cep" 
+                            placeholder="00000-000" 
+                            value={formData.cep}
+                            onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                            onBlur={handleCepBlur}
+                            className="font-mono"
+                          />
+                          {isLoadingCep && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid gap-2 md:col-span-2">
+                        <Label htmlFor="logradouro">Logradouro <span className="text-red-500">*</span></Label>
+                        <Input 
+                          id="logradouro" 
+                          placeholder="Rua, Av, etc" 
+                          value={formData.logradouro}
+                          onChange={(e) => setFormData({ ...formData, logradouro: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="numero">Número <span className="text-red-500">*</span></Label>
+                        <Input 
+                          id="numero" 
+                          placeholder="Ex: 123" 
+                          value={formData.numero}
+                          onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="complemento">Complemento</Label>
+                        <Input 
+                          id="complemento" 
+                          placeholder="Apto, Sala, etc" 
+                          value={formData.complemento}
+                          onChange={(e) => setFormData({ ...formData, complemento: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="bairro">Bairro <span className="text-red-500">*</span></Label>
+                        <Input 
+                          id="bairro" 
+                          placeholder="Bairro" 
+                          value={formData.bairro}
+                          onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2 md:col-span-2">
+                        <Label htmlFor="municipio">Cidade <span className="text-red-500">*</span></Label>
+                        <Input 
+                          id="municipio" 
+                          placeholder="Cidade" 
+                          value={formData.municipio}
+                          onChange={(e) => setFormData({ ...formData, municipio: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="uf">UF <span className="text-red-500">*</span></Label>
+                        <Input 
+                          id="uf" 
+                          placeholder="SP" 
+                          value={formData.uf}
+                          maxLength={2}
+                          onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="fiscais" className="mt-0 space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        CNAEs (Atividades Econômicas)
+                      </div>
+                      <div className="border rounded-md divide-y overflow-hidden">
+                        {formData.cnaes && formData.cnaes.length > 0 ? (
+                          formData.cnaes.map((cnae, index) => (
+                            <div key={index} className="p-3 flex items-start gap-3 bg-white hover:bg-slate-50 transition-colors">
+                              <div className="mt-1">
+                                {cnae.main ? (
+                                  <Badge className="bg-blue-600 whitespace-nowrap">Principal</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-slate-500 whitespace-nowrap">Secundário</Badge>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-mono font-medium text-slate-700">{cnae.code}</div>
+                                <div className="text-sm text-slate-600 break-words">{cnae.text}</div>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-8 text-center text-slate-500 italic text-sm">
+                            Nenhum CNAE carregado. Digite o CNPJ para buscar as informações.
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className="grid gap-2 md:col-span-2">
-                      <Label htmlFor="logradouro">Logradouro <span className="text-red-500">*</span></Label>
-                      <Input 
-                        id="logradouro" 
-                        placeholder="Rua, Av, etc" 
-                        value={formData.logradouro}
-                        onChange={(e) => setFormData({ ...formData, logradouro: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="numero">Número <span className="text-red-500">*</span></Label>
-                      <Input 
-                        id="numero" 
-                        placeholder="Ex: 123" 
-                        value={formData.numero}
-                        onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="complemento">Complemento</Label>
-                      <Input 
-                        id="complemento" 
-                        placeholder="Apto, Sala, etc" 
-                        value={formData.complemento}
-                        onChange={(e) => setFormData({ ...formData, complemento: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="bairro">Bairro <span className="text-red-500">*</span></Label>
-                      <Input 
-                        id="bairro" 
-                        placeholder="Bairro" 
-                        value={formData.bairro}
-                        onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2 md:col-span-2">
-                      <Label htmlFor="municipio">Cidade <span className="text-red-500">*</span></Label>
-                      <Input 
-                        id="municipio" 
-                        placeholder="Cidade" 
-                        value={formData.municipio}
-                        onChange={(e) => setFormData({ ...formData, municipio: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="uf">UF <span className="text-red-500">*</span></Label>
-                      <Input 
-                        id="uf" 
-                        placeholder="SP" 
-                        value={formData.uf}
-                        maxLength={2}
-                        onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })}
-                      />
-                    </div>
-                  </div>
+                  </TabsContent>
                 </div>
-              </div>
-            </ScrollArea>
+              </ScrollArea>
+            </Tabs>
 
             <DialogFooter className="p-6 pt-2 bg-slate-50">
               <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>

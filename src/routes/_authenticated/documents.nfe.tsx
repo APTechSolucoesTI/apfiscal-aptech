@@ -41,6 +41,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 export const Route = createFileRoute("/_authenticated/documents/nfe")({
@@ -54,11 +56,25 @@ const mockDocs = [
     serie: "1",
     data: "2026-07-15",
     emitente: "Fornecedor de Software ABC",
+    emitente_cnpj: "12.345.678/0001-90",
+    destinatario: "Minha Empresa LTDA",
+    destinatario_cnpj: "98.765.432/0001-21",
     valor_num: 1250.00,
     valor: "R$ 1.250,00",
     manifesto: "Confirmada",
     status: "success",
-    chave: "35260712345678000190550010000004521000004521"
+    chave: "35260712345678000190550010000004521000004521",
+    base_icms: "R$ 1.250,00",
+    valor_icms: "R$ 225,00",
+    valor_ipi: "R$ 0,00",
+    valor_pis: "R$ 20,63",
+    valor_cofins: "R$ 95,00",
+    frete: "R$ 0,00",
+    seguro: "R$ 0,00",
+    desconto: "R$ 0,00",
+    itens: [
+      { id: 1, codigo: "001", descricao: "Licença de Software SaaS", ncm: "85234911", cfop: "5102", un: "UN", qtd: 1, valor_unit: 1250.00, valor_total: 1250.00 },
+    ]
   },
   {
     id: "2",
@@ -66,11 +82,26 @@ const mockDocs = [
     serie: "1",
     data: "2026-07-18",
     emitente: "Distribuidora de Papelaria XYZ",
+    emitente_cnpj: "45.678.901/0001-33",
+    destinatario: "Minha Empresa LTDA",
+    destinatario_cnpj: "98.765.432/0001-21",
     valor_num: 450.20,
     valor: "R$ 450,20",
     manifesto: "Pendente",
     status: "warning",
-    chave: "35260798765432000110550010000089011000089012"
+    chave: "35260798765432000110550010000089011000089012",
+    base_icms: "R$ 450,20",
+    valor_icms: "R$ 81,04",
+    valor_ipi: "R$ 12,50",
+    valor_pis: "R$ 7,43",
+    valor_cofins: "R$ 34,22",
+    frete: "R$ 15,00",
+    seguro: "R$ 0,00",
+    desconto: "R$ 5,00",
+    itens: [
+      { id: 1, codigo: "PAP-01", descricao: "Papel A4 500fls", ncm: "48025610", cfop: "5102", un: "PCT", qtd: 10, valor_unit: 35.00, valor_total: 350.00 },
+      { id: 2, codigo: "CAN-02", descricao: "Caneta Azul Luxo", ncm: "96081000", cfop: "5102", un: "UN", qtd: 5, valor_unit: 20.04, valor_total: 100.20 },
+    ]
   },
   {
     id: "3",
@@ -78,11 +109,25 @@ const mockDocs = [
     serie: "3",
     data: "2026-07-20",
     emitente: "Consultoria de TI Global",
+    emitente_cnpj: "77.888.999/0001-11",
+    destinatario: "Minha Empresa LTDA",
+    destinatario_cnpj: "98.765.432/0001-21",
     valor_num: 15000.00,
     valor: "R$ 15.000,00",
     manifesto: "Ciência",
     status: "info",
-    chave: "35260745678901000122550030000000221000000223"
+    chave: "35260745678901000122550030000000221000000223",
+    base_icms: "R$ 0,00",
+    valor_icms: "R$ 0,00",
+    valor_ipi: "R$ 0,00",
+    valor_pis: "R$ 247,50",
+    valor_cofins: "R$ 1140,00",
+    frete: "R$ 0,00",
+    seguro: "R$ 0,00",
+    desconto: "R$ 0,00",
+    itens: [
+      { id: 1, codigo: "SERV-01", descricao: "Consultoria em Segurança", ncm: "00000000", cfop: "5933", un: "HRS", qtd: 40, valor_unit: 375.00, valor_total: 15000.00 },
+    ]
   }
 ];
 
@@ -241,61 +286,184 @@ function NFeList() {
       </Card>
 
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Detalhes da NF-e</DialogTitle>
-            <DialogDescription>
-              Informações detalhadas do documento fiscal selecionado.
-            </DialogDescription>
+        <DialogContent className="sm:max-w-[850px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-0">
+            <div className="flex justify-between items-start">
+              <div>
+                <DialogTitle className="text-xl">Detalhes da NF-e nº {selectedDoc?.numero}</DialogTitle>
+                <DialogDescription>
+                  Chave: <span className="font-mono text-xs">{selectedDoc?.chave}</span>
+                </DialogDescription>
+              </div>
+              <Badge 
+                variant="outline" 
+                className={`
+                  ${selectedDoc?.status === 'success' ? 'bg-green-50 text-green-700 border-green-200' : ''}
+                  ${selectedDoc?.status === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' : ''}
+                  ${selectedDoc?.status === 'info' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
+                `}
+              >
+                {selectedDoc?.manifesto}
+              </Badge>
+            </div>
           </DialogHeader>
+
           {selectedDoc && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Número / Série</Label>
-                  <p className="font-medium">{selectedDoc.numero} / {selectedDoc.serie}</p>
+            <div className="flex-1 overflow-hidden flex flex-col mt-4">
+              <Tabs defaultValue="geral" className="w-full flex-1 flex flex-col">
+                <div className="px-6 border-b">
+                  <TabsList className="w-full justify-start h-12 bg-transparent gap-6 p-0">
+                    <TabsTrigger value="geral" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Dados Gerais</TabsTrigger>
+                    <TabsTrigger value="transporte" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Transporte</TabsTrigger>
+                    <TabsTrigger value="impostos" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Impostos</TabsTrigger>
+                    <TabsTrigger value="itens" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Itens da Nota</TabsTrigger>
+                  </TabsList>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Data de Emissão</Label>
-                  <p className="font-medium">{new Date(selectedDoc.data).toLocaleDateString('pt-BR')}</p>
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-slate-500">Emitente (Fornecedor)</Label>
-                  <p className="font-medium">{selectedDoc.emitente}</p>
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-slate-500">Chave de Acesso</Label>
-                  <p className="font-mono text-xs break-all bg-slate-50 p-2 rounded border">{selectedDoc.chave}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Valor Total</Label>
-                  <p className="font-bold text-blue-600">{selectedDoc.valor}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Status Manifestação</Label>
-                  <div>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      {selectedDoc.manifesto}
-                    </Badge>
+
+                <ScrollArea className="flex-1">
+                  <div className="p-6">
+                    <TabsContent value="geral" className="mt-0 space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <h4 className="font-semibold text-sm text-slate-900 uppercase tracking-wider">Emitente</h4>
+                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
+                            <div>
+                              <Label className="text-[10px] text-slate-500 uppercase">Razão Social</Label>
+                              <p className="text-sm font-medium">{selectedDoc.emitente}</p>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] text-slate-500 uppercase">CNPJ</Label>
+                              <p className="text-sm font-medium">{selectedDoc.emitente_cnpj}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <h4 className="font-semibold text-sm text-slate-900 uppercase tracking-wider">Destinatário</h4>
+                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
+                            <div>
+                              <Label className="text-[10px] text-slate-500 uppercase">Razão Social</Label>
+                              <p className="text-sm font-medium">{selectedDoc.destinatario}</p>
+                            </div>
+                            <div>
+                              <Label className="text-[10px] text-slate-500 uppercase">CNPJ</Label>
+                              <p className="text-sm font-medium">{selectedDoc.destinatario_cnpj}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <Label className="text-[10px] text-slate-500 uppercase">Data Emissão</Label>
+                          <p className="text-sm font-medium">{new Date(selectedDoc.data).toLocaleDateString('pt-BR')}</p>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-500 uppercase">Série</Label>
+                          <p className="text-sm font-medium">{selectedDoc.serie}</p>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-500 uppercase">Modelo</Label>
+                          <p className="text-sm font-medium">55 (NF-e)</p>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-500 uppercase">Valor Total</Label>
+                          <p className="text-sm font-bold text-blue-600">{selectedDoc.valor}</p>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="transporte" className="mt-0 space-y-4">
+                      <div className="bg-slate-50 p-8 rounded-lg border border-dashed border-slate-300 text-center">
+                        <p className="text-slate-500 text-sm">Informações de transportadora e volumes não informados no XML.</p>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="impostos" className="mt-0 space-y-6">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                        <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
+                          <Label className="text-[10px] text-blue-600 uppercase font-bold">Base de Cálculo ICMS</Label>
+                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.base_icms}</p>
+                        </div>
+                        <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
+                          <Label className="text-[10px] text-blue-600 uppercase font-bold">Valor ICMS</Label>
+                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_icms}</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
+                          <Label className="text-[10px] text-slate-500 uppercase font-bold">Valor IPI</Label>
+                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_ipi}</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
+                          <Label className="text-[10px] text-slate-500 uppercase font-bold">Valor PIS</Label>
+                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_pis}</p>
+                        </div>
+                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
+                          <Label className="text-[10px] text-slate-500 uppercase font-bold">Valor COFINS</Label>
+                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_cofins}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4 border-t pt-6">
+                        <div>
+                          <Label className="text-[10px] text-slate-500 uppercase tracking-tight">Vlr. Frete</Label>
+                          <p className="text-sm font-medium">{selectedDoc.frete}</p>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-500 uppercase tracking-tight">Vlr. Seguro</Label>
+                          <p className="text-sm font-medium">{selectedDoc.seguro}</p>
+                        </div>
+                        <div>
+                          <Label className="text-[10px] text-slate-500 uppercase tracking-tight">Vlr. Desconto</Label>
+                          <p className="text-sm font-medium text-red-600">{selectedDoc.desconto}</p>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="itens" className="mt-0">
+                      <div className="border rounded-md">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-slate-50/50">
+                              <TableHead className="text-[10px] uppercase font-bold">Cod.</TableHead>
+                              <TableHead className="text-[10px] uppercase font-bold">Descrição</TableHead>
+                              <TableHead className="text-[10px] uppercase font-bold">Qtd.</TableHead>
+                              <TableHead className="text-[10px] uppercase font-bold text-right">Unitário</TableHead>
+                              <TableHead className="text-[10px] uppercase font-bold text-right">Total</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedDoc.itens.map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell className="text-xs font-mono">{item.codigo}</TableCell>
+                                <TableCell className="text-xs">
+                                  <div className="font-medium">{item.descricao}</div>
+                                  <div className="text-[9px] text-slate-400">NCM: {item.ncm} | CFOP: {item.cfop}</div>
+                                </TableCell>
+                                <TableCell className="text-xs">{item.qtd} {item.un}</TableCell>
+                                <TableCell className="text-xs text-right">R$ {item.valor_unit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-xs text-right font-semibold">R$ {item.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </TabsContent>
                   </div>
-                </div>
-              </div>
-              <Separator />
-              <div className="p-4 bg-slate-50 rounded-lg border flex items-start gap-3">
-                <Info className="h-5 w-5 text-slate-400 mt-0.5" />
-                <div className="text-sm text-slate-600">
-                  O download do XML completo está disponível apenas para notas manifestadas com "Ciência" ou "Confirmação".
-                </div>
-              </div>
+                </ScrollArea>
+              </Tabs>
             </div>
           )}
-          <DialogFooter className="gap-2">
+
+          <DialogFooter className="p-6 pt-2 border-t bg-slate-50/30 gap-2">
             <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
-            <Button className="bg-blue-600">Baixar XML</Button>
+            <Button className="bg-blue-600 shadow-sm hover:bg-blue-700">
+              <Download className="mr-2 h-4 w-4" /> Baixar XML Completo
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useSearch, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,40 +6,47 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { LogIn } from "lucide-react";
+import { UserPlus, ArrowRight } from "lucide-react";
 
-export const Route = createFileRoute("/login")({
-  validateSearch: (search: Record<string, unknown>) => {
-    return {
-      redirect: (search.redirect as string) || "/dashboard",
-    };
-  },
-  component: Login,
+export const Route = createFileRoute("/register")({
+  component: Register,
 });
 
-function Login() {
+function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { redirect } = useSearch({ from: "/login" });
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // For demo purposes, we'll auto-confirm or just sign up
+      // Note: In a real app, this would trigger email verification unless configured otherwise
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
       });
 
       if (error) throw error;
 
-      toast.success("Login realizado com sucesso!");
-      navigate({ to: redirect });
+      if (data.session) {
+        toast.success("Conta criada com sucesso! Aproveite seus 7 dias grátis.");
+        navigate({ to: "/dashboard" });
+      } else {
+        toast.info("Cadastro realizado! Verifique seu e-mail para confirmar a conta.");
+        navigate({ to: "/login" });
+      }
     } catch (error: any) {
-      toast.error(error.message || "Erro ao realizar login");
+      toast.error(error.message || "Erro ao realizar cadastro");
     } finally {
       setLoading(false);
     }
@@ -54,15 +61,26 @@ function Login() {
               AP
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">Entrar no APFiscal</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight">Começar 7 Dias Grátis</CardTitle>
           <CardDescription>
-            Insira suas credenciais para acessar a plataforma
+            Crie sua conta agora e tenha acesso total por uma semana
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleRegister}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="fullName">Nome Completo</Label>
+              <Input 
+                id="fullName" 
+                placeholder="Seu nome" 
+                required 
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="bg-slate-50 border-slate-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail Corporativo</Label>
               <Input 
                 id="email" 
                 type="email" 
@@ -74,15 +92,11 @@ function Login() {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Senha</Label>
-                <button type="button" className="text-xs text-blue-600 hover:underline">
-                  Esqueceu a senha?
-                </button>
-              </div>
+              <Label htmlFor="password">Senha</Label>
               <Input 
                 id="password" 
                 type="password" 
+                placeholder="Mínimo 6 caracteres"
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -93,19 +107,19 @@ function Login() {
           <CardFooter className="flex flex-col space-y-4">
             <Button 
               type="submit" 
-              className="w-full bg-blue-600 hover:bg-blue-700 h-11" 
+              className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-white font-bold" 
               disabled={loading}
             >
-              {loading ? "Entrando..." : (
+              {loading ? "Criando conta..." : (
                 <>
-                  <LogIn className="mr-2 h-4 w-4" /> Acessar Sistema
+                  <UserPlus className="mr-2 h-4 w-4" /> Iniciar Teste Gratuito
                 </>
               )}
             </Button>
             <div className="text-center text-sm text-slate-500">
-              Não tem uma conta?{" "}
-              <Link to="/register" className="text-blue-600 font-medium hover:underline">
-                Criar conta gratuita
+              Já tem uma conta?{" "}
+              <Link to="/login" className="text-blue-600 font-medium hover:underline">
+                Fazer login
               </Link>
             </div>
           </CardFooter>

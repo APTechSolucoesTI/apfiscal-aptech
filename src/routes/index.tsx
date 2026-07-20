@@ -86,7 +86,7 @@ function Index() {
             <Link to="/login">Área do Cliente</Link>
           </Button>
           <Button asChild className="bg-blue-600 hover:bg-blue-700">
-            <Link to="/login">Começar Grátis</Link>
+            <Link to="/register">Começar Grátis</Link>
           </Button>
         </div>
       </nav>
@@ -104,7 +104,7 @@ function Index() {
         </p>
         <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
           <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8">
-            <Link to="/login">Criar Conta Gratuita</Link>
+            <Link to="/register">Criar Conta Gratuita</Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="text-lg px-8">
             <Link to="/login">Acessar Área do Cliente</Link>
@@ -166,7 +166,7 @@ function Index() {
                 </CardContent>
                 <CardFooter>
                   <Button asChild className={`w-full ${plan.popular ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-900 hover:bg-black'}`}>
-                    <Link to="/login">{plan.buttonText}</Link>
+                    <Link to={plan.price === "Sob consulta" ? "/login" : "/register"}>{plan.buttonText}</Link>
                   </Button>
                 </CardFooter>
               </Card>
@@ -182,7 +182,7 @@ function Index() {
           Junte-se a centenas de empresas que já eliminam erros manuais e multas com o APFiscal.
         </p>
         <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-blue-50 px-10">
-          <Link to="/login">Começar Agora</Link>
+          <Link to="/register">Começar Agora</Link>
         </Button>
       </section>
 

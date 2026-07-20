@@ -14,24 +14,102 @@ const mockNFe = {
     serie: "1",
     modelo: "55",
     natOp: "VENDA DE MERCADORIA",
+    tpNF: "1 - Saída",
+    finNFe: "1 - Normal",
     dataEmissao: "2026-07-20T10:00:00",
-    status: "Autorizada"
+    dataEntSaida: "2026-07-20T10:00:00",
+    protocolo: "135260000123456",
+    dataAutorizacao: "2026-07-20T10:05:00",
+    status: "Autorizada",
+    chave: "35260712345678000100550010000001231234567890"
   },
   emit: {
-    razao: "EMPRESA EXEMPLO LTDA",
-    cnpj: "12.345.678/0001-00"
+    razao: "APFISCAL TECNOLOGIA LTDA",
+    fantasia: "APFISCAL",
+    cnpj: "12.345.678/0001-00",
+    ie: "123.456.789.111",
+    im: "987654",
+    endereco: "Av. Paulista, 1000 - Bela Vista, São Paulo - SP, 01310-100",
+    fone: "(11) 3333-4444",
+    email: "contato@apfiscal.com.br",
+    regime: "3 - Regime Normal"
   },
   dest: {
-    razao: "CLIENTE EXEMPLO LTDA",
-    cnpj: "98.765.432/0001-99"
+    razao: "SOLUCOES EMPRESARIAIS S.A.",
+    fantasia: "SOLUCOES S.A.",
+    cnpj: "98.765.432/0001-99",
+    ie: "987.654.321.000",
+    endereco: "Rua do Comercio, 500 - Centro, Rio de Janeiro - RJ, 20000-000",
+    fone: "(21) 2222-3333",
+    email: "financeiro@solucoes.com.br",
+    indIEDest: "1 - Contribuinte ICMS",
+    indFinal: "0 - Não"
   },
   total: {
-    valorProdutos: 1000.00,
-    valorTotal: 1000.00
+    vProd: 1250.00,
+    vDesc: 50.00,
+    vFrete: 100.00,
+    vSeg: 0.00,
+    vOutro: 0.00,
+    vNF: 1300.00,
+    vTotTrib: 345.50,
+    vICMS: 225.00,
+    vBC: 1250.00,
+    vICMSST: 0.00,
+    vBCST: 0.00,
+    vIPI: 62.50,
+    vPIS: 20.31,
+    vCOFINS: 93.75,
+    vII: 0.00
   },
   items: [
-    { id: "1", cod: "P001", desc: "Produto Exemplo A", qtd: 10, valorUnit: 100.00, total: 1000.00 }
-  ]
+    { 
+      id: "1", 
+      cod: "PROD-001", 
+      desc: "SERVIDOR DELL POWEREDGE R750", 
+      ncm: "84715010", 
+      cfop: "5102", 
+      unidade: "UN", 
+      qtd: 1, 
+      valorUnit: 1250.00, 
+      total: 1250.00,
+      desconto: 50.00,
+      impostos: {
+        icms: { cst: "00", origem: "0", modalidadeBc: "3", valorBc: 1200.00, aliquota: 18, valor: 216.00 },
+        pis: { cst: "01", valorBc: 1200.00, aliquota: 1.65, valor: 19.80 },
+        cofins: { cst: "01", valorBc: 1200.00, aliquota: 7.6, valor: 91.20 },
+        ipi: { cst: "50", valorBc: 1200.00, aliquota: 5, valor: 60.00 }
+      },
+      infAdProd: "Garantia estendida de 3 anos inclusa."
+    }
+  ],
+  transp: {
+    modFrete: "0 - Por conta do Emitente",
+    transportadora: {
+      razao: "LOGISTICA RAPIDA LTDA",
+      cnpj: "11.222.333/0001-44",
+      ie: "444.555.666.777",
+      endereco: "Rodovia Anhanguera, KM 15 - Jundiaí/SP"
+    },
+    veiculo: { placa: "ABC-1234", uf: "SP", rntc: "12345678" },
+    volumes: { qtd: 1, especie: "CAIXA", marca: "DELL", pesoL: 25.500, pesoB: 28.000 }
+  },
+  cobr: {
+    fat: { nFat: "123", vOrig: 1300.00, vDesc: 0.00, vLiq: 1300.00 },
+    dupl: [
+      { nDup: "001", dVenc: "2026-08-20", vDup: 650.00 },
+      { nDup: "002", dVenc: "2026-09-20", vDup: 650.00 }
+    ]
+  },
+  infAdic: {
+    infCpl: "VALOR APROXIMADO DOS TRIBUTOS R$ 345,50 (26,58%) FONTE: IBPT. PAGAMENTO VIA BOLETO BANCARIO.",
+    infAdFisco: "MERCADORIA DESTINADA A REVENDA."
+  },
+  eventos: [
+    { tipo: "Emissão", data: "2026-07-20 10:00:00", desc: "NF-e emitida pelo contribuinte" },
+    { tipo: "Autorização", data: "2026-07-20 10:05:00", desc: "NF-e autorizada pelo SEFAZ (Protocolo: 135260000123456)" }
+  ],
+  xml: "<?xml version=\"1.0\" encoding=\"UTF-8\"?><nfeProc xmlns=\"http://www.portalfiscal.inf.br/nfe\" versao=\"4.00\"><NFe><infNFe Id=\"NFe35260712345678000100550010000001231234567890\" versao=\"4.00\"><ide>...</ide><emit>...</emit><dest>...</dest><det>...</det><total>...</total><transp>...</transp></infNFe></NFe></nfeProc>"
 };
 
 export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {

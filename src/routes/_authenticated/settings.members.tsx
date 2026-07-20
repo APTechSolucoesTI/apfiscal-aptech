@@ -15,7 +15,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Mail, MoreHorizontal } from "lucide-react";
+import { UserPlus, Mail, MoreHorizontal, ArrowUpDown, Eye, Info } from "lucide-react";
+import { useSortableData } from "@/hooks/use-sortable-data";
+import { Separator } from "@/components/ui/separator";
+
 import {
   Dialog,
   DialogContent,
@@ -45,7 +48,11 @@ const mockMembers = [
 ];
 
 function Members() {
+  const { items: sortedMembers, requestSort, sortConfig } = useSortableData(mockMembers);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<typeof mockMembers[0] | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
 
   return (
     <div className="space-y-6">
@@ -98,15 +105,37 @@ function Members() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="hover:bg-transparent border-slate-100">
-                <TableHead className="text-slate-500 font-semibold pl-6">Nome</TableHead>
-                <TableHead className="text-slate-500 font-semibold">E-mail</TableHead>
-                <TableHead className="text-slate-500 font-semibold">Papel</TableHead>
+              <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50/50">
+                <TableHead 
+                  className="text-slate-500 font-semibold pl-6 cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Nome <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('email')}
+                >
+                  <div className="flex items-center gap-1">
+                    E-mail <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('role')}
+                >
+                  <div className="flex items-center gap-1">
+                    Papel <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
                 <TableHead className="text-right text-slate-500 font-semibold pr-6">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockMembers.map((member) => (
+              {sortedMembers.map((member) => (
+
                 <TableRow key={member.id} className="border-slate-100 hover:bg-slate-50 transition-colors">
                   <TableCell className="font-medium text-slate-900 pl-6">{member.name}</TableCell>
                   <TableCell className="text-slate-600">{member.email}</TableCell>
@@ -116,16 +145,78 @@ function Members() {
                     </span>
                   </TableCell>
                   <TableCell className="text-right pr-6">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                        onClick={() => {
+                          setSelectedMember(member);
+                          setIsDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
+
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Membro</DialogTitle>
+            <DialogDescription>
+              Informações do usuário na organização.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedMember && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Nome Completo</Label>
+                  <p className="font-medium text-slate-900">{selectedMember.name}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Endereço de E-mail</Label>
+                  <p className="font-medium text-slate-900 flex items-center gap-2">
+                    <Mail className="h-3 w-3 text-slate-400" />
+                    {selectedMember.email}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Papel / Acesso</Label>
+                  <div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {selectedMember.role}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <div className="p-3 bg-slate-50 rounded border flex items-start gap-3">
+                <Info className="h-4 w-4 text-slate-400 mt-0.5" />
+                <p className="text-xs text-slate-600">
+                  Alterações de papel ou remoção de membros devem ser feitas por um Administrador.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
+            <Button className="bg-red-50 text-red-600 hover:bg-red-100 border-red-100 border">Remover Membro</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

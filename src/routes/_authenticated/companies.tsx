@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { 
   Table, 
   TableBody, 
@@ -26,9 +26,12 @@ import {
   Loader2,
   MapPin,
   Building,
-  Info
+  Info,
+  ArrowUpDown,
+  Eye
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+
 import {
   Dialog,
   DialogContent,
@@ -58,6 +61,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { useSortableData } from "@/hooks/use-sortable-data";
 
 
 export const Route = createFileRoute("/_authenticated/companies")({
@@ -71,7 +75,11 @@ const mockCompanies = [
 ];
 
 function Companies() {
+  const { items: sortedCompanies, requestSort, sortConfig } = useSortableData(mockCompanies);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState<typeof mockCompanies[0] | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+
   const [cnpj, setCnpj] = useState("");
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
   const [isLoadingCep, setIsLoadingCep] = useState(false);
@@ -425,16 +433,45 @@ function Companies() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-slate-100">
-                <TableHead className="text-slate-500 font-semibold">Empresa</TableHead>
-                <TableHead className="text-slate-500 font-semibold">CNPJ</TableHead>
-                <TableHead className="text-slate-500 font-semibold">UF</TableHead>
+                <TableHead 
+                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('nome_fantasia')}
+                >
+                  <div className="flex items-center gap-1">
+                    Empresa <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('cnpj')}
+                >
+                  <div className="flex items-center gap-1">
+                    CNPJ <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('uf')}
+                >
+                  <div className="flex items-center gap-1">
+                    UF <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
                 <TableHead className="text-slate-500 font-semibold">Certificado Digital</TableHead>
-                <TableHead className="text-slate-500 font-semibold">Expiração</TableHead>
+                <TableHead 
+                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
+                  onClick={() => requestSort('expira_em')}
+                >
+                  <div className="flex items-center gap-1">
+                    Expiração <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
                 <TableHead className="text-right text-slate-500 font-semibold">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockCompanies.map((company) => (
+              {sortedCompanies.map((company) => (
+
                 <TableRow key={company.id} className="border-slate-100 hover:bg-slate-50 transition-colors">
                   <TableCell>
                     <div>
@@ -464,9 +501,23 @@ function Companies() {
                     {new Date(company.expira_em).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                        onClick={() => {
+                          setSelectedCompany(company);
+                          setIsDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </div>
+
                   </TableCell>
                 </TableRow>
               ))}
@@ -474,6 +525,62 @@ function Companies() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Empresa</DialogTitle>
+            <DialogDescription>
+              Informações completas do cadastro selecionado.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCompany && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Razão Social</Label>
+                  <p className="font-medium">{selectedCompany.razao_social}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Nome Fantasia</Label>
+                  <p className="font-medium">{selectedCompany.nome_fantasia || "-"}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">CNPJ</Label>
+                  <p className="font-mono">{selectedCompany.cnpj}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">UF</Label>
+                  <p className="font-medium">{selectedCompany.uf}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Status Certificado</Label>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={selectedCompany.status === 'active' ? 'secondary' : 'destructive'} className="bg-green-100 text-green-700">
+                      {selectedCompany.certificado}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-slate-500">Data de Expiração</Label>
+                  <p className="font-medium">{new Date(selectedCompany.expira_em).toLocaleDateString('pt-BR')}</p>
+                </div>
+              </div>
+              <Separator />
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-start gap-3">
+                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div className="text-sm text-blue-700">
+                  Para editar estas informações, utilize o módulo de configurações ou entre em contato com o suporte.
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

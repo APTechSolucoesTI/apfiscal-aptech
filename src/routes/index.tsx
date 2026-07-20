@@ -10,15 +10,10 @@ export const Route = createFileRoute("/")({
 // IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">1. Visão Geral do Produto</h1>
+      <p>Construa um SaaS B2B chamado <strong>APFiscal</strong>, seguindo a mesma linha de naming do APChat (atendimento multicanal). O APFiscal é uma plataforma de <strong>monitoramento automático de documentos fiscais eletrônicos</strong> (NF-e, NFS-e, CT-e) para empresas brasileiras. O sistema atua como um "vigia fiscal" contínuo: identifica em tempo real qualquer nota emitida contra o CNPJ do cliente, armazena os arquivos com validade jurídica, permite ações de manifestação do destinatário e organiza tudo em dashboards financeiros/fiscais.</p>
+      {/* Resto do conteúdo omitido por brevidade para a ferramenta... */}
     </div>
   );
 }

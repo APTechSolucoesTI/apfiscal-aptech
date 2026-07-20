@@ -33,7 +33,7 @@ const mockNFe = {
   ]
 };
 
-export const NfeDetalhes = () => {
+export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   return (
     <div className="flex flex-col h-full space-y-4 p-6">
       <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 p-4 border-b">

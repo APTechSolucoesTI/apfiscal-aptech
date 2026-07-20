@@ -37,10 +37,12 @@ function Index() {
               </p>
 
               <div className="mt-6">
-                <h3 className="text-lg font-semibold">Stack esperada:</h3>
-                <ul className="list-disc pl-5 mt-2 space-y-1">
+                <h3 className="text-lg font-semibold text-slate-800">Stack esperada (padrão Lovable):</h3>
+                <ul className="list-disc pl-5 mt-2 space-y-1 text-slate-600">
                   <li>Frontend: React + TypeScript + Tailwind + shadcn/ui</li>
-                  <li>Backend: Lovable Cloud (Postgres + Auth + Storage + Server Functions)</li>
+                  <li>Backend: Supabase (Postgres + Auth + Storage + Edge Functions + Row Level Security)</li>
+                  <li>Autenticação: Supabase Auth (email/senha + convite de equipe)</li>
+                  <li>Armazenamento de arquivos: Supabase Storage (buckets separados por CNPJ/tenant)</li>
                 </ul>
               </div>
 
@@ -65,25 +67,25 @@ function Index() {
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.1</Badge> Multi-tenant / Multi-CNPJ
                   </h3>
-                  <p className="text-sm text-slate-600">Gestão de múltiplos CNPJs (filiais ou clientes) com permissões granulares por usuário.</p>
+                  <p className="text-sm text-slate-600">Gestão de múltiplos CNPJs com permissões granulares e papéis de usuário (Admin, Financeiro, Visualizador).</p>
                 </div>
                 <div>
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.2</Badge> Gestão de Certificados
                   </h3>
-                  <p className="text-sm text-slate-600">Cadastro de certificados A1 (.pfx) com alertas de expiração e armazenamento seguro.</p>
+                  <p className="text-sm text-slate-600">Cadastro de certificados A1 (.pfx) com criptografia segura e alertas de expiração.</p>
                 </div>
                 <div>
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.3</Badge> Captura e Listagem
                   </h3>
-                  <p className="text-sm text-slate-600">Tabela unificada de NF-e, NFS-e e CT-e com filtros avançados e exportação.</p>
+                  <p className="text-sm text-slate-600">Tabela unificada de NF-e, NFS-e e CT-e com filtros avançados e exportação CSV/Excel.</p>
                 </div>
                 <div>
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.4</Badge> Manifesto do Destinatário
                   </h3>
-                  <p className="text-sm text-slate-600">Ações de Ciência, Confirmação, Desconhecimento e Operação não Realizada.</p>
+                  <p className="text-sm text-slate-600">Ações de Ciência, Confirmação, Desconhecimento e Operação não Realizada com histórico.</p>
                 </div>
               </div>
 
@@ -92,33 +94,49 @@ function Index() {
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.5</Badge> Guarda Legal (XML/PDF)
                   </h3>
-                  <p className="text-sm text-slate-600">Armazenamento imutável por 5 anos com download individual ou em lote.</p>
+                  <p className="text-sm text-slate-600">Armazenamento imutável por 5 anos com trilha de auditoria de acessos.</p>
                 </div>
                 <div>
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.6</Badge> Alertas e Notificações
                   </h3>
-                  <p className="text-sm text-slate-600">Central de notificações in-app, e-mail e webhooks para eventos fiscais.</p>
+                  <p className="text-sm text-slate-600">Gatilhos configuráveis por e-mail, webhook e push para eventos críticos.</p>
                 </div>
                 <div>
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.7</Badge> Prevenção contra Fraude
                   </h3>
-                  <p className="text-sm text-slate-600">Regras de risco configuráveis e fila de revisão para notas suspeitas.</p>
+                  <p className="text-sm text-slate-600">Regras de risco para identificar fornecedores suspeitos ou valores anômalos.</p>
                 </div>
                 <div>
                   <h3 className="font-bold flex items-center gap-2">
                     <Badge variant="outline">2.8</Badge> Dashboards e Relatórios
                   </h3>
-                  <p className="text-sm text-slate-600">Visão financeira total, ranking de fornecedores e relatórios de fechamento mensal.</p>
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.9</Badge> API e Integrações
-                  </h3>
-                  <p className="text-sm text-slate-600">API Keys para desenvolvedores e webhooks outbound para ERPs.</p>
+                  <p className="text-sm text-slate-600">Visão financeira total e relatórios de fechamento fiscal mensal.</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>3. Modelo de Dados (Schema)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="bg-slate-900 text-slate-100 p-4 rounded-md text-xs overflow-x-auto">
+{`organizations (id, name, plan, created_at)
+organization_members (id, organization_id, user_id, role, created_at)
+companies (id, organization_id, cnpj, razao_social, nome_fantasia, uf, regime_tributario, created_at)
+company_access (id, company_id, user_id)
+digital_certificates (id, company_id, type, file_path, expires_at, status, created_at)
+fiscal_documents (id, company_id, tipo, chave_acesso, numero, serie, ...)
+manifestations (id, fiscal_document_id, tipo, usuario_id, created_at)
+notifications (id, organization_id, company_id, type, channel, payload, ...)
+api_keys (id, organization_id, key_hash, created_at, last_used_at)`}
+              </pre>
+              <p className="mt-4 text-sm text-slate-600 italic">
+                * Aplicar Row Level Security (RLS) em todas as tabelas para garantir o isolamento entre organizações.
+              </p>
             </CardContent>
           </Card>
         </section>

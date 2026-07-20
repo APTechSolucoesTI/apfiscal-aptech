@@ -101,6 +101,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           </Card>
         </TabsContent>
       </Tabs>
+      <NfeItemDrawer item={selectedItem} open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)} />
     </div>
   );
 };

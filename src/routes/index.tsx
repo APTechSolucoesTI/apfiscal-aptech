@@ -1,7 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { ArrowRight, LayoutDashboard } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -16,6 +18,18 @@ function Index() {
           <p className="mt-4 text-lg text-slate-600">
             Plataforma de monitoramento automático de documentos fiscais eletrônicos
           </p>
+          <div className="mt-8 flex justify-center gap-4">
+            <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
+              <Link to="/dashboard">
+                <LayoutDashboard className="mr-2 h-5 w-5" /> Acessar Dashboard
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link to="/login">
+                Fazer Login <ArrowRight className="ml-2 h-5 w-5" />
+              </Link>
+            </Button>
+          </div>
         </header>
 
         <section className="space-y-6">

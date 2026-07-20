@@ -147,48 +147,317 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
         </div>
       </div>
 
-      <Tabs defaultValue="resumo" className="flex-1">
-        <TabsList>
-          <TabsTrigger value="resumo">Resumo</TabsTrigger>
-          <TabsTrigger value="items">Itens</TabsTrigger>
-          <TabsTrigger value="impostos">Impostos</TabsTrigger>
-          <TabsTrigger value="transporte">Transporte</TabsTrigger>
+      <Tabs defaultValue="resumo" className="flex-1 overflow-hidden flex flex-col">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 mb-4">
+          <TabsTrigger value="resumo" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">Resumo</TabsTrigger>
+          <TabsTrigger value="items" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">Itens</TabsTrigger>
+          <TabsTrigger value="impostos" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">Impostos</TabsTrigger>
+          <TabsTrigger value="transporte" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">Transporte</TabsTrigger>
+          <TabsTrigger value="cobranca" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">Cobrança</TabsTrigger>
+          <TabsTrigger value="adicionais" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">Adicionais</TabsTrigger>
+          <TabsTrigger value="historico" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">Histórico</TabsTrigger>
+          <TabsTrigger value="xml" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-3 px-4">XML</TabsTrigger>
         </TabsList>
-        <TabsContent value="resumo" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Dados Gerais</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
-              <div><p className="text-sm text-muted-foreground">Natureza</p><p>{mockNFe.ide.natOp}</p></div>
-              <div><p className="text-sm text-muted-foreground">Emissão</p><p>{new Date(mockNFe.ide.dataEmissao).toLocaleDateString()}</p></div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="items">
-          <Card>
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="p-4 text-left">Código</th>
-                    <th className="p-4 text-left">Descrição</th>
-                    <th className="p-4 text-right">Qtd</th>
-                    <th className="p-4 text-right">Valor</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mockNFe.items.map(item => (
-                    <tr key={item.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => setSelectedItem(item)}>
-                      <td className="p-4">{item.cod}</td>
-                      <td className="p-4">{item.desc}</td>
-                      <td className="p-4 text-right">{item.qtd}</td>
-                      <td className="p-4 text-right">R$ {item.total.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
+        <ScrollArea className="flex-1">
+          <div className="space-y-6 pb-10">
+            {/* Tab: Resumo */}
+            <TabsContent value="resumo" className="m-0 space-y-6">
+              {/* Totais Highlights */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="bg-primary/5 border-primary/20">
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Valor Total da Nota</p>
+                    <p className="text-2xl font-bold text-primary">R$ {mockNFe.total.vNF.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Produtos</p>
+                    <p className="text-2xl font-bold">R$ {mockNFe.total.vProd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Descontos</p>
+                    <p className="text-2xl font-bold text-destructive">R$ {mockNFe.total.vDesc.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground uppercase font-semibold">Tributos (Aprox.)</p>
+                    <p className="text-2xl font-bold text-amber-600">R$ {mockNFe.total.vTotTrib.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Identificação */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center gap-2 py-4">
+                    <Info className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-lg">Dados de Identificação</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-y-4 text-sm">
+                    <div><p className="text-muted-foreground">Natureza da Operação</p><p className="font-medium">{mockNFe.ide.natOp}</p></div>
+                    <div><p className="text-muted-foreground">Tipo de Operação</p><p className="font-medium">{mockNFe.ide.tpNF}</p></div>
+                    <div><p className="text-muted-foreground">Finalidade</p><p className="font-medium">{mockNFe.ide.finNFe}</p></div>
+                    <div><p className="text-muted-foreground">Protocolo</p><p className="font-medium">{mockNFe.ide.protocolo}</p></div>
+                    <div><p className="text-muted-foreground">Data Emissão</p><p className="font-medium">{new Date(mockNFe.ide.dataEmissao).toLocaleString('pt-BR')}</p></div>
+                    <div><p className="text-muted-foreground">Data Autorização</p><p className="font-medium">{new Date(mockNFe.ide.dataAutorizacao).toLocaleString('pt-BR')}</p></div>
+                  </CardContent>
+                </Card>
+
+                {/* Emitente */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center gap-2 py-4">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-lg">Emitente</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex justify-between font-bold"><span>{mockNFe.emit.razao}</span> <span>{mockNFe.emit.cnpj}</span></div>
+                    <p className="text-muted-foreground">{mockNFe.emit.endereco}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <p><span className="text-muted-foreground">IE:</span> {mockNFe.emit.ie}</p>
+                      <p><span className="text-muted-foreground">IM:</span> {mockNFe.emit.im}</p>
+                    </div>
+                    <p className="text-xs bg-muted p-1 inline-block rounded">{mockNFe.emit.regime}</p>
+                  </CardContent>
+                </Card>
+
+                {/* Destinatário */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center gap-2 py-4">
+                    <User className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-lg">Destinatário</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex justify-between font-bold"><span>{mockNFe.dest.razao}</span> <span>{mockNFe.dest.cnpj}</span></div>
+                    <p className="text-muted-foreground">{mockNFe.dest.endereco}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <p><span className="text-muted-foreground">IE:</span> {mockNFe.dest.ie}</p>
+                      <p><span className="text-muted-foreground">Fone:</span> {mockNFe.dest.fone}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Tab: Itens */}
+            <TabsContent value="items" className="m-0">
+              <Card>
+                <CardContent className="p-0">
+                  <div className="relative overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-muted text-xs uppercase text-muted-foreground">
+                        <tr>
+                          <th className="px-4 py-3">Código</th>
+                          <th className="px-4 py-3">Descrição</th>
+                          <th className="px-4 py-3">NCM</th>
+                          <th className="px-4 py-3">CFOP</th>
+                          <th className="px-4 py-3">UN</th>
+                          <th className="px-4 py-3 text-right">Qtd</th>
+                          <th className="px-4 py-3 text-right">Unitário</th>
+                          <th className="px-4 py-3 text-right">Total</th>
+                          <th className="px-4 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mockNFe.items.map((item) => (
+                          <tr key={item.id} className="border-b hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setSelectedItem(item)}>
+                            <td className="px-4 py-4 font-mono text-xs">{item.cod}</td>
+                            <td className="px-4 py-4 font-medium">{item.desc}</td>
+                            <td className="px-4 py-4">{item.ncm}</td>
+                            <td className="px-4 py-4">{item.cfop}</td>
+                            <td className="px-4 py-4">{item.unidade}</td>
+                            <td className="px-4 py-4 text-right">{item.qtd}</td>
+                            <td className="px-4 py-4 text-right">R$ {item.valorUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-4 text-right font-bold">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-4"><ChevronRight className="h-4 w-4 text-muted-foreground" /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab: Impostos */}
+            <TabsContent value="impostos" className="m-0 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">ICMS</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="flex justify-between items-end">
+                      <div><p className="text-xs text-muted-foreground">BC ICMS</p><p className="font-bold">R$ {mockNFe.total.vBC.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
+                      <div className="text-right"><p className="text-xs text-muted-foreground">Valor ICMS</p><p className="text-xl font-bold text-primary">R$ {mockNFe.total.vICMS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">IPI</CardTitle></CardHeader>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">Valor IPI</p>
+                    <p className="text-xl font-bold text-primary">R$ {mockNFe.total.vIPI.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">PIS / COFINS</CardTitle></CardHeader>
+                  <CardContent className="flex justify-between">
+                    <div><p className="text-xs text-muted-foreground">PIS</p><p className="font-bold">R$ {mockNFe.total.vPIS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
+                    <div className="text-right"><p className="text-xs text-muted-foreground">COFINS</p><p className="font-bold">R$ {mockNFe.total.vCOFINS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Tab: Transporte */}
+            <TabsContent value="transporte" className="m-0 space-y-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center gap-2">
+                  <Truck className="h-4 w-4 text-primary" />
+                  <CardTitle>Dados do Transporte</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Modalidade e Transportadora</h4>
+                      <div className="space-y-2 text-sm">
+                        <p><span className="text-muted-foreground">Frete:</span> {mockNFe.transp.modFrete}</p>
+                        <p className="font-bold">{mockNFe.transp.transportadora.razao}</p>
+                        <p>{mockNFe.transp.transportadora.cnpj} | {mockNFe.transp.transportadora.ie}</p>
+                        <p className="text-muted-foreground text-xs">{mockNFe.transp.transportadora.endereco}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3">Veículo e Volumes</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div><p className="text-muted-foreground">Placa / UF</p><p className="font-medium">{mockNFe.transp.veiculo.placa} / {mockNFe.transp.veiculo.uf}</p></div>
+                        <div><p className="text-muted-foreground">Volumes</p><p className="font-medium">{mockNFe.transp.volumes.qtd} {mockNFe.transp.volumes.especie}</p></div>
+                        <div><p className="text-muted-foreground">Peso Líquido</p><p className="font-medium">{mockNFe.transp.volumes.pesoL.toFixed(3)} Kg</p></div>
+                        <div><p className="text-muted-foreground">Peso Bruto</p><p className="font-medium">{mockNFe.transp.volumes.pesoB.toFixed(3)} Kg</p></div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab: Cobrança */}
+            <TabsContent value="cobranca" className="m-0 space-y-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-primary" />
+                  <CardTitle>Faturas e Duplicatas</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="bg-muted/50 p-4 rounded-lg grid grid-cols-3 gap-4 text-sm">
+                    <div><p className="text-muted-foreground">Número Fatura</p><p className="font-bold">{mockNFe.cobr.fat.nFat}</p></div>
+                    <div><p className="text-muted-foreground">Valor Original</p><p className="font-bold">R$ {mockNFe.cobr.fat.vOrig.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
+                    <div><p className="text-muted-foreground">Valor Líquido</p><p className="font-bold text-primary text-lg">R$ {mockNFe.cobr.fat.vLiq.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-2 text-left">Parcela</th>
+                        <th className="px-4 py-2 text-left">Vencimento</th>
+                        <th className="px-4 py-2 text-right">Valor</th>
+                        <th className="px-4 py-2 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mockNFe.cobr.dupl.map((dupl, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="px-4 py-3">{dupl.nDup}</td>
+                          <td className="px-4 py-3 font-medium">{new Date(dupl.dVenc).toLocaleDateString('pt-BR')}</td>
+                          <td className="px-4 py-3 text-right font-bold">R$ {dupl.vDup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-3 text-right">
+                            <Badge variant="outline" className={idx === 0 ? "text-amber-600 bg-amber-50" : "text-green-600 bg-green-50"}>
+                              {idx === 0 ? "A vencer" : "A vencer"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab: Adicionais */}
+            <TabsContent value="adicionais" className="m-0 space-y-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center gap-2">
+                  <Info className="h-4 w-4 text-primary" />
+                  <CardTitle>Informações Adicionais</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-2">Interesse do Contribuinte</h4>
+                    <p className="text-sm bg-muted p-4 rounded-md italic text-muted-foreground leading-relaxed">
+                      {mockNFe.infAdic.infCpl}
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-muted-foreground mb-2">Interesse do Fisco</h4>
+                    <p className="text-sm bg-muted p-4 rounded-md italic text-muted-foreground leading-relaxed">
+                      {mockNFe.infAdic.infAdFisco}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab: Histórico */}
+            <TabsContent value="historico" className="m-0 space-y-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  <CardTitle>Eventos da NF-e</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-muted before:to-transparent">
+                    {mockNFe.eventos.map((evento, idx) => (
+                      <div key={idx} className="relative flex items-center justify-between md:justify-start md:odd:flex-row-reverse group is-active">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-primary text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                          <Clock className="h-5 w-5" />
+                        </div>
+                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded border border-muted bg-white shadow-sm">
+                          <div className="flex items-center justify-between space-x-2 mb-1">
+                            <div className="font-bold text-slate-900">{evento.tipo}</div>
+                            <time className="font-mono text-xs font-medium text-primary">{evento.data}</time>
+                          </div>
+                          <div className="text-sm text-slate-500">{evento.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Tab: XML */}
+            <TabsContent value="xml" className="m-0">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Code className="h-4 w-4 text-primary" />
+                    <CardTitle>Visualizador XML</CardTitle>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(mockNFe.xml)}>
+                    <Copy className="h-4 w-4 mr-2" /> Copiar XML
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-slate-950 p-6 rounded-lg font-mono text-xs text-blue-300 overflow-x-auto">
+                    <pre>{mockNFe.xml.replace(/></g, '>\n<')}</pre>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </div>
+        </ScrollArea>
       </Tabs>
       <NfeItemDrawer item={selectedItem} open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)} />
     </div>

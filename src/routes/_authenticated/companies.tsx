@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { 
   Table, 
   TableBody, 
@@ -26,9 +26,12 @@ import {
   Loader2,
   MapPin,
   Building,
-  Info
+  Info,
+  ArrowUpDown,
+  Eye
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+
 import {
   Dialog,
   DialogContent,

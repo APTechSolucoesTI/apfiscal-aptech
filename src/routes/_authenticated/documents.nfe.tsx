@@ -54,6 +54,7 @@ const mockDocs = [
     serie: "1",
     data: "2026-07-15",
     emitente: "Fornecedor de Software ABC",
+    valor_num: 1250.00,
     valor: "R$ 1.250,00",
     manifesto: "Confirmada",
     status: "success",
@@ -65,6 +66,7 @@ const mockDocs = [
     serie: "1",
     data: "2026-07-18",
     emitente: "Distribuidora de Papelaria XYZ",
+    valor_num: 450.20,
     valor: "R$ 450,20",
     manifesto: "Pendente",
     status: "warning",
@@ -76,12 +78,14 @@ const mockDocs = [
     serie: "3",
     data: "2026-07-20",
     emitente: "Consultoria de TI Global",
+    valor_num: 15000.00,
     valor: "R$ 15.000,00",
     manifesto: "Ciência",
     status: "info",
     chave: "35260745678901000122550030000000221000000223"
   }
 ];
+
 
 function NFeList() {
   const { items: sortedDocs, requestSort, sortConfig } = useSortableData(mockDocs);
@@ -158,10 +162,11 @@ function NFeList() {
                     Fornecedor <ArrowUpDown className="h-3 w-3" />
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('valor')}
-                >
+                  <TableHead 
+                    className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
+                    onClick={() => requestSort('valor_num')}
+                  >
+
                   <div className="flex items-center gap-1">
                     Valor <ArrowUpDown className="h-3 w-3" />
                   </div>

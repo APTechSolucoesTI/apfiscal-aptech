@@ -20,8 +20,14 @@ const CompanySchema = z.object({
   situacao: z.string().optional(),
   atividades_economicas: z.array(z.object({
     code: z.string(),
+    text: z.string(),
+    main: z.boolean().optional()
+  })).optional(),
+  atividades_secundarias: z.array(z.object({
+    code: z.string(),
     text: z.string()
   })).optional(),
+  responsavel: z.string().optional(),
   inscricao_estadual: z.string().optional(),
   inscricao_municipal: z.string().optional(),
 });
@@ -73,8 +79,18 @@ export const fetchCompanyByCnpj = createServerFn({ method: "GET" })
         telefone: result.ddd_telefone_1 || "",
         situacao: result.descricao_situacao_cadastral,
         atividades_economicas: [
-          { code: result.cnae_fiscal?.toString() || "", text: result.cnae_fiscal_descricao || "" }
+          { 
+            code: result.cnae_fiscal?.toString() || "", 
+            text: result.cnae_fiscal_descricao || "",
+            main: true
+          },
+          ...(result.cnaes_secundarios || []).map((c: any) => ({
+            code: c.codigo?.toString() || "",
+            text: c.descricao || "",
+            main: false
+          }))
         ],
+        responsavel: result.qsa?.[0]?.nome || "",
         inscricao_estadual: "ISENTO",
         inscricao_municipal: "A consultar",
       });

@@ -93,7 +93,7 @@ function Index() {
 
       {/* Hero Section */}
       <section className="px-6 py-20 lg:py-32 bg-gradient-to-b from-blue-50 to-white text-center">
-        <Badge className="mb-4 px-3 py-1 bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">
+        <Badge className="mb-4 px-3 py-1 bg-accent text-accent-foreground hover:bg-accent border-none">
           Compliance Fiscal Inteligente
         </Badge>
         <h1 className="text-4xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">

@@ -132,7 +132,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                 className="h-6 w-6" 
                 onClick={() => {
                   navigator.clipboard.writeText(mockNFe.ide.chave);
-                  // toast? sonner is available
+                  toast.success("Chave de acesso copiada!");
                 }}
               >
                 <Copy className="h-3.5 w-3.5"/>

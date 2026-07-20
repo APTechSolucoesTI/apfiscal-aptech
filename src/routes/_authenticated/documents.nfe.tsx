@@ -56,11 +56,25 @@ const mockDocs = [
     serie: "1",
     data: "2026-07-15",
     emitente: "Fornecedor de Software ABC",
+    emitente_cnpj: "12.345.678/0001-90",
+    destinatario: "Minha Empresa LTDA",
+    destinatario_cnpj: "98.765.432/0001-21",
     valor_num: 1250.00,
     valor: "R$ 1.250,00",
     manifesto: "Confirmada",
     status: "success",
-    chave: "35260712345678000190550010000004521000004521"
+    chave: "35260712345678000190550010000004521000004521",
+    base_icms: "R$ 1.250,00",
+    valor_icms: "R$ 225,00",
+    valor_ipi: "R$ 0,00",
+    valor_pis: "R$ 20,63",
+    valor_cofins: "R$ 95,00",
+    frete: "R$ 0,00",
+    seguro: "R$ 0,00",
+    desconto: "R$ 0,00",
+    itens: [
+      { id: 1, codigo: "001", descricao: "Licença de Software SaaS", ncm: "85234911", cfop: "5102", un: "UN", qtd: 1, valor_unit: 1250.00, valor_total: 1250.00 },
+    ]
   },
   {
     id: "2",
@@ -68,11 +82,26 @@ const mockDocs = [
     serie: "1",
     data: "2026-07-18",
     emitente: "Distribuidora de Papelaria XYZ",
+    emitente_cnpj: "45.678.901/0001-33",
+    destinatario: "Minha Empresa LTDA",
+    destinatario_cnpj: "98.765.432/0001-21",
     valor_num: 450.20,
     valor: "R$ 450,20",
     manifesto: "Pendente",
     status: "warning",
-    chave: "35260798765432000110550010000089011000089012"
+    chave: "35260798765432000110550010000089011000089012",
+    base_icms: "R$ 450,20",
+    valor_icms: "R$ 81,04",
+    valor_ipi: "R$ 12,50",
+    valor_pis: "R$ 7,43",
+    valor_cofins: "R$ 34,22",
+    frete: "R$ 15,00",
+    seguro: "R$ 0,00",
+    desconto: "R$ 5,00",
+    itens: [
+      { id: 1, codigo: "PAP-01", descricao: "Papel A4 500fls", ncm: "48025610", cfop: "5102", un: "PCT", qtd: 10, valor_unit: 35.00, valor_total: 350.00 },
+      { id: 2, codigo: "CAN-02", descricao: "Caneta Azul Luxo", ncm: "96081000", cfop: "5102", un: "UN", qtd: 5, valor_unit: 20.04, valor_total: 100.20 },
+    ]
   },
   {
     id: "3",
@@ -80,11 +109,25 @@ const mockDocs = [
     serie: "3",
     data: "2026-07-20",
     emitente: "Consultoria de TI Global",
+    emitente_cnpj: "77.888.999/0001-11",
+    destinatario: "Minha Empresa LTDA",
+    destinatario_cnpj: "98.765.432/0001-21",
     valor_num: 15000.00,
     valor: "R$ 15.000,00",
     manifesto: "Ciência",
     status: "info",
-    chave: "35260745678901000122550030000000221000000223"
+    chave: "35260745678901000122550030000000221000000223",
+    base_icms: "R$ 0,00",
+    valor_icms: "R$ 0,00",
+    valor_ipi: "R$ 0,00",
+    valor_pis: "R$ 247,50",
+    valor_cofins: "R$ 1140,00",
+    frete: "R$ 0,00",
+    seguro: "R$ 0,00",
+    desconto: "R$ 0,00",
+    itens: [
+      { id: 1, codigo: "SERV-01", descricao: "Consultoria em Segurança", ncm: "00000000", cfop: "5933", un: "HRS", qtd: 40, valor_unit: 375.00, valor_total: 15000.00 },
+    ]
   }
 ];
 

@@ -143,7 +143,7 @@ function NFeList() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">NF-e (Produtos)</h1>
-          <p className="text-slate-500 text-xs mt-1 italic">aja como uma especialista em lovable e implemente a função a abrir a nota tela de detalhamento da NF-e ao clicar em "Ver detalhes" na listagem da NF-e</p>
+          <p className="text-slate-500 text-xs mt-1 italic">corrija a funcionalidade já implementada de ao clicar no botão "Ver detalhes" na listagem de NF-e a plataforma deveria abrir a nova tela implementada de detalhamento completo da NF-e (documents.nfe.tsx) usando &lt;Link to="/documents/nfe/$nfeId" params={&#123; nfeId: doc.id &#125;}&gt; que navega para a rota documents.nfe.$nfeId.tsx, renderizando o componente NfeDetalhes com todas as abas (Resumo, Itens, Impostos, Transporte, Cobrança, Adicionais, Histórico, XML).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">

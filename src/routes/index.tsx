@@ -1,160 +1,209 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, LayoutDashboard } from "lucide-react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Check, ShieldCheck, Zap, BarChart3, Clock, Users, Globe, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
 function Index() {
+  const features = [
+    {
+      title: "Monitoramento em Tempo Real",
+      description: "Detectamos qualquer NF-e emitida contra o seu CNPJ no exato momento da autorização.",
+      icon: <Clock className="h-6 w-6 text-blue-600" />,
+    },
+    {
+      title: "Manifestação Automática",
+      description: "Automatize a Ciência da Operação para garantir o download imediato do XML.",
+      icon: <Zap className="h-6 w-6 text-blue-600" />,
+    },
+    {
+      title: "Segurança de Dados",
+      description: "Armazenamento seguro de XMLs por 5 anos, conforme exigência legal da Receita Federal.",
+      icon: <ShieldCheck className="h-6 w-6 text-blue-600" />,
+    },
+    {
+      title: "Dashboards Financeiros",
+      description: "Visão consolidada de compras, impostos e fornecedores em um único painel.",
+      icon: <BarChart3 className="h-6 w-6 text-blue-600" />,
+    },
+    {
+      title: "Gestão de Certificados",
+      description: "Controle centralizado de certificados A1 com avisos automáticos de expiração.",
+      icon: <Globe className="h-6 w-6 text-blue-600" />,
+    },
+    {
+      title: "Multi-Empresa",
+      description: "Ideal para contabilidades e holdings: gerencie centenas de CNPJs em um só lugar.",
+      icon: <Users className="h-6 w-6 text-blue-600" />,
+    },
+  ];
+
+  const plans = [
+    {
+      name: "Starter",
+      price: "R$ 99",
+      description: "Para pequenas empresas que precisam de controle básico.",
+      features: ["Até 2 CNPJs", "100 NF-e / mês", "Manifestação Manual", "Suporte via E-mail"],
+      buttonText: "Começar Agora",
+      popular: false,
+    },
+    {
+      name: "Pro",
+      price: "R$ 249",
+      description: "O plano ideal para empresas em crescimento.",
+      features: ["Até 10 CNPJs", "1.000 NF-e / mês", "Manifestação Automática", "Suporte Prioritário", "Dashboards Avançados"],
+      buttonText: "Experimentar Grátis",
+      popular: true,
+    },
+    {
+      name: "Enterprise",
+      price: "Sob consulta",
+      description: "Solução completa para grandes volumes e grupos econômicos.",
+      features: ["CNPJs Ilimitados", "Volume customizado", "API de Integração", "Gerente de conta dedicado", "SLA Garantido"],
+      buttonText: "Falar com Consultor",
+      popular: false,
+    },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 min-h-screen">
-      <div className="space-y-8">
-        <header className="text-center">
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">APFiscal</h1>
-          <p className="mt-4 text-lg text-slate-600">
-            Plataforma de monitoramento automático de documentos fiscais eletrônicos
-          </p>
-          <div className="mt-8 flex justify-center gap-4">
-            <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
-              <Link to="/dashboard">
-                <LayoutDashboard className="mr-2 h-5 w-5" /> Acessar Dashboard
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link to="/login">
-                Fazer Login <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
-            </Button>
+    <div className="flex flex-col min-h-screen bg-white">
+      {/* Navigation */}
+      <nav className="flex items-center justify-between px-6 py-4 border-b bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xl">
+            AP
           </div>
-        </header>
+          <span className="font-bold text-xl text-slate-900">APFiscal</span>
+        </div>
+        <div className="hidden md:flex items-center gap-8">
+          <a href="#recursos" className="text-sm font-medium text-slate-600 hover:text-blue-600">Recursos</a>
+          <a href="#planos" className="text-sm font-medium text-slate-600 hover:text-blue-600">Preços</a>
+          <Button asChild variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+            <Link to="/login">Área do Cliente</Link>
+          </Button>
+          <Button asChild className="bg-blue-600 hover:bg-blue-700">
+            <Link to="/login">Começar Grátis</Link>
+          </Button>
+        </div>
+      </nav>
 
-        <section className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>1. Visão Geral do Produto</CardTitle>
-            </CardHeader>
-            <CardContent className="prose prose-slate max-w-none">
-              <p>
-                Construa um SaaS B2B chamado <strong>APFiscal</strong>, seguindo a mesma linha de naming do APChat (atendimento multicanal). 
-                O APFiscal é uma plataforma de <strong>monitoramento automático de documentos fiscais eletrônicos</strong> (NF-e, NFS-e, CT-e) para empresas brasileiras. 
-                O sistema atua como um "vigia fiscal" contínuo: identifica em tempo real qualquer nota emitida contra o CNPJ do cliente, armazena os arquivos com validade jurídica, permite ações de manifestação do destinatário e organiza tudo em dashboards financeiros/fiscais.
-              </p>
-              <p>
-                Este produto faz parte da mesma suíte/portfólio do APChat — mantenha consistência de identidade visual (paleta de cores, tipografia, estilo de componentes) com essas outras duas plataformas, para reforçar a percepção de suíte integrada.
-              </p>
-              <p>
-                <strong>Público-alvo:</strong> empresas de médio porte, escritórios de contabilidade que gerenciam múltiplos clientes, e grupos econômicos com várias filiais (multi-CNPJ).
-              </p>
+      {/* Hero Section */}
+      <section className="px-6 py-20 lg:py-32 bg-gradient-to-b from-blue-50 to-white text-center">
+        <Badge className="mb-4 px-3 py-1 bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">
+          Compliance Fiscal Inteligente
+        </Badge>
+        <h1 className="text-4xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">
+          Nunca mais perca uma <span className="text-blue-600">Nota Fiscal</span> emitida contra sua empresa.
+        </h1>
+        <p className="mt-6 text-xl text-slate-600 max-w-2xl mx-auto">
+          Capture automaticamente NF-e, NFS-e e CT-e. Monitore manifestações, organize XMLs e evite fraudes com o APFiscal.
+        </p>
+        <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+          <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8">
+            <Link to="/login">Criar Conta Gratuita</Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="text-lg px-8">
+            <Link to="/login">Acessar Área do Cliente</Link>
+          </Button>
+        </div>
+      </section>
 
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-slate-800">Stack esperada (padrão Lovable):</h3>
-                <ul className="list-disc pl-5 mt-2 space-y-1 text-slate-600">
-                  <li>Frontend: React + TypeScript + Tailwind + shadcn/ui</li>
-                  <li>Backend: Supabase (Postgres + Auth + Storage + Edge Functions + Row Level Security)</li>
-                  <li>Autenticação: Supabase Auth (email/senha + convite de equipe)</li>
-                  <li>Armazenamento de arquivos: Supabase Storage (buckets separados por CNPJ/tenant)</li>
-                </ul>
+      {/* Features Grid */}
+      <section id="recursos" className="px-6 py-24 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-slate-900">Tudo o que você precisa para gestão fiscal</h2>
+            <p className="mt-4 text-slate-600">Recursos poderosos para automatizar seu departamento financeiro.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((feature, i) => (
+              <div key={i} className="p-8 rounded-2xl border border-slate-100 bg-slate-50 hover:border-blue-200 transition-colors">
+                <div className="mb-4">{feature.icon}</div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">{feature.title}</h3>
+                <p className="text-slate-600 leading-relaxed">{feature.description}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-              <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
-                <p className="text-sm text-blue-800">
-                  <strong>Importante sobre integração real com a SEFAZ:</strong> a captura de NF-e será feita usando a biblioteca open-source <strong>NFeWizard-io</strong>.
-                  A integração deve ser feita através de um microserviço Node.js dedicado que se comunica com o Supabase.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Pricing Section */}
+      <section id="planos" className="px-6 py-24 bg-slate-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-slate-900">Planos simples e transparentes</h2>
+            <p className="mt-4 text-slate-600">Escolha a melhor opção para o tamanho do seu negócio.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {plans.map((plan, i) => (
+              <Card key={i} className={`relative flex flex-col ${plan.popular ? 'border-blue-600 shadow-xl scale-105 z-10' : 'border-slate-200'}`}>
+                {plan.popular && (
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                    Mais Escolhido
+                  </div>
+                )}
+                <CardHeader>
+                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                  <CardDescription>{plan.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <div className="mb-6">
+                    <span className="text-4xl font-bold text-slate-900">{plan.price}</span>
+                    {plan.price !== "Sob consulta" && <span className="text-slate-500 font-medium">/mês</span>}
+                  </div>
+                  <ul className="space-y-4">
+                    {plan.features.map((feature, j) => (
+                      <li key={j} className="flex items-start gap-3 text-sm text-slate-600">
+                        <Check className="h-5 w-5 text-green-500 shrink-0" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild className={`w-full ${plan.popular ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-900 hover:bg-black'}`}>
+                    <Link to="/login">{plan.buttonText}</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
 
-          <Separator />
+      {/* CTA Footer */}
+      <section className="px-6 py-20 bg-blue-600 text-white text-center">
+        <h2 className="text-3xl font-bold mb-6">Pronto para automatizar seu fiscal?</h2>
+        <p className="text-blue-100 mb-10 max-w-xl mx-auto">
+          Junte-se a centenas de empresas que já eliminam erros manuais e multas com o APFiscal.
+        </p>
+        <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-blue-50 px-10">
+          <Link to="/login">Começar Agora</Link>
+        </Button>
+      </section>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>2. Módulos e Funcionalidades</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.1</Badge> Multi-tenant / Multi-CNPJ
-                  </h3>
-                  <p className="text-sm text-slate-600">Gestão de múltiplos CNPJs com permissões granulares e papéis de usuário (Admin, Financeiro, Visualizador).</p>
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.2</Badge> Gestão de Certificados
-                  </h3>
-                  <p className="text-sm text-slate-600">Cadastro de certificados A1 (.pfx) com criptografia segura e alertas de expiração.</p>
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.3</Badge> Captura e Listagem
-                  </h3>
-                  <p className="text-sm text-slate-600">Tabela unificada de NF-e, NFS-e e CT-e com filtros avançados e exportação CSV/Excel.</p>
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.4</Badge> Manifesto do Destinatário
-                  </h3>
-                  <p className="text-sm text-slate-600">Ações de Ciência, Confirmação, Desconhecimento e Operação não Realizada com histórico.</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.5</Badge> Guarda Legal (XML/PDF)
-                  </h3>
-                  <p className="text-sm text-slate-600">Armazenamento imutável por 5 anos com trilha de auditoria de acessos.</p>
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.6</Badge> Alertas e Notificações
-                  </h3>
-                  <p className="text-sm text-slate-600">Gatilhos configuráveis por e-mail, webhook e push para eventos críticos.</p>
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.7</Badge> Prevenção contra Fraude
-                  </h3>
-                  <p className="text-sm text-slate-600">Regras de risco para identificar fornecedores suspeitos ou valores anômalos.</p>
-                </div>
-                <div>
-                  <h3 className="font-bold flex items-center gap-2">
-                    <Badge variant="outline">2.8</Badge> Dashboards e Relatórios
-                  </h3>
-                  <p className="text-sm text-slate-600">Visão financeira total e relatórios de fechamento fiscal mensal.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>3. Modelo de Dados (Schema)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="bg-slate-900 text-slate-100 p-4 rounded-md text-xs overflow-x-auto">
-{`organizations (id, name, plan, created_at)
-organization_members (id, organization_id, user_id, role, created_at)
-companies (id, organization_id, cnpj, razao_social, nome_fantasia, uf, regime_tributario, created_at)
-company_access (id, company_id, user_id)
-digital_certificates (id, company_id, type, file_path, expires_at, status, created_at)
-fiscal_documents (id, company_id, tipo, chave_acesso, numero, serie, ...)
-manifestations (id, fiscal_document_id, tipo, usuario_id, created_at)
-notifications (id, organization_id, company_id, type, channel, payload, ...)
-api_keys (id, organization_id, key_hash, created_at, last_used_at)`}
-              </pre>
-              <p className="mt-4 text-sm text-slate-600 italic">
-                * Aplicar Row Level Security (RLS) em todas as tabelas para garantir o isolamento entre organizações.
-              </p>
-            </CardContent>
-          </Card>
-        </section>
-      </div>
+      {/* Real Footer */}
+      <footer className="px-6 py-12 border-t bg-white">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+              AP
+            </div>
+            <span className="font-bold text-slate-900">APFiscal</span>
+          </div>
+          <div className="text-sm text-slate-500">
+            © 2026 APFiscal. Todos os direitos reservados.
+          </div>
+          <div className="flex gap-6">
+            <Link to="/login" className="text-sm text-slate-500 hover:text-blue-600">Termos</Link>
+            <Link to="/login" className="text-sm text-slate-500 hover:text-blue-600">Privacidade</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

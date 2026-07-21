@@ -8,7 +8,8 @@ import {
   LogOut,
   ChevronRight,
   ShieldCheck,
-  Key
+  Key,
+  Activity
 } from "lucide-react";
 import { 
   Sidebar, 

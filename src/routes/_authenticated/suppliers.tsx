@@ -66,6 +66,9 @@ function SuppliersPage() {
   const list = useServerFn(listSuppliers);
   const save = useServerFn(saveSupplier);
   const remove = useServerFn(deleteSupplier);
+  const lookupCnpj = useServerFn(fetchCompanyByCnpj);
+  const lookupCep = useServerFn(fetchAddressByCep);
+  const [lookingUp, setLookingUp] = useState<"cnpj" | "cep" | null>(null);
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", companyId],

@@ -232,7 +232,7 @@ function Companies() {
       return;
     }
     const formatted = formatCnpj(cleanCnpj);
-    const exists = companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj);
+    const exists = companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj && c.id !== editingId);
     if (exists) {
       toast.error("Já existe uma empresa cadastrada com este CNPJ.");
       return;

@@ -72,11 +72,14 @@ function Certificates() {
     mutationFn: async () => {
       if (!companyId) throw new Error("Selecione a empresa.");
       if (!selectedFile) throw new Error("Selecione o arquivo do certificado.");
+      const expiresAt = new Date();
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
       const { error } = await supabase.from("digital_certificates").insert({
         company_id: companyId,
         type: "A1",
         file_path: selectedFile.name,
-        status: "valid",
+        expires_at: expiresAt.toISOString(),
+        status: "active",
       } as never);
       if (error) throw error;
     },

@@ -435,7 +435,7 @@ function Companies() {
                       <div className="grid gap-2">
                         <Label htmlFor="cep">CEP <span className="text-red-500">*</span></Label>
                         <div className="relative">
-                          <Input id="cep" placeholder="00000-000" value={formData.cep} onChange={(e) => setFormData({ ...formData, cep: e.target.value })} onBlur={handleCepBlur} className="font-mono" />
+                          <Input id="cep" placeholder="00000-000" value={maskCep(formData.cep)} onChange={(e) => setFormData({ ...formData, cep: maskCep(e.target.value) })} onBlur={handleCepBlur} className="font-mono" maxLength={9} />
                           {isLoadingCep && (
                             <div className="absolute right-3 top-1/2 -translate-y-1/2">
                               <Loader2 className="h-4 w-4 animate-spin text-blue-600" />

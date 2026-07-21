@@ -83,23 +83,28 @@ function Certificates() {
 
   const companyMap = new Map(companies.map((c) => [c.id, c]));
 
+  const installFn = useServerFn(installCertificate);
+
   const installMutation = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Selecione a empresa.");
       if (!selectedFile) throw new Error("Selecione o arquivo do certificado.");
-      const expiresAt = new Date();
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      const { error } = await supabase.from("digital_certificates").insert({
-        company_id: companyId,
-        type: "A1",
-        file_path: selectedFile.name,
-        expires_at: expiresAt.toISOString(),
-        status: "active",
-      } as never);
-      if (error) throw error;
+      if (!password) throw new Error("Informe a senha do certificado.");
+      const fileBase64 = await fileToBase64(selectedFile);
+      return installFn({
+        data: {
+          companyId,
+          fileName: selectedFile.name,
+          fileBase64,
+          password,
+        },
+      });
     },
-    onSuccess: () => {
-      toast.success("Certificado registrado. Upload seguro do arquivo será habilitado em breve.");
+    onSuccess: (res) => {
+      const validade = res?.expiresAt
+        ? new Date(res.expiresAt).toLocaleDateString("pt-BR")
+        : "";
+      toast.success(`Certificado válido instalado.${validade ? ` Validade: ${validade}` : ""}`);
       queryClient.invalidateQueries({ queryKey: ["digital_certificates"] });
       setSelectedFile(null);
       setPassword("");

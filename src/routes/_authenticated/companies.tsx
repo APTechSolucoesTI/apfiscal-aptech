@@ -260,7 +260,10 @@ function Companies() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const cleanCnpj = cnpj.replace(/\D/g, "");
-      if (cleanCnpj.length !== 14) throw new Error("Informe um CNPJ válido (14 dígitos).");
+      if (!isValidCnpj(cleanCnpj)) throw new Error("Informe um CNPJ válido.");
+      if (companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj)) {
+        throw new Error("Já existe uma empresa cadastrada com este CNPJ.");
+      }
       if (!formData.razao.trim()) throw new Error("Razão Social é obrigatória.");
       if (!formData.uf.trim()) throw new Error("UF é obrigatória.");
 

@@ -19,6 +19,8 @@ import {
   Search,
   Filter,
   ShieldAlert,
+  ShieldCheck,
+  ShieldX,
   Loader2,
   Info,
   ArrowUpDown,

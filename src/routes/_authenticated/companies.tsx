@@ -180,6 +180,9 @@ function Companies() {
   const [selectedCompany, setSelectedCompany] = useState<CompanyRow | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [tab, setTab] = useState("cadastrais");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CompanyRow | null>(null);
+  const [deleteCheck, setDeleteCheck] = useState<{ loading: boolean; count: number } | null>(null);
 
   const [cnpj, setCnpj] = useState("");
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
@@ -193,6 +196,32 @@ function Companies() {
     setCnpj("");
     setFormData({ ...emptyForm });
     setTab("cadastrais");
+    setEditingId(null);
+  };
+
+  const openEdit = (c: CompanyRow) => {
+    setEditingId(c.id);
+    setCnpj(c.cnpj);
+    setFormData({
+      razao: c.razao_social ?? "",
+      fantasia: c.nome_fantasia ?? "",
+      cnae: c.cnae_principal ?? "",
+      cnaes: (c.cnaes ?? []) as CnaeItem[],
+      ie: c.inscricao_estadual ?? "",
+      im: c.inscricao_municipal ?? "",
+      cep: c.cep ?? "",
+      logradouro: c.logradouro ?? "",
+      numero: c.numero ?? "",
+      complemento: c.complemento ?? "",
+      bairro: c.bairro ?? "",
+      municipio: c.municipio ?? "",
+      uf: c.uf ?? "",
+      email: c.email ?? "",
+      telefone: c.telefone ?? "",
+      responsavel: c.responsavel ?? "",
+    });
+    setTab("cadastrais");
+    setIsAddDialogOpen(true);
   };
 
   const handleFetchCnpj = async (rawCnpj: string) => {

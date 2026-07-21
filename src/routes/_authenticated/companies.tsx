@@ -378,9 +378,10 @@ function Companies() {
                             id="cnpj"
                             placeholder="00.000.000/0000-00"
                             value={cnpj}
-                            onChange={(e) => setCnpj(e.target.value)}
-                            onBlur={handleCnpjBlur}
+                            onChange={(e) => handleCnpjChange(e.target.value)}
+                            onBlur={() => handleFetchCnpj(cnpj)}
                             className="font-mono"
+                            maxLength={18}
                           />
                           {isLoadingCnpj && (
                             <div className="absolute right-3 top-1/2 -translate-y-1/2">

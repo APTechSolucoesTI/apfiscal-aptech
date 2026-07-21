@@ -1,81 +1,101 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
+import {
+  Card,
+  CardContent,
+  CardHeader,
   CardTitle,
-  CardDescription 
+  CardDescription,
 } from "@/components/ui/card";
-import { 
-  FileText, 
-  TrendingUp, 
-  AlertTriangle, 
+import {
+  FileText,
+  TrendingUp,
+  AlertTriangle,
   CheckCircle2,
   Building2,
-  ArrowUpRight,
-  ArrowDownRight
+  Loader2,
 } from "lucide-react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area 
 } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-const mockStats = [
-  {
-    title: "Notas Capturadas (Mês)",
-    value: "1,284",
-    icon: FileText,
-    trend: "+12.5%",
-    trendUp: true,
-    description: "NF-e, NFS-e e CT-e"
-  },
-  {
-    title: "Valor Total",
-    value: "R$ 452.890,00",
-    icon: TrendingUp,
-    trend: "+8.2%",
-    trendUp: true,
-    description: "Volume financeiro capturado"
-  },
-  {
-    title: "Pendentes de Manifesto",
-    value: "42",
-    icon: AlertTriangle,
-    trend: "-5",
-    trendUp: false,
-    description: "Ações necessárias"
-  },
-  {
-    title: "Compliance Fiscal",
-    value: "98.2%",
-    icon: CheckCircle2,
-    trend: "+0.5%",
-    trendUp: true,
-    description: "Notas no prazo legal"
-  }
-];
+type DocRow = {
+  tipo: "nfe" | "nfse" | "cte";
+  valor_total: number | null;
+  data_emissao: string | null;
+  status_manifestacao: string | null;
+};
 
-const chartData = [
-  { name: "Jan", nfe: 400, nfse: 240, cte: 100 },
-  { name: "Fev", nfe: 300, nfse: 139, cte: 150 },
-  { name: "Mar", nfe: 200, nfse: 980, cte: 120 },
-  { name: "Abr", nfe: 278, nfse: 390, cte: 180 },
-  { name: "Mai", nfe: 189, nfse: 480, cte: 210 },
-  { name: "Jun", nfe: 239, nfse: 380, cte: 190 },
-];
+const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 function Dashboard() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboard", "summary"],
+    queryFn: async () => {
+      const since = new Date();
+      since.setMonth(since.getMonth() - 5);
+      since.setDate(1);
+      const [docsRes, companiesRes] = await Promise.all([
+        supabase
+          .from("fiscal_documents")
+          .select("tipo, valor_total, data_emissao, status_manifestacao")
+          .gte("data_emissao", since.toISOString()),
+        supabase.from("companies").select("id", { count: "exact", head: true }),
+      ]);
+      if (docsRes.error) throw docsRes.error;
+      if (companiesRes.error) throw companiesRes.error;
+      const docs = (docsRes.data ?? []) as DocRow[];
+      const total = docs.length;
+      const totalValue = docs.reduce((s, d) => s + Number(d.valor_total ?? 0), 0);
+      const pending = docs.filter((d) => {
+        const s = (d.status_manifestacao ?? "").toLowerCase();
+        return !s || s.includes("pend");
+      }).length;
+      const compliance = total > 0 ? ((total - pending) / total) * 100 : 100;
+
+      // Group by month
+      const buckets: Record<string, { name: string; nfe: number; nfse: number; cte: number }> = {};
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        buckets[key] = { name: MONTHS[d.getMonth()], nfe: 0, nfse: 0, cte: 0 };
+      }
+      for (const d of docs) {
+        if (!d.data_emissao) continue;
+        const dt = new Date(d.data_emissao);
+        const key = `${dt.getFullYear()}-${dt.getMonth()}`;
+        if (buckets[key]) buckets[key][d.tipo] += 1;
+      }
+      return {
+        total,
+        totalValue,
+        pending,
+        compliance,
+        companies: companiesRes.count ?? 0,
+        chartData: Object.values(buckets),
+      };
+    },
+  });
+
+  const stats = [
+    { title: "Documentos (últimos 6 meses)", value: (data?.total ?? 0).toLocaleString("pt-BR"), icon: FileText, description: "NF-e, NFS-e e CT-e" },
+    { title: "Valor Total", value: (data?.totalValue ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), icon: TrendingUp, description: "Volume financeiro" },
+    { title: "Pendentes de Manifesto", value: String(data?.pending ?? 0), icon: AlertTriangle, description: "Ações necessárias" },
+    { title: "Compliance Fiscal", value: `${(data?.compliance ?? 100).toFixed(1)}%`, icon: CheckCircle2, description: "Notas manifestadas" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -83,89 +103,60 @@ function Dashboard() {
           <h1 className="text-2xl font-bold text-slate-900">Dashboard Geral</h1>
           <p className="text-slate-500">Bem-vindo ao APFiscal. Veja o resumo de suas operações.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md shadow-sm">
-            <Building2 className="h-4 w-4 text-slate-400" />
-            <span className="text-sm font-medium text-slate-700">Todas as Empresas</span>
-          </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md shadow-sm">
+          <Building2 className="h-4 w-4 text-slate-400" />
+          <span className="text-sm font-medium text-slate-700">
+            {isLoading ? "..." : `${data?.companies ?? 0} empresa(s)`}
+          </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {mockStats.map((stat) => (
-          <Card key={stat.title} className="border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-500">{stat.title}</CardTitle>
-              <stat.icon className="h-4 w-4 text-blue-600" />
+      {isLoading ? (
+        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {stats.map((stat) => (
+              <Card key={stat.title} className="border-slate-200 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-500">{stat.title}</CardTitle>
+                  <stat.icon className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
+                  <p className="text-[10px] text-slate-400 mt-1">{stat.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle>Volume de Documentos</CardTitle>
+              <CardDescription>Comparativo mensal por tipo de documento</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{stat.value}</div>
-              <div className="flex items-center mt-1">
-                {stat.trendUp ? (
-                  <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
-                ) : (
-                  <ArrowDownRight className="h-3 w-3 text-red-500 mr-1" />
-                )}
-                <span className={`text-xs font-medium ${stat.trendUp ? "text-green-600" : "text-red-600"}`}>
-                  {stat.trend}
-                </span>
-                <span className="text-[10px] text-slate-400 ml-1.5">{stat.description}</span>
-              </div>
+            <CardContent className="h-[320px]">
+              {(data?.total ?? 0) === 0 ? (
+                <div className="flex items-center justify-center h-full text-sm text-slate-500">
+                  Sem documentos no período. Capture NF-e via certificado A1 para popular o gráfico.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data?.chartData ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
+                    <Tooltip contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} cursor={{ fill: "#f8fafc" }} />
+                    <Bar dataKey="nfe" name="NF-e" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="nfse" name="NFS-e" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cte" name="CT-e" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Volume de Documentos</CardTitle>
-            <CardDescription>Comparativo mensal por tipo de documento</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  cursor={{ fill: '#f8fafc' }}
-                />
-                <Bar dataKey="nfe" name="NF-e" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="nfse" name="NFS-e" fill="#10b981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="cte" name="CT-e" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Últimas Manifestações</CardTitle>
-            <CardDescription>Ações recentes dos usuários</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex items-start gap-3 pb-4 border-b border-slate-50 last:border-0 last:pb-0">
-                  <div className={`mt-1 h-2 w-2 rounded-full ${i % 2 === 0 ? 'bg-green-500' : 'bg-amber-500'}`} />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-900">
-                      {i % 2 === 0 ? 'Confirmação da Operação' : 'Ciência da Emissão'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">NF-e: 3522...9001 - Empresa ABC</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] text-slate-400">Há {i * 15} min</span>
-                      <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">Admin</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        </>
+      )}
     </div>
   );
 }

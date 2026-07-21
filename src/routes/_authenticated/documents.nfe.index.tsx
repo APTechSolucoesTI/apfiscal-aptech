@@ -1,149 +1,104 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle,
-  CardDescription 
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  Search, 
-  Filter, 
-  Download, 
-  Eye, 
-  CheckCircle2, 
-  Clock, 
+import {
+  Search,
+  Filter,
+  Download,
+  Eye,
+  CheckCircle2,
+  Clock,
   AlertCircle,
   FileDown,
   ArrowUpDown,
-  Info
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSortableData } from "@/hooks/use-sortable-data";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/documents/nfe/")({
   component: NFeList,
 });
 
-const mockDocs = [
-  {
-    id: "1",
-    numero: "452",
-    serie: "1",
-    data: "2026-07-15",
-    emitente: "Fornecedor de Software ABC",
-    emitente_cnpj: "12.345.678/0001-90",
-    destinatario: "Minha Empresa LTDA",
-    destinatario_cnpj: "98.765.432/0001-21",
-    valor_num: 1250.00,
-    valor: "R$ 1.250,00",
-    manifesto: "Confirmada",
-    status: "success",
-    chave: "35260712345678000190550010000004521000004521",
-    base_icms: "R$ 1.250,00",
-    valor_icms: "R$ 225,00",
-    valor_ipi: "R$ 0,00",
-    valor_pis: "R$ 20,63",
-    valor_cofins: "R$ 95,00",
-    frete: "R$ 0,00",
-    seguro: "R$ 0,00",
-    desconto: "R$ 0,00",
-    itens: [
-      { id: 1, codigo: "001", descricao: "Licença de Software SaaS", ncm: "85234911", cfop: "5102", un: "UN", qtd: 1, valor_unit: 1250.00, valor_total: 1250.00 },
-    ]
-  },
-  {
-    id: "2",
-    numero: "8901",
-    serie: "1",
-    data: "2026-07-18",
-    emitente: "Distribuidora de Papelaria XYZ",
-    emitente_cnpj: "45.678.901/0001-33",
-    destinatario: "Minha Empresa LTDA",
-    destinatario_cnpj: "98.765.432/0001-21",
-    valor_num: 450.20,
-    valor: "R$ 450,20",
-    manifesto: "Pendente",
-    status: "warning",
-    chave: "35260798765432000110550010000089011000089012",
-    base_icms: "R$ 450,20",
-    valor_icms: "R$ 81,04",
-    valor_ipi: "R$ 12,50",
-    valor_pis: "R$ 7,43",
-    valor_cofins: "R$ 34,22",
-    frete: "R$ 15,00",
-    seguro: "R$ 0,00",
-    desconto: "R$ 5,00",
-    itens: [
-      { id: 1, codigo: "PAP-01", descricao: "Papel A4 500fls", ncm: "48025610", cfop: "5102", un: "PCT", qtd: 10, valor_unit: 35.00, valor_total: 350.00 },
-      { id: 2, codigo: "CAN-02", descricao: "Caneta Azul Luxo", ncm: "96081000", cfop: "5102", un: "UN", qtd: 5, valor_unit: 20.04, valor_total: 100.20 },
-    ]
-  },
-  {
-    id: "3",
-    numero: "22",
-    serie: "3",
-    data: "2026-07-20",
-    emitente: "Consultoria de TI Global",
-    emitente_cnpj: "77.888.999/0001-11",
-    destinatario: "Minha Empresa LTDA",
-    destinatario_cnpj: "98.765.432/0001-21",
-    valor_num: 15000.00,
-    valor: "R$ 15.000,00",
-    manifesto: "Ciência",
-    status: "info",
-    chave: "35260745678901000122550030000000221000000223",
-    base_icms: "R$ 0,00",
-    valor_icms: "R$ 0,00",
-    valor_ipi: "R$ 0,00",
-    valor_pis: "R$ 247,50",
-    valor_cofins: "R$ 1140,00",
-    frete: "R$ 0,00",
-    seguro: "R$ 0,00",
-    desconto: "R$ 0,00",
-    itens: [
-      { id: 1, codigo: "SERV-01", descricao: "Consultoria em Segurança", ncm: "00000000", cfop: "5933", un: "HRS", qtd: 40, valor_unit: 375.00, valor_total: 15000.00 },
-    ]
-  }
-];
+type FiscalDoc = {
+  id: string;
+  numero: string | null;
+  serie: string | null;
+  chave_acesso: string | null;
+  emitente_cnpj: string | null;
+  emitente_nome: string | null;
+  valor_total: number | null;
+  status_manifestacao: string | null;
+  data_emissao: string | null;
+};
 
+type Row = FiscalDoc & {
+  data_num: number;
+  valor_num: number;
+};
+
+function statusStyle(status: string | null) {
+  const s = (status ?? "pendente").toLowerCase();
+  if (s.includes("confirm")) return { color: "bg-green-100 text-green-700 hover:bg-green-100", icon: CheckCircle2, label: "Confirmada" };
+  if (s.includes("cien")) return { color: "bg-blue-100 text-blue-700 hover:bg-blue-100", icon: AlertCircle, label: "Ciência" };
+  return { color: "bg-amber-100 text-amber-700 hover:bg-amber-100", icon: Clock, label: status ?? "Pendente" };
+}
 
 function NFeList() {
-  const { items: sortedDocs, requestSort, sortConfig } = useSortableData(mockDocs);
-  const [selectedDoc, setSelectedDoc] = useState<typeof mockDocs[0] | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const { data: docs = [], isLoading } = useQuery({
+    queryKey: ["fiscal_documents", "nfe"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fiscal_documents")
+        .select("id, numero, serie, chave_acesso, emitente_cnpj, emitente_nome, valor_total, status_manifestacao, data_emissao")
+        .eq("tipo", "nfe")
+        .order("data_emissao", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as FiscalDoc[];
+    },
+  });
+
+  const rows: Row[] = docs
+    .filter((d) => {
+      const q = search.toLowerCase();
+      if (!q) return true;
+      return (
+        (d.numero ?? "").toLowerCase().includes(q) ||
+        (d.emitente_nome ?? "").toLowerCase().includes(q) ||
+        (d.chave_acesso ?? "").toLowerCase().includes(q)
+      );
+    })
+    .map((d) => ({
+      ...d,
+      data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
+      valor_num: Number(d.valor_total ?? 0),
+    }));
+
+  const { items: sortedDocs, requestSort } = useSortableData(rows);
+
+  const totalConfirmed = docs.filter((d) => (d.status_manifestacao ?? "").toLowerCase().includes("confirm")).length;
+  const totalPending = docs.length - totalConfirmed;
 
   return (
-
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">NF-e (Produtos)</h1>
-          
+          <p className="text-slate-500">Notas fiscais eletrônicas recebidas.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
@@ -161,7 +116,12 @@ function NFeList() {
             <div className="flex flex-1 items-center gap-2">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input placeholder="Buscar por número ou fornecedor..." className="pl-9 bg-white border-slate-200" />
+                <Input
+                  placeholder="Buscar por número, fornecedor ou chave..."
+                  className="pl-9 bg-white border-slate-200"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
               <Button variant="outline" size="sm">
                 <Filter className="mr-2 h-4 w-4" /> Filtros
@@ -169,300 +129,96 @@ function NFeList() {
             </div>
             <div className="flex items-center gap-4 text-sm text-slate-500">
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-green-500" /> 
-                <span>28 Confirmadas</span>
+                <div className="h-2 w-2 rounded-full bg-green-500" />
+                <span>{totalConfirmed} Confirmadas</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-amber-500" /> 
-                <span>14 Pendentes</span>
+                <div className="h-2 w-2 rounded-full bg-amber-500" />
+                <span>{totalPending} Pendentes</span>
               </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50/30">
-                <TableHead 
-                  className="w-[120px] text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('numero')}
-                >
-                  <div className="flex items-center gap-1">
-                    Número <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('data')}
-                >
-                  <div className="flex items-center gap-1">
-                    Emissão <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('emitente')}
-                >
-                  <div className="flex items-center gap-1">
-                    Fornecedor <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </TableHead>
-                  <TableHead 
-                    className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                    onClick={() => requestSort('valor_num')}
-                  >
-
-                  <div className="flex items-center gap-1">
-                    Valor <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </TableHead>
-                <TableHead className="text-slate-500 font-semibold">Manifestação</TableHead>
-                <TableHead className="text-right text-slate-500 font-semibold">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedDocs.map((doc) => (
-
-                <TableRow key={doc.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors">
-                  <TableCell className="font-medium text-slate-900">
-                    <div className="flex flex-col">
-                      <span>{doc.numero}</span>
-                      <span className="text-[10px] text-slate-400">Série {doc.serie}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-slate-600 text-sm whitespace-nowrap">
-                    {new Date(doc.data).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell>
-                    <div className="max-w-[280px]">
-                      <div className="font-medium text-slate-900 truncate">{doc.emitente}</div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate tracking-tight">{doc.chave}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-semibold text-slate-900 text-sm">
-                    {doc.valor}
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="secondary" 
-                      className={`
-                        font-medium text-xs px-2 py-0.5 rounded-full
-                        ${doc.status === 'success' ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''}
-                        ${doc.status === 'warning' ? 'bg-amber-100 text-amber-700 hover:bg-amber-100' : ''}
-                        ${doc.status === 'info' ? 'bg-blue-100 text-blue-700 hover:bg-blue-100' : ''}
-                      `}
-                    >
-                      {doc.status === 'success' && <CheckCircle2 className="mr-1 h-3 w-3 inline" />}
-                      {doc.status === 'warning' && <Clock className="mr-1 h-3 w-3 inline" />}
-                      {doc.status === 'info' && <AlertCircle className="mr-1 h-3 w-3 inline" />}
-                      {doc.manifesto}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-blue-600 hover:bg-blue-50" 
-                        title="Ver detalhes"
-                        asChild
-                      >
-                        <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {isLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+            </div>
+          ) : sortedDocs.length === 0 ? (
+            <div className="text-center py-16 text-slate-500">
+              <p className="font-medium">Nenhuma NF-e capturada ainda.</p>
+              <p className="text-sm mt-1">Cadastre uma empresa com certificado A1 para começar a receber notas.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50/30">
+                  <TableHead className="w-[120px] text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("numero")}>
+                    <div className="flex items-center gap-1">Número <ArrowUpDown className="h-3 w-3" /></div>
+                  </TableHead>
+                  <TableHead className="text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("data_num")}>
+                    <div className="flex items-center gap-1">Emissão <ArrowUpDown className="h-3 w-3" /></div>
+                  </TableHead>
+                  <TableHead className="text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("emitente_nome")}>
+                    <div className="flex items-center gap-1">Fornecedor <ArrowUpDown className="h-3 w-3" /></div>
+                  </TableHead>
+                  <TableHead className="text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("valor_num")}>
+                    <div className="flex items-center gap-1">Valor <ArrowUpDown className="h-3 w-3" /></div>
+                  </TableHead>
+                  <TableHead className="text-slate-500 font-semibold">Manifestação</TableHead>
+                  <TableHead className="text-right text-slate-500 font-semibold">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {sortedDocs.map((doc) => {
+                  const st = statusStyle(doc.status_manifestacao);
+                  const Icon = st.icon;
+                  return (
+                    <TableRow key={doc.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors">
+                      <TableCell className="font-medium text-slate-900">
+                        <div className="flex flex-col">
+                          <span>{doc.numero ?? "-"}</span>
+                          <span className="text-[10px] text-slate-400">Série {doc.serie ?? "-"}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-slate-600 text-sm whitespace-nowrap">
+                        {doc.data_emissao ? new Date(doc.data_emissao).toLocaleDateString("pt-BR") : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[280px]">
+                          <div className="font-medium text-slate-900 truncate">{doc.emitente_nome ?? doc.emitente_cnpj ?? "-"}</div>
+                          <div className="text-[10px] text-slate-400 font-mono truncate tracking-tight">{doc.chave_acesso ?? ""}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold text-slate-900 text-sm">
+                        {Number(doc.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={`font-medium text-xs px-2 py-0.5 rounded-full ${st.color}`}>
+                          <Icon className="mr-1 h-3 w-3 inline" />
+                          {st.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Ver detalhes" asChild>
+                            <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
-
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[850px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-0">
-            <div className="flex justify-between items-start">
-              <div>
-                <DialogTitle className="text-xl">Detalhes da NF-e nº {selectedDoc?.numero}</DialogTitle>
-                <DialogDescription>
-                  Chave: <span className="font-mono text-xs">{selectedDoc?.chave}</span>
-                </DialogDescription>
-              </div>
-              <Badge 
-                variant="outline" 
-                className={`
-                  ${selectedDoc?.status === 'success' ? 'bg-green-50 text-green-700 border-green-200' : ''}
-                  ${selectedDoc?.status === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' : ''}
-                  ${selectedDoc?.status === 'info' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
-                `}
-              >
-                {selectedDoc?.manifesto}
-              </Badge>
-            </div>
-          </DialogHeader>
-
-          {selectedDoc && (
-            <div className="flex-1 overflow-hidden flex flex-col mt-4">
-              <Tabs defaultValue="geral" className="w-full flex-1 flex flex-col">
-                <div className="px-6 border-b">
-                  <TabsList className="w-full justify-start h-12 bg-transparent gap-6 p-0">
-                    <TabsTrigger value="geral" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Dados Gerais</TabsTrigger>
-                    <TabsTrigger value="transporte" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Transporte</TabsTrigger>
-                    <TabsTrigger value="impostos" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Impostos</TabsTrigger>
-                    <TabsTrigger value="itens" className="data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full bg-transparent px-2">Itens da Nota</TabsTrigger>
-                  </TabsList>
-                </div>
-
-                <ScrollArea className="flex-1">
-                  <div className="p-6">
-                    <TabsContent value="geral" className="mt-0 space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                          <h4 className="font-semibold text-sm text-slate-900 uppercase tracking-wider">Emitente</h4>
-                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
-                            <div>
-                              <Label className="text-[10px] text-slate-500 uppercase">Razão Social</Label>
-                              <p className="text-sm font-medium">{selectedDoc.emitente}</p>
-                            </div>
-                            <div>
-                              <Label className="text-[10px] text-slate-500 uppercase">CNPJ</Label>
-                              <p className="text-sm font-medium">{selectedDoc.emitente_cnpj}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          <h4 className="font-semibold text-sm text-slate-900 uppercase tracking-wider">Destinatário</h4>
-                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
-                            <div>
-                              <Label className="text-[10px] text-slate-500 uppercase">Razão Social</Label>
-                              <p className="text-sm font-medium">{selectedDoc.destinatario}</p>
-                            </div>
-                            <div>
-                              <Label className="text-[10px] text-slate-500 uppercase">CNPJ</Label>
-                              <p className="text-sm font-medium">{selectedDoc.destinatario_cnpj}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                          <Label className="text-[10px] text-slate-500 uppercase">Data Emissão</Label>
-                          <p className="text-sm font-medium">{new Date(selectedDoc.data).toLocaleDateString('pt-BR')}</p>
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-slate-500 uppercase">Série</Label>
-                          <p className="text-sm font-medium">{selectedDoc.serie}</p>
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-slate-500 uppercase">Modelo</Label>
-                          <p className="text-sm font-medium">55 (NF-e)</p>
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-slate-500 uppercase">Valor Total</Label>
-                          <p className="text-sm font-bold text-blue-600">{selectedDoc.valor}</p>
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="transporte" className="mt-0 space-y-4">
-                      <div className="bg-slate-50 p-8 rounded-lg border border-dashed border-slate-300 text-center">
-                        <p className="text-slate-500 text-sm">Informações de transportadora e volumes não informados no XML.</p>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="impostos" className="mt-0 space-y-6">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                        <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
-                          <Label className="text-[10px] text-blue-600 uppercase font-bold">Base de Cálculo ICMS</Label>
-                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.base_icms}</p>
-                        </div>
-                        <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-lg">
-                          <Label className="text-[10px] text-blue-600 uppercase font-bold">Valor ICMS</Label>
-                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_icms}</p>
-                        </div>
-                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
-                          <Label className="text-[10px] text-slate-500 uppercase font-bold">Valor IPI</Label>
-                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_ipi}</p>
-                        </div>
-                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
-                          <Label className="text-[10px] text-slate-500 uppercase font-bold">Valor PIS</Label>
-                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_pis}</p>
-                        </div>
-                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
-                          <Label className="text-[10px] text-slate-500 uppercase font-bold">Valor COFINS</Label>
-                          <p className="text-lg font-semibold text-slate-900">{selectedDoc.valor_cofins}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-4 border-t pt-6">
-                        <div>
-                          <Label className="text-[10px] text-slate-500 uppercase tracking-tight">Vlr. Frete</Label>
-                          <p className="text-sm font-medium">{selectedDoc.frete}</p>
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-slate-500 uppercase tracking-tight">Vlr. Seguro</Label>
-                          <p className="text-sm font-medium">{selectedDoc.seguro}</p>
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-slate-500 uppercase tracking-tight">Vlr. Desconto</Label>
-                          <p className="text-sm font-medium text-red-600">{selectedDoc.desconto}</p>
-                        </div>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="itens" className="mt-0">
-                      <div className="border rounded-md">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-50/50">
-                              <TableHead className="text-[10px] uppercase font-bold">Cod.</TableHead>
-                              <TableHead className="text-[10px] uppercase font-bold">Descrição</TableHead>
-                              <TableHead className="text-[10px] uppercase font-bold">Qtd.</TableHead>
-                              <TableHead className="text-[10px] uppercase font-bold text-right">Unitário</TableHead>
-                              <TableHead className="text-[10px] uppercase font-bold text-right">Total</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedDoc.itens.map((item) => (
-                              <TableRow key={item.id}>
-                                <TableCell className="text-xs font-mono">{item.codigo}</TableCell>
-                                <TableCell className="text-xs">
-                                  <div className="font-medium">{item.descricao}</div>
-                                  <div className="text-[9px] text-slate-400">NCM: {item.ncm} | CFOP: {item.cfop}</div>
-                                </TableCell>
-                                <TableCell className="text-xs">{item.qtd} {item.un}</TableCell>
-                                <TableCell className="text-xs text-right">R$ {item.valor_unit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                                <TableCell className="text-xs text-right font-semibold">R$ {item.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </TabsContent>
-                  </div>
-                </ScrollArea>
-              </Tabs>
-            </div>
-          )}
-
-          <DialogFooter className="p-6 pt-2 border-t bg-slate-50/30 gap-2">
-            <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
-            <Button className="bg-blue-600 shadow-sm hover:bg-blue-700">
-              <Download className="mr-2 h-4 w-4" /> Baixar XML Completo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

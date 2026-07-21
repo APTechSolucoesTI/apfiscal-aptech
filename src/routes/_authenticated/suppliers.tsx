@@ -136,6 +136,69 @@ function SuppliersPage() {
     setOpen(true);
   }
 
+  const isPJ = (form.tipo_pessoa ?? "juridica") === "juridica";
+
+  function handleDocChange(value: string) {
+    const masked = isPJ ? maskCnpj(value) : maskCpf(value);
+    setForm((prev) => ({ ...prev, cnpj_cpf: masked }));
+  }
+
+  async function handleDocBlur() {
+    const clean = onlyDigits(form.cnpj_cpf);
+    if (!isPJ) {
+      if (clean.length === 11 && !isValidCpf(clean)) toast.error("CPF inválido.");
+      return;
+    }
+    if (clean.length !== 14) return;
+    if (!isValidCnpj(clean)) {
+      toast.error("CNPJ inválido.");
+      return;
+    }
+    try {
+      setLookingUp("cnpj");
+      const c = await lookupCnpj({ data: { cnpj: clean } });
+      setForm((prev) => ({
+        ...prev,
+        razao_social: prev.razao_social || c.nome || "",
+        nome_fantasia: prev.nome_fantasia || c.fantasia || null,
+        email: prev.email || c.email || null,
+        telefone: prev.telefone || c.telefone || null,
+        inscricao_estadual: prev.inscricao_estadual || c.inscricao_estadual || null,
+        cep: prev.cep || (c.cep ? maskCep(c.cep) : null),
+        logradouro: prev.logradouro || c.logradouro || null,
+        numero: prev.numero || c.numero || null,
+        bairro: prev.bairro || c.bairro || null,
+        municipio: prev.municipio || c.municipio || null,
+        uf: prev.uf || c.uf || null,
+      }));
+      toast.success("Dados do CNPJ carregados.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao buscar CNPJ.");
+    } finally {
+      setLookingUp(null);
+    }
+  }
+
+  async function handleCepBlur() {
+    const clean = onlyDigits(form.cep ?? "");
+    if (clean.length !== 8) return;
+    try {
+      setLookingUp("cep");
+      const addr: any = await lookupCep({ data: { cep: clean } });
+      setForm((prev) => ({
+        ...prev,
+        logradouro: addr.street || prev.logradouro || null,
+        bairro: addr.neighborhood || prev.bairro || null,
+        municipio: addr.city || prev.municipio || null,
+        uf: addr.state || prev.uf || null,
+      }));
+    } catch {
+      toast.error("Erro ao buscar CEP.");
+    } finally {
+      setLookingUp(null);
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">

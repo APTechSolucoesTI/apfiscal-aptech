@@ -414,27 +414,51 @@ function Companies() {
 
                   <TabsContent value="fiscais" className="mt-0 space-y-6">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                        <Info className="h-4 w-4 text-blue-600" />
-                        CNAEs (Atividades Econômicas)
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <Info className="h-4 w-4 text-blue-600" />
+                          CNAEs (Atividades Econômicas)
+                        </div>
+                        {formData.cnaes && formData.cnaes.length > 0 && (
+                          <Badge variant="outline" className="text-slate-600">
+                            {formData.cnaes.length} {formData.cnaes.length === 1 ? "atividade" : "atividades"}
+                          </Badge>
+                        )}
                       </div>
                       <div className="border rounded-md divide-y overflow-hidden">
                         {formData.cnaes && formData.cnaes.length > 0 ? (
-                          formData.cnaes.map((cnae, index) => (
-                            <div key={index} className="p-3 flex items-start gap-3 bg-white hover:bg-slate-50 transition-colors">
-                              <div className="mt-1">
-                                {cnae.main ? (
-                                  <Badge className="bg-blue-600 whitespace-nowrap">Principal</Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-slate-500 whitespace-nowrap">Secundário</Badge>
-                                )}
+                          [...formData.cnaes]
+                            .sort((a, b) => (b.main ? 1 : 0) - (a.main ? 1 : 0))
+                            .map((cnae, index) => (
+                              <div
+                                key={index}
+                                className={`p-3 flex items-start gap-3 transition-colors ${
+                                  cnae.main
+                                    ? "bg-blue-50 border-l-4 border-l-blue-600 hover:bg-blue-100"
+                                    : "bg-white hover:bg-slate-50"
+                                }`}
+                              >
+                                <div className="mt-1">
+                                  {cnae.main ? (
+                                    <Badge className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
+                                      ★ Principal
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-slate-500 whitespace-nowrap">
+                                      Secundário
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className={`text-sm font-mono font-semibold ${cnae.main ? "text-blue-900" : "text-slate-700"}`}>
+                                    {cnae.code}
+                                  </div>
+                                  <div className={`text-sm break-words ${cnae.main ? "text-blue-800 font-medium" : "text-slate-600"}`}>
+                                    {cnae.text}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-mono font-medium text-slate-700">{cnae.code}</div>
-                                <div className="text-sm text-slate-600 break-words">{cnae.text}</div>
-                              </div>
-                            </div>
-                          ))
+                            ))
                         ) : (
                           <div className="p-8 text-center text-slate-500 italic text-sm">
                             Nenhum CNAE carregado. Digite o CNPJ para buscar as informações.

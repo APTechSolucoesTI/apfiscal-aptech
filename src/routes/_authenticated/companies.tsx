@@ -164,6 +164,32 @@ function Companies() {
     },
   });
 
+  const { data: certificates = [] } = useQuery({
+    queryKey: ["digital_certificates", "by_company"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("digital_certificates")
+        .select("id, company_id, status, expires_at")
+        .order("expires_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as { id: string; company_id: string; status: string | null; expires_at: string | null }[];
+    },
+  });
+
+  const certByCompany = new Map<string, { status: string | null; expires_at: string | null }>();
+  for (const c of certificates) {
+    if (!certByCompany.has(c.company_id)) certByCompany.set(c.company_id, { status: c.status, expires_at: c.expires_at });
+  }
+
+  const getCertStatus = (companyId: string) => {
+    const cert = certByCompany.get(companyId);
+    if (!cert) return { label: "Pendente", tone: "amber" as const };
+    const daysLeft = cert.expires_at ? Math.ceil((new Date(cert.expires_at).getTime() - Date.now()) / 86400000) : null;
+    if (cert.status !== "active" || (daysLeft !== null && daysLeft < 0)) return { label: "Expirado", tone: "red" as const };
+    if (daysLeft !== null && daysLeft < 30) return { label: `Expira em ${daysLeft}d`, tone: "amber" as const };
+    return { label: "Válido", tone: "green" as const };
+  };
+
   const [search, setSearch] = useState("");
   const filtered = companies.filter((c) => {
     const q = search.toLowerCase();

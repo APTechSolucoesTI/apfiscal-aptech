@@ -25,6 +25,14 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
@@ -40,17 +48,33 @@ type DocRow = {
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 function Dashboard() {
+  const [companyId, setCompanyId] = useState<string>("all");
+
+  const { data: companies } = useQuery({
+    queryKey: ["dashboard", "companies-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, razao_social, nome_fantasia")
+        .order("razao_social");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ["dashboard", "summary"],
+    queryKey: ["dashboard", "summary", companyId],
     queryFn: async () => {
       const since = new Date();
       since.setMonth(since.getMonth() - 5);
       since.setDate(1);
+      let docsQuery = supabase
+        .from("fiscal_documents")
+        .select("tipo, valor_total, data_emissao, status_manifestacao")
+        .gte("data_emissao", since.toISOString());
+      if (companyId !== "all") docsQuery = docsQuery.eq("company_id", companyId);
       const [docsRes, companiesRes] = await Promise.all([
-        supabase
-          .from("fiscal_documents")
-          .select("tipo, valor_total, data_emissao, status_manifestacao")
-          .gte("data_emissao", since.toISOString()),
+        docsQuery,
         supabase.from("companies").select("id", { count: "exact", head: true }),
       ]);
       if (docsRes.error) throw docsRes.error;
@@ -98,16 +122,31 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard Geral</h1>
           <p className="text-slate-500">Bem-vindo ao APFiscal. Veja o resumo de suas operações.</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md shadow-sm">
-          <Building2 className="h-4 w-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-700">
-            {isLoading ? "..." : `${data?.companies ?? 0} empresa(s)`}
-          </span>
+        <div className="flex items-center gap-3">
+          <Select value={companyId} onValueChange={setCompanyId}>
+            <SelectTrigger className="w-[260px] bg-white">
+              <SelectValue placeholder="Filtrar por empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as empresas</SelectItem>
+              {(companies ?? []).map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nome_fantasia || c.razao_social}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md shadow-sm">
+            <Building2 className="h-4 w-4 text-slate-400" />
+            <span className="text-sm font-medium text-slate-700">
+              {isLoading ? "..." : `${data?.companies ?? 0} empresa(s)`}
+            </span>
+          </div>
         </div>
       </div>
 

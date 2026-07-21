@@ -13,8 +13,10 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedSuppliersRouteImport } from './routes/_authenticated/suppliers'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedRiskRouteImport } from './routes/_authenticated/risk'
+import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedMonitoringRouteImport } from './routes/_authenticated/monitoring'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
@@ -47,6 +49,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSuppliersRoute = AuthenticatedSuppliersRouteImport.update({
+  id: '/suppliers',
+  path: '/suppliers',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -55,6 +62,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
 const AuthenticatedRiskRoute = AuthenticatedRiskRouteImport.update({
   id: '/risk',
   path: '/risk',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
+  id: '/products',
+  path: '/products',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedNotificationsRoute =
@@ -135,8 +147,10 @@ export interface FileRoutesByFullPath {
   '/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/monitoring': typeof AuthenticatedMonitoringRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
+  '/products': typeof AuthenticatedProductsRoute
   '/risk': typeof AuthenticatedRiskRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/suppliers': typeof AuthenticatedSuppliersRoute
   '/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/settings/api': typeof AuthenticatedSettingsApiRoute
@@ -154,8 +168,10 @@ export interface FileRoutesByTo {
   '/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/monitoring': typeof AuthenticatedMonitoringRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
+  '/products': typeof AuthenticatedProductsRoute
   '/risk': typeof AuthenticatedRiskRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/suppliers': typeof AuthenticatedSuppliersRoute
   '/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/settings/api': typeof AuthenticatedSettingsApiRoute
@@ -175,8 +191,10 @@ export interface FileRoutesById {
   '/_authenticated/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/_authenticated/monitoring': typeof AuthenticatedMonitoringRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
+  '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/risk': typeof AuthenticatedRiskRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/_authenticated/suppliers': typeof AuthenticatedSuppliersRoute
   '/_authenticated/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/_authenticated/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/_authenticated/settings/api': typeof AuthenticatedSettingsApiRoute
@@ -196,8 +214,10 @@ export interface FileRouteTypes {
     | '/documents'
     | '/monitoring'
     | '/notifications'
+    | '/products'
     | '/risk'
     | '/settings'
+    | '/suppliers'
     | '/documents/cte'
     | '/documents/nfse'
     | '/settings/api'
@@ -215,8 +235,10 @@ export interface FileRouteTypes {
     | '/documents'
     | '/monitoring'
     | '/notifications'
+    | '/products'
     | '/risk'
     | '/settings'
+    | '/suppliers'
     | '/documents/cte'
     | '/documents/nfse'
     | '/settings/api'
@@ -235,8 +257,10 @@ export interface FileRouteTypes {
     | '/_authenticated/documents'
     | '/_authenticated/monitoring'
     | '/_authenticated/notifications'
+    | '/_authenticated/products'
     | '/_authenticated/risk'
     | '/_authenticated/settings'
+    | '/_authenticated/suppliers'
     | '/_authenticated/documents/cte'
     | '/_authenticated/documents/nfse'
     | '/_authenticated/settings/api'
@@ -283,6 +307,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/suppliers': {
+      id: '/_authenticated/suppliers'
+      path: '/suppliers'
+      fullPath: '/suppliers'
+      preLoaderRoute: typeof AuthenticatedSuppliersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -295,6 +326,13 @@ declare module '@tanstack/react-router' {
       path: '/risk'
       fullPath: '/risk'
       preLoaderRoute: typeof AuthenticatedRiskRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/products': {
+      id: '/_authenticated/products'
+      path: '/products'
+      fullPath: '/products'
+      preLoaderRoute: typeof AuthenticatedProductsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/notifications': {
@@ -428,8 +466,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRouteWithChildren
   AuthenticatedMonitoringRoute: typeof AuthenticatedMonitoringRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
+  AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedRiskRoute: typeof AuthenticatedRiskRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
+  AuthenticatedSuppliersRoute: typeof AuthenticatedSuppliersRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -438,8 +478,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRouteWithChildren,
   AuthenticatedMonitoringRoute: AuthenticatedMonitoringRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
+  AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedRiskRoute: AuthenticatedRiskRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
+  AuthenticatedSuppliersRoute: AuthenticatedSuppliersRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

@@ -8,7 +8,8 @@ import {
   LogOut,
   ChevronRight,
   ShieldCheck,
-  Key
+  Key,
+  Activity
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -48,6 +49,11 @@ const menuItems = [
       { title: "NFS-e (Serviços)", url: "/documents/nfse" },
       { title: "CT-e (Transporte)", url: "/documents/cte" },
     ]
+  },
+  {
+    title: "Monitoramento",
+    icon: Activity,
+    url: "/monitoring",
   },
   {
     title: "Gestão de Risco",

@@ -353,7 +353,20 @@ function SuppliersPage() {
             </TabsContent>
             <TabsContent value="endereco" className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
-                <div><Label>CEP</Label><Input value={form.cep ?? ""} onChange={(e) => setForm({ ...form, cep: e.target.value })} /></div>
+                <div>
+                  <Label>CEP</Label>
+                  <div className="relative">
+                    <Input
+                      value={maskCep(form.cep ?? "")}
+                      onChange={(e) => setForm({ ...form, cep: maskCep(e.target.value) })}
+                      onBlur={handleCepBlur}
+                      placeholder="00000-000"
+                      maxLength={9}
+                      className="font-mono"
+                    />
+                    {lookingUp === "cep" && <Loader2 className="h-4 w-4 animate-spin absolute right-3 top-3 text-slate-400" />}
+                  </div>
+                </div>
                 <div className="col-span-2"><Label>Logradouro</Label><Input value={form.logradouro ?? ""} onChange={(e) => setForm({ ...form, logradouro: e.target.value })} /></div>
                 <div><Label>Número</Label><Input value={form.numero ?? ""} onChange={(e) => setForm({ ...form, numero: e.target.value })} /></div>
                 <div className="col-span-2"><Label>Complemento</Label><Input value={form.complemento ?? ""} onChange={(e) => setForm({ ...form, complemento: e.target.value })} /></div>

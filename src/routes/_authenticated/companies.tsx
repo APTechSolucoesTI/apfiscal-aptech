@@ -18,13 +18,11 @@ import {
   Plus,
   Search,
   Filter,
-  MoreHorizontal,
-  ShieldCheck,
   ShieldAlert,
   Loader2,
   Info,
   ArrowUpDown,
-  Eye,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";

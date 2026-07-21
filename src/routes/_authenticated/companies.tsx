@@ -181,9 +181,19 @@ function Companies() {
     setTab("cadastrais");
   };
 
-  const handleCnpjBlur = async () => {
-    const cleanCnpj = cnpj.replace(/\D/g, "");
+  const handleFetchCnpj = async (rawCnpj: string) => {
+    const cleanCnpj = rawCnpj.replace(/\D/g, "");
     if (cleanCnpj.length !== 14) return;
+    if (!isValidCnpj(cleanCnpj)) {
+      toast.error("CNPJ inválido. Verifique os dígitos informados.");
+      return;
+    }
+    const formatted = formatCnpj(cleanCnpj);
+    const exists = companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj);
+    if (exists) {
+      toast.error("Já existe uma empresa cadastrada com este CNPJ.");
+      return;
+    }
     setIsLoadingCnpj(true);
     try {
       const data = await getCompany({ data: { cnpj: cleanCnpj } });
@@ -208,11 +218,22 @@ function Companies() {
       toast.success("Dados da empresa carregados via CNPJ!");
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao buscar CNPJ. Verifique se o número está correto.");
+      toast.error(error instanceof Error ? error.message : "Erro ao buscar CNPJ.");
     } finally {
       setIsLoadingCnpj(false);
     }
+    void formatted;
   };
+
+  const handleCnpjChange = (value: string) => {
+    const masked = maskCnpj(value);
+    setCnpj(masked);
+    if (masked.replace(/\D/g, "").length === 14) {
+      void handleFetchCnpj(masked);
+    }
+  };
+
+
 
   const handleCepBlur = async () => {
     const cleanCep = formData.cep.replace(/\D/g, "");

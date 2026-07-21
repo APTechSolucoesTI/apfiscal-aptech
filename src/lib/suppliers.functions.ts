@@ -46,11 +46,11 @@ export const saveSupplier = createServerFn({ method: "POST" })
     const payload = { ...data, organization_id: company.organization_id };
     const { id, ...rest } = payload;
     if (id) {
-      const { error } = await context.supabase.from("suppliers").update(rest).eq("id", id);
+      const { error } = await context.supabase.from("suppliers").update(rest as never).eq("id", id);
       if (error) throw new Error(error.message);
       return { id };
     }
-    const { data: inserted, error } = await context.supabase.from("suppliers").insert(rest).select("id").single();
+    const { data: inserted, error } = await context.supabase.from("suppliers").insert(rest as never).select("id").single();
     if (error) throw new Error(error.message);
     return { id: inserted.id };
   });

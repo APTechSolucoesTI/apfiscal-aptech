@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { listSuppliers, saveSupplier, deleteSupplier, type SupplierInput } from "@/lib/suppliers.functions";
+import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
+import { maskCnpj, maskCpf, maskCnpjCpf, maskCep, onlyDigits, isValidCnpj, isValidCpf } from "@/lib/br-format";
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";
@@ -64,6 +66,9 @@ function SuppliersPage() {
   const list = useServerFn(listSuppliers);
   const save = useServerFn(saveSupplier);
   const remove = useServerFn(deleteSupplier);
+  const lookupCnpj = useServerFn(fetchCompanyByCnpj);
+  const lookupCep = useServerFn(fetchAddressByCep);
+  const [lookingUp, setLookingUp] = useState<"cnpj" | "cep" | null>(null);
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", companyId],
@@ -95,6 +100,7 @@ function SuppliersPage() {
     return suppliers.filter((f: any) =>
       !s ||
       f.razao_social?.toLowerCase().includes(s) ||
+      onlyDigits(f.cnpj_cpf ?? "").includes(onlyDigits(s)) && onlyDigits(s).length > 0 ||
       f.cnpj_cpf?.includes(s) ||
       f.nome_fantasia?.toLowerCase().includes(s),
     );
@@ -129,6 +135,69 @@ function SuppliersPage() {
       erp_external_id: f.erp_external_id,
     });
     setOpen(true);
+  }
+
+  const isPJ = (form.tipo_pessoa ?? "juridica") === "juridica";
+
+  function handleDocChange(value: string) {
+    const masked = isPJ ? maskCnpj(value) : maskCpf(value);
+    setForm((prev) => ({ ...prev, cnpj_cpf: masked }));
+  }
+
+  async function handleDocBlur() {
+    const clean = onlyDigits(form.cnpj_cpf);
+    if (!isPJ) {
+      if (clean.length === 11 && !isValidCpf(clean)) toast.error("CPF inválido.");
+      return;
+    }
+    if (clean.length !== 14) return;
+    if (!isValidCnpj(clean)) {
+      toast.error("CNPJ inválido.");
+      return;
+    }
+    try {
+      setLookingUp("cnpj");
+      const c = await lookupCnpj({ data: { cnpj: clean } });
+      setForm((prev) => ({
+        ...prev,
+        razao_social: prev.razao_social || c.nome || "",
+        nome_fantasia: prev.nome_fantasia || c.fantasia || null,
+        email: prev.email || c.email || null,
+        telefone: prev.telefone || c.telefone || null,
+        inscricao_estadual: prev.inscricao_estadual || c.inscricao_estadual || null,
+        cep: prev.cep || (c.cep ? maskCep(c.cep) : null),
+        logradouro: prev.logradouro || c.logradouro || null,
+        numero: prev.numero || c.numero || null,
+        bairro: prev.bairro || c.bairro || null,
+        municipio: prev.municipio || c.municipio || null,
+        uf: prev.uf || c.uf || null,
+      }));
+      toast.success("Dados do CNPJ carregados.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao buscar CNPJ.");
+    } finally {
+      setLookingUp(null);
+    }
+  }
+
+  async function handleCepBlur() {
+    const clean = onlyDigits(form.cep ?? "");
+    if (clean.length !== 8) return;
+    try {
+      setLookingUp("cep");
+      const addr: any = await lookupCep({ data: { cep: clean } });
+      setForm((prev) => ({
+        ...prev,
+        logradouro: addr.street || prev.logradouro || null,
+        bairro: addr.neighborhood || prev.bairro || null,
+        municipio: addr.city || prev.municipio || null,
+        uf: addr.state || prev.uf || null,
+      }));
+    } catch {
+      toast.error("Erro ao buscar CEP.");
+    } finally {
+      setLookingUp(null);
+    }
   }
 
   return (
@@ -181,7 +250,7 @@ function SuppliersPage() {
                 <TableRow><TableCell colSpan={6} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
               ) : filtered.map((f: any) => (
                 <TableRow key={f.id}>
-                  <TableCell className="font-mono text-xs">{f.cnpj_cpf}</TableCell>
+                  <TableCell className="font-mono text-xs">{maskCnpjCpf(f.cnpj_cpf ?? "")}</TableCell>
                   <TableCell>
                     <div className="font-medium">{f.razao_social}</div>
                     {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
@@ -247,8 +316,18 @@ function SuppliersPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>CNPJ/CPF *</Label>
-                  <Input value={form.cnpj_cpf} onChange={(e) => setForm({ ...form, cnpj_cpf: e.target.value })} />
+                  <Label>{isPJ ? "CNPJ" : "CPF"} *</Label>
+                  <div className="relative">
+                    <Input
+                      value={form.cnpj_cpf}
+                      onChange={(e) => handleDocChange(e.target.value)}
+                      onBlur={handleDocBlur}
+                      placeholder={isPJ ? "00.000.000/0000-00" : "000.000.000-00"}
+                      maxLength={isPJ ? 18 : 14}
+                      className="font-mono"
+                    />
+                    {lookingUp === "cnpj" && <Loader2 className="h-4 w-4 animate-spin absolute right-3 top-3 text-slate-400" />}
+                  </div>
                 </div>
                 <div>
                   <Label>Inscrição Estadual</Label>
@@ -274,7 +353,20 @@ function SuppliersPage() {
             </TabsContent>
             <TabsContent value="endereco" className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
-                <div><Label>CEP</Label><Input value={form.cep ?? ""} onChange={(e) => setForm({ ...form, cep: e.target.value })} /></div>
+                <div>
+                  <Label>CEP</Label>
+                  <div className="relative">
+                    <Input
+                      value={maskCep(form.cep ?? "")}
+                      onChange={(e) => setForm({ ...form, cep: maskCep(e.target.value) })}
+                      onBlur={handleCepBlur}
+                      placeholder="00000-000"
+                      maxLength={9}
+                      className="font-mono"
+                    />
+                    {lookingUp === "cep" && <Loader2 className="h-4 w-4 animate-spin absolute right-3 top-3 text-slate-400" />}
+                  </div>
+                </div>
                 <div className="col-span-2"><Label>Logradouro</Label><Input value={form.logradouro ?? ""} onChange={(e) => setForm({ ...form, logradouro: e.target.value })} /></div>
                 <div><Label>Número</Label><Input value={form.numero ?? ""} onChange={(e) => setForm({ ...form, numero: e.target.value })} /></div>
                 <div className="col-span-2"><Label>Complemento</Label><Input value={form.complemento ?? ""} onChange={(e) => setForm({ ...form, complemento: e.target.value })} /></div>

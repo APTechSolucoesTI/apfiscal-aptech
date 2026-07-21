@@ -316,8 +316,18 @@ function SuppliersPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>CNPJ/CPF *</Label>
-                  <Input value={form.cnpj_cpf} onChange={(e) => setForm({ ...form, cnpj_cpf: e.target.value })} />
+                  <Label>{isPJ ? "CNPJ" : "CPF"} *</Label>
+                  <div className="relative">
+                    <Input
+                      value={form.cnpj_cpf}
+                      onChange={(e) => handleDocChange(e.target.value)}
+                      onBlur={handleDocBlur}
+                      placeholder={isPJ ? "00.000.000/0000-00" : "000.000.000-00"}
+                      maxLength={isPJ ? 18 : 14}
+                      className="font-mono"
+                    />
+                    {lookingUp === "cnpj" && <Loader2 className="h-4 w-4 animate-spin absolute right-3 top-3 text-slate-400" />}
+                  </div>
                 </div>
                 <div>
                   <Label>Inscrição Estadual</Label>

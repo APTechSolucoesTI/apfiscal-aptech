@@ -123,15 +123,31 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard Geral</h1>
           <p className="text-slate-500">Bem-vindo ao APFiscal. Veja o resumo de suas operações.</p>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md shadow-sm">
-          <Building2 className="h-4 w-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-700">
-            {isLoading ? "..." : `${data?.companies ?? 0} empresa(s)`}
-          </span>
+        <div className="flex items-center gap-3">
+          <Select value={companyId} onValueChange={setCompanyId}>
+            <SelectTrigger className="w-[260px] bg-white">
+              <SelectValue placeholder="Filtrar por empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as empresas</SelectItem>
+              {(companies ?? []).map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nome_fantasia || c.razao_social}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-md shadow-sm">
+            <Building2 className="h-4 w-4 text-slate-400" />
+            <span className="text-sm font-medium text-slate-700">
+              {isLoading ? "..." : `${data?.companies ?? 0} empresa(s)`}
+            </span>
+          </div>
         </div>
       </div>
 

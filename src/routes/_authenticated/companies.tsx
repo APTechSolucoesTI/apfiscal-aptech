@@ -725,10 +725,20 @@ function Companies() {
                     </TableCell>
                     <TableCell className="text-slate-600 text-sm">{company.municipio || "-"}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <ShieldAlert className="h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-medium text-amber-700">Pendente</span>
-                      </div>
+                      {(() => {
+                        const s = getCertStatus(company.id);
+                        const Icon = s.tone === "green" ? ShieldCheck : s.tone === "red" ? ShieldX : ShieldAlert;
+                        const color =
+                          s.tone === "green" ? "text-green-600" : s.tone === "red" ? "text-red-600" : "text-amber-500";
+                        const textColor =
+                          s.tone === "green" ? "text-green-700" : s.tone === "red" ? "text-red-700" : "text-amber-700";
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Icon className={`h-4 w-4 ${color}`} />
+                            <span className={`text-sm font-medium ${textColor}`}>{s.label}</span>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">

@@ -108,6 +108,33 @@ function formatCnpj(raw: string) {
   return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12, 14)}`;
 }
 
+function maskCnpj(raw: string) {
+  const c = raw.replace(/\D/g, "").slice(0, 14);
+  let out = c;
+  if (c.length > 2) out = `${c.slice(0, 2)}.${c.slice(2)}`;
+  if (c.length > 5) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5)}`;
+  if (c.length > 8) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8)}`;
+  if (c.length > 12) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+  return out;
+}
+
+function isValidCnpj(raw: string): boolean {
+  const c = raw.replace(/\D/g, "");
+  if (c.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(c)) return false;
+  const calc = (base: string) => {
+    const weights = base.length === 12
+      ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+      : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = base.split("").reduce((acc, d, i) => acc + parseInt(d, 10) * weights[i], 0);
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const d1 = calc(c.slice(0, 12));
+  const d2 = calc(c.slice(0, 12) + d1);
+  return d1 === parseInt(c[12], 10) && d2 === parseInt(c[13], 10);
+}
+
 function Companies() {
   const queryClient = useQueryClient();
 

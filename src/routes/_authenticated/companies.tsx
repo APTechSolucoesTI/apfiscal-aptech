@@ -18,13 +18,11 @@ import {
   Plus,
   Search,
   Filter,
-  MoreHorizontal,
-  ShieldCheck,
   ShieldAlert,
   Loader2,
   Info,
   ArrowUpDown,
-  Eye,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -40,6 +38,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
 import { toast } from "sonner";
@@ -172,6 +180,9 @@ function Companies() {
   const [selectedCompany, setSelectedCompany] = useState<CompanyRow | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [tab, setTab] = useState("cadastrais");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CompanyRow | null>(null);
+  const [deleteCheck, setDeleteCheck] = useState<{ loading: boolean; count: number } | null>(null);
 
   const [cnpj, setCnpj] = useState("");
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
@@ -185,6 +196,32 @@ function Companies() {
     setCnpj("");
     setFormData({ ...emptyForm });
     setTab("cadastrais");
+    setEditingId(null);
+  };
+
+  const openEdit = (c: CompanyRow) => {
+    setEditingId(c.id);
+    setCnpj(c.cnpj);
+    setFormData({
+      razao: c.razao_social ?? "",
+      fantasia: c.nome_fantasia ?? "",
+      cnae: c.cnae_principal ?? "",
+      cnaes: (c.cnaes ?? []) as CnaeItem[],
+      ie: c.inscricao_estadual ?? "",
+      im: c.inscricao_municipal ?? "",
+      cep: c.cep ?? "",
+      logradouro: c.logradouro ?? "",
+      numero: c.numero ?? "",
+      complemento: c.complemento ?? "",
+      bairro: c.bairro ?? "",
+      municipio: c.municipio ?? "",
+      uf: c.uf ?? "",
+      email: c.email ?? "",
+      telefone: c.telefone ?? "",
+      responsavel: c.responsavel ?? "",
+    });
+    setTab("cadastrais");
+    setIsAddDialogOpen(true);
   };
 
   const handleFetchCnpj = async (rawCnpj: string) => {
@@ -195,7 +232,7 @@ function Companies() {
       return;
     }
     const formatted = formatCnpj(cleanCnpj);
-    const exists = companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj);
+    const exists = companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj && c.id !== editingId);
     if (exists) {
       toast.error("Já existe uma empresa cadastrada com este CNPJ.");
       return;
@@ -267,21 +304,13 @@ function Companies() {
     mutationFn: async () => {
       const cleanCnpj = cnpj.replace(/\D/g, "");
       if (!isValidCnpj(cleanCnpj)) throw new Error("Informe um CNPJ válido.");
-      if (companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj)) {
+      if (companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj && c.id !== editingId)) {
         throw new Error("Já existe uma empresa cadastrada com este CNPJ.");
       }
       if (!formData.razao.trim()) throw new Error("Razão Social é obrigatória.");
       if (!formData.uf.trim()) throw new Error("UF é obrigatória.");
 
-      const { data: orgId, error: orgErr } = await supabase.rpc("ensure_user_organization");
-      if (orgErr) {
-        console.error("[companies] ensure_user_organization error:", orgErr);
-        throw new Error(orgErr.message || "Falha ao obter organização.");
-      }
-      if (!orgId) throw new Error("Organização não encontrada para o usuário.");
-
-      const payload = {
-        organization_id: orgId as unknown as string,
+      const basePayload = {
         cnpj: formatCnpj(cleanCnpj),
         razao_social: formData.razao.trim(),
         nome_fantasia: formData.fantasia || null,
@@ -301,30 +330,46 @@ function Companies() {
         cnaes: (formData.cnaes ?? []) as unknown as never,
       };
 
-      console.log("[companies] insert payload:", payload);
+      if (editingId) {
+        const { data, error } = await supabase
+          .from("companies")
+          .update(basePayload as never)
+          .eq("id", editingId)
+          .select()
+          .single();
+        if (error) {
+          const detail = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
+            .filter(Boolean).join(" · ");
+          throw new Error(detail || "Erro ao atualizar empresa.");
+        }
+        return { data, mode: "update" as const };
+      }
+
+      const { data: orgId, error: orgErr } = await supabase.rpc("ensure_user_organization");
+      if (orgErr) throw new Error(orgErr.message || "Falha ao obter organização.");
+      if (!orgId) throw new Error("Organização não encontrada para o usuário.");
+
+      const payload = { ...basePayload, organization_id: orgId as unknown as string };
       const { data, error } = await supabase
         .from("companies")
         .insert(payload as never)
         .select()
         .single();
       if (error) {
-        console.error("[companies] insert error:", error);
         const detail = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
-          .filter(Boolean)
-          .join(" · ");
+          .filter(Boolean).join(" · ");
         throw new Error(detail || "Erro ao salvar empresa.");
       }
-      return data;
+      return { data, mode: "insert" as const };
     },
-    onSuccess: () => {
-      toast.success("Empresa cadastrada com sucesso!");
+    onSuccess: (res) => {
+      toast.success(res.mode === "update" ? "Empresa atualizada com sucesso!" : "Empresa cadastrada com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["companies"] });
       setIsAddDialogOpen(false);
       resetForm();
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Erro ao salvar empresa.";
-      console.error("[companies] save error:", err);
       if (msg.toLowerCase().includes("duplicate")) {
         toast.error("Esta empresa (CNPJ) já está cadastrada.");
       } else {
@@ -332,6 +377,22 @@ function Companies() {
       }
     },
   });
+
+  const requestDelete = async (company: CompanyRow) => {
+    setDeleteTarget(company);
+    setDeleteCheck({ loading: true, count: 0 });
+    const { count, error } = await supabase
+      .from("fiscal_documents")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", company.id);
+    if (error) {
+      toast.error("Não foi possível verificar movimentações da empresa.");
+      setDeleteTarget(null);
+      setDeleteCheck(null);
+      return;
+    }
+    setDeleteCheck({ loading: false, count: count ?? 0 });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -341,6 +402,8 @@ function Companies() {
     onSuccess: () => {
       toast.success("Empresa removida.");
       queryClient.invalidateQueries({ queryKey: ["companies"] });
+      setDeleteTarget(null);
+      setDeleteCheck(null);
       setIsDetailsOpen(false);
     },
     onError: (err: unknown) => {
@@ -370,8 +433,8 @@ function Companies() {
           <DialogContent className="sm:max-w-[700px] h-[90vh] flex flex-col p-0">
             <DialogHeader className="p-6 pb-0">
               <DialogTitle className="text-xl flex items-center gap-2">
-                <Plus className="h-5 w-5 text-blue-600" />
-                Cadastrar Nova Empresa
+                {editingId ? <Pencil className="h-5 w-5 text-blue-600" /> : <Plus className="h-5 w-5 text-blue-600" />}
+                {editingId ? "Editar Empresa" : "Cadastrar Nova Empresa"}
               </DialogTitle>
               <DialogDescription>
                 Utilizamos o BrasilAPI para preencher os dados automaticamente via CNPJ e CEP.
@@ -561,7 +624,7 @@ function Companies() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...
                   </>
                 ) : (
-                  "Salvar Empresa"
+                  editingId ? "Atualizar Empresa" : "Salvar Empresa"
                 )}
               </Button>
             </DialogFooter>
@@ -644,16 +707,20 @@ function Companies() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          title="Editar empresa"
                           className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                          onClick={() => {
-                            setSelectedCompany(company);
-                            setIsDetailsOpen(true);
-                          }}
+                          onClick={() => openEdit(company)}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Excluir empresa"
+                          className="h-8 w-8 text-red-600 hover:bg-red-50"
+                          onClick={() => requestDelete(company)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -725,25 +792,71 @@ function Companies() {
               )}
             </div>
           )}
-          <DialogFooter className="gap-2">
-            {selectedCompany && (
-              <Button
-                variant="outline"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  if (confirm("Remover esta empresa? Esta ação não pode ser desfeita.")) {
-                    deleteMutation.mutate(selectedCompany.id);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Remover
-              </Button>
-            )}
+          <DialogFooter>
             <Button onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteTarget(null);
+            setDeleteCheck(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir empresa</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {deleteCheck?.loading ? (
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Verificando movimentações...
+                  </div>
+                ) : deleteCheck && deleteCheck.count > 0 ? (
+                  <>
+                    <p className="text-red-600 font-medium">
+                      Não é possível excluir esta empresa.
+                    </p>
+                    <p>
+                      A empresa <b>{deleteTarget?.razao_social}</b> possui{" "}
+                      <b>{deleteCheck.count}</b> documento(s) fiscal(is) vinculado(s).
+                      Apenas empresas sem movimentação podem ser excluídas.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    Confirma a exclusão da empresa <b>{deleteTarget?.razao_social}</b>?
+                    Esta ação não pode ser desfeita.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+            {deleteCheck && !deleteCheck.loading && deleteCheck.count === 0 && (
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700"
+                disabled={deleteMutation.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+                }}
+              >
+                {deleteMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Excluindo...</>
+                ) : (
+                  <><Trash2 className="h-4 w-4 mr-2" /> Excluir</>
+                )}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

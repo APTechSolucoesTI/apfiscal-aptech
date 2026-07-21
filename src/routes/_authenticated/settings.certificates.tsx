@@ -22,6 +22,21 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { installCertificate } from "@/lib/certificates.functions";
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const idx = result.indexOf(",");
+      resolve(idx >= 0 ? result.slice(idx + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 export const Route = createFileRoute("/_authenticated/settings/certificates")({
   component: Certificates,
@@ -68,23 +83,28 @@ function Certificates() {
 
   const companyMap = new Map(companies.map((c) => [c.id, c]));
 
+  const installFn = useServerFn(installCertificate);
+
   const installMutation = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Selecione a empresa.");
       if (!selectedFile) throw new Error("Selecione o arquivo do certificado.");
-      const expiresAt = new Date();
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      const { error } = await supabase.from("digital_certificates").insert({
-        company_id: companyId,
-        type: "A1",
-        file_path: selectedFile.name,
-        expires_at: expiresAt.toISOString(),
-        status: "active",
-      } as never);
-      if (error) throw error;
+      if (!password) throw new Error("Informe a senha do certificado.");
+      const fileBase64 = await fileToBase64(selectedFile);
+      return installFn({
+        data: {
+          companyId,
+          fileName: selectedFile.name,
+          fileBase64,
+          password,
+        },
+      });
     },
-    onSuccess: () => {
-      toast.success("Certificado registrado. Upload seguro do arquivo será habilitado em breve.");
+    onSuccess: (res) => {
+      const validade = res?.expiresAt
+        ? new Date(res.expiresAt).toLocaleDateString("pt-BR")
+        : "";
+      toast.success(`Certificado válido instalado.${validade ? ` Validade: ${validade}` : ""}`);
       queryClient.invalidateQueries({ queryKey: ["digital_certificates"] });
       setSelectedFile(null);
       setPassword("");
@@ -178,7 +198,7 @@ function Certificates() {
             <div className="flex justify-end pt-2">
               <Button
                 className="bg-blue-600 hover:bg-blue-700 px-8"
-                disabled={!selectedFile || !companyId || installMutation.isPending}
+                disabled={!selectedFile || !companyId || !password || installMutation.isPending}
                 onClick={() => installMutation.mutate()}
               >
                 {installMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}

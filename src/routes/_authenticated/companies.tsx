@@ -792,25 +792,71 @@ function Companies() {
               )}
             </div>
           )}
-          <DialogFooter className="gap-2">
-            {selectedCompany && (
-              <Button
-                variant="outline"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                disabled={deleteMutation.isPending}
-                onClick={() => {
-                  if (confirm("Remover esta empresa? Esta ação não pode ser desfeita.")) {
-                    deleteMutation.mutate(selectedCompany.id);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Remover
-              </Button>
-            )}
+          <DialogFooter>
             <Button onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeleteTarget(null);
+            setDeleteCheck(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir empresa</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {deleteCheck?.loading ? (
+                  <div className="flex items-center gap-2 text-slate-600">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Verificando movimentações...
+                  </div>
+                ) : deleteCheck && deleteCheck.count > 0 ? (
+                  <>
+                    <p className="text-red-600 font-medium">
+                      Não é possível excluir esta empresa.
+                    </p>
+                    <p>
+                      A empresa <b>{deleteTarget?.razao_social}</b> possui{" "}
+                      <b>{deleteCheck.count}</b> documento(s) fiscal(is) vinculado(s).
+                      Apenas empresas sem movimentação podem ser excluídas.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    Confirma a exclusão da empresa <b>{deleteTarget?.razao_social}</b>?
+                    Esta ação não pode ser desfeita.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+            {deleteCheck && !deleteCheck.loading && deleteCheck.count === 0 && (
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700"
+                disabled={deleteMutation.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+                }}
+              >
+                {deleteMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Excluindo...</>
+                ) : (
+                  <><Trash2 className="h-4 w-4 mr-2" /> Excluir</>
+                )}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

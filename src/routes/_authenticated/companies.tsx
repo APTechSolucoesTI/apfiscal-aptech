@@ -274,7 +274,11 @@ function Companies() {
       if (!formData.uf.trim()) throw new Error("UF é obrigatória.");
 
       const { data: orgId, error: orgErr } = await supabase.rpc("ensure_user_organization");
-      if (orgErr) throw orgErr;
+      if (orgErr) {
+        console.error("[companies] ensure_user_organization error:", orgErr);
+        throw new Error(orgErr.message || "Falha ao obter organização.");
+      }
+      if (!orgId) throw new Error("Organização não encontrada para o usuário.");
 
       const payload = {
         organization_id: orgId as unknown as string,
@@ -294,11 +298,23 @@ function Companies() {
         telefone: formData.telefone || null,
         responsavel: formData.responsavel || null,
         cnae_principal: formData.cnae || null,
-        cnaes: formData.cnaes as unknown as never,
+        cnaes: (formData.cnaes ?? []) as unknown as never,
       };
 
-      const { error } = await supabase.from("companies").insert(payload as never);
-      if (error) throw error;
+      console.log("[companies] insert payload:", payload);
+      const { data, error } = await supabase
+        .from("companies")
+        .insert(payload as never)
+        .select()
+        .single();
+      if (error) {
+        console.error("[companies] insert error:", error);
+        const detail = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
+          .filter(Boolean)
+          .join(" · ");
+        throw new Error(detail || "Erro ao salvar empresa.");
+      }
+      return data;
     },
     onSuccess: () => {
       toast.success("Empresa cadastrada com sucesso!");
@@ -308,6 +324,7 @@ function Companies() {
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Erro ao salvar empresa.";
+      console.error("[companies] save error:", err);
       if (msg.toLowerCase().includes("duplicate")) {
         toast.error("Esta empresa (CNPJ) já está cadastrada.");
       } else {

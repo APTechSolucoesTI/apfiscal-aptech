@@ -474,6 +474,214 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          aliquota_icms: number | null
+          aliquota_ipi: number | null
+          ativo: boolean
+          cest: string | null
+          cfop_padrao: string | null
+          codigo: string
+          codigo_fornecedor: string | null
+          company_id: string
+          created_at: string
+          descricao: string
+          ean: string | null
+          erp_code: string | null
+          erp_external_id: string | null
+          erp_metadata: Json
+          erp_synced_at: string | null
+          erp_system: string | null
+          id: string
+          ncm: string | null
+          organization_id: string
+          origem: string
+          origem_mercadoria: string | null
+          supplier_id: string | null
+          unidade: string | null
+          updated_at: string
+          valor_unitario: number | null
+        }
+        Insert: {
+          aliquota_icms?: number | null
+          aliquota_ipi?: number | null
+          ativo?: boolean
+          cest?: string | null
+          cfop_padrao?: string | null
+          codigo: string
+          codigo_fornecedor?: string | null
+          company_id: string
+          created_at?: string
+          descricao: string
+          ean?: string | null
+          erp_code?: string | null
+          erp_external_id?: string | null
+          erp_metadata?: Json
+          erp_synced_at?: string | null
+          erp_system?: string | null
+          id?: string
+          ncm?: string | null
+          organization_id: string
+          origem?: string
+          origem_mercadoria?: string | null
+          supplier_id?: string | null
+          unidade?: string | null
+          updated_at?: string
+          valor_unitario?: number | null
+        }
+        Update: {
+          aliquota_icms?: number | null
+          aliquota_ipi?: number | null
+          ativo?: boolean
+          cest?: string | null
+          cfop_padrao?: string | null
+          codigo?: string
+          codigo_fornecedor?: string | null
+          company_id?: string
+          created_at?: string
+          descricao?: string
+          ean?: string | null
+          erp_code?: string | null
+          erp_external_id?: string | null
+          erp_metadata?: Json
+          erp_synced_at?: string | null
+          erp_system?: string | null
+          id?: string
+          ncm?: string | null
+          organization_id?: string
+          origem?: string
+          origem_mercadoria?: string | null
+          supplier_id?: string | null
+          unidade?: string | null
+          updated_at?: string
+          valor_unitario?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          bairro: string | null
+          cep: string | null
+          cnpj_cpf: string
+          company_id: string
+          complemento: string | null
+          created_at: string
+          email: string | null
+          erp_code: string | null
+          erp_external_id: string | null
+          erp_metadata: Json
+          erp_synced_at: string | null
+          erp_system: string | null
+          id: string
+          inscricao_estadual: string | null
+          inscricao_municipal: string | null
+          logradouro: string | null
+          municipio: string | null
+          nome_fantasia: string | null
+          numero: string | null
+          organization_id: string
+          origem: string
+          razao_social: string
+          telefone: string | null
+          tipo_pessoa: string
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          bairro?: string | null
+          cep?: string | null
+          cnpj_cpf: string
+          company_id: string
+          complemento?: string | null
+          created_at?: string
+          email?: string | null
+          erp_code?: string | null
+          erp_external_id?: string | null
+          erp_metadata?: Json
+          erp_synced_at?: string | null
+          erp_system?: string | null
+          id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          logradouro?: string | null
+          municipio?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          organization_id: string
+          origem?: string
+          razao_social: string
+          telefone?: string | null
+          tipo_pessoa?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bairro?: string | null
+          cep?: string | null
+          cnpj_cpf?: string
+          company_id?: string
+          complemento?: string | null
+          created_at?: string
+          email?: string | null
+          erp_code?: string | null
+          erp_external_id?: string | null
+          erp_metadata?: Json
+          erp_synced_at?: string | null
+          erp_system?: string | null
+          id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          logradouro?: string | null
+          municipio?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          organization_id?: string
+          origem?: string
+          razao_social?: string
+          telefone?: string | null
+          tipo_pessoa?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -488,6 +696,33 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { _org_id: string }; Returns: boolean }
+      upsert_product_from_nfe: {
+        Args: {
+          _cfop?: string
+          _codigo: string
+          _company_id: string
+          _descricao: string
+          _ean?: string
+          _ncm?: string
+          _organization_id: string
+          _supplier_id?: string
+          _unidade?: string
+          _valor_unitario?: number
+        }
+        Returns: string
+      }
+      upsert_supplier_from_nfe: {
+        Args: {
+          _cnpj: string
+          _company_id: string
+          _endereco?: Json
+          _ie?: string
+          _nome_fantasia?: string
+          _organization_id: string
+          _razao_social: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "financeiro" | "visualizador"

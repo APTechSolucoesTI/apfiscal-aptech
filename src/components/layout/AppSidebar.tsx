@@ -9,7 +9,9 @@ import {
   ChevronRight,
   ShieldCheck,
   Key,
-  Activity
+  Activity,
+  Users,
+  Package
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -39,6 +41,16 @@ const menuItems = [
     title: "Empresas (CNPJs)",
     icon: Building2,
     url: "/companies",
+  },
+  {
+    title: "Fornecedores",
+    icon: Users,
+    url: "/suppliers",
+  },
+  {
+    title: "Produtos",
+    icon: Package,
+    url: "/products",
   },
   {
     title: "Documentos Fiscais",

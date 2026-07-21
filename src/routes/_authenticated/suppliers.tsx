@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { listSuppliers, saveSupplier, deleteSupplier, type SupplierInput } from "@/lib/suppliers.functions";
+import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
+import { maskCnpj, maskCpf, maskCnpjCpf, maskCep, onlyDigits, isValidCnpj, isValidCpf } from "@/lib/br-format";
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";

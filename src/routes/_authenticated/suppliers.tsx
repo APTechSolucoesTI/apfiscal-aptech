@@ -249,7 +249,7 @@ function SuppliersPage() {
                 <TableRow><TableCell colSpan={6} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
               ) : filtered.map((f: any) => (
                 <TableRow key={f.id}>
-                  <TableCell className="font-mono text-xs">{f.cnpj_cpf}</TableCell>
+                  <TableCell className="font-mono text-xs">{maskCnpjCpf(f.cnpj_cpf ?? "")}</TableCell>
                   <TableCell>
                     <div className="font-medium">{f.razao_social}</div>
                     {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}

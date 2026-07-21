@@ -38,6 +38,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
 import { toast } from "sonner";

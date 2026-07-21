@@ -433,8 +433,8 @@ function Companies() {
           <DialogContent className="sm:max-w-[700px] h-[90vh] flex flex-col p-0">
             <DialogHeader className="p-6 pb-0">
               <DialogTitle className="text-xl flex items-center gap-2">
-                <Plus className="h-5 w-5 text-blue-600" />
-                Cadastrar Nova Empresa
+                {editingId ? <Pencil className="h-5 w-5 text-blue-600" /> : <Plus className="h-5 w-5 text-blue-600" />}
+                {editingId ? "Editar Empresa" : "Cadastrar Nova Empresa"}
               </DialogTitle>
               <DialogDescription>
                 Utilizamos o BrasilAPI para preencher os dados automaticamente via CNPJ e CEP.

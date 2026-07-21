@@ -86,34 +86,76 @@ export type Database = {
       }
       companies: {
         Row: {
+          bairro: string | null
+          cep: string | null
+          cnae_principal: string | null
+          cnaes: Json
           cnpj: string
+          complemento: string | null
           created_at: string | null
+          email: string | null
           id: string
+          inscricao_estadual: string | null
+          inscricao_municipal: string | null
+          logradouro: string | null
+          municipio: string | null
           nome_fantasia: string | null
+          numero: string | null
           organization_id: string
           razao_social: string
           regime_tributario: string | null
+          responsavel: string | null
+          telefone: string | null
           uf: string | null
+          updated_at: string
         }
         Insert: {
+          bairro?: string | null
+          cep?: string | null
+          cnae_principal?: string | null
+          cnaes?: Json
           cnpj: string
+          complemento?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          logradouro?: string | null
+          municipio?: string | null
           nome_fantasia?: string | null
+          numero?: string | null
           organization_id: string
           razao_social: string
           regime_tributario?: string | null
+          responsavel?: string | null
+          telefone?: string | null
           uf?: string | null
+          updated_at?: string
         }
         Update: {
+          bairro?: string | null
+          cep?: string | null
+          cnae_principal?: string | null
+          cnaes?: Json
           cnpj?: string
+          complemento?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          logradouro?: string | null
+          municipio?: string | null
           nome_fantasia?: string | null
+          numero?: string | null
           organization_id?: string
           razao_social?: string
           regime_tributario?: string | null
+          responsavel?: string | null
+          telefone?: string | null
           uf?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -437,7 +479,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      ensure_user_organization: { Args: never; Returns: string }
     }
     Enums: {
       app_role: "admin" | "financeiro" | "visualizador"

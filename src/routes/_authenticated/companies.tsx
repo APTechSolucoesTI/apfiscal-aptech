@@ -1,37 +1,33 @@
 import { useState } from "react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle,
-  CardDescription 
+import {
+  Card,
+  CardContent,
+  CardHeader,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
-  ShieldCheck, 
+import {
+  Plus,
+  Search,
+  Filter,
+  MoreHorizontal,
+  ShieldCheck,
   ShieldAlert,
   Loader2,
-  MapPin,
-  Building,
   Info,
   ArrowUpDown,
-  Eye
+  Eye,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-
 import {
   Dialog,
   DialogContent,
@@ -48,13 +44,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
 import {
   Tabs,
   TabsContent,
@@ -62,58 +51,116 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useSortableData } from "@/hooks/use-sortable-data";
-
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/companies")({
   component: Companies,
 });
 
-const mockCompanies = [
-  { id: "1", cnpj: "12.345.678/0001-90", razao_social: "Tecnologia e Inovação Brasil LTDA", nome_fantasia: "TechBrasil", uf: "SP", certificado: "Válido", expira_em: "2026-05-20", status: "active" },
-  { id: "2", cnpj: "98.765.432/0001-10", razao_social: "Comércio de Alimentos Estrela Sul", nome_fantasia: "Estrela Sul", uf: "RS", certificado: "Expirando", expira_em: "2026-07-30", status: "warning" },
-  { id: "3", cnpj: "45.678.901/0001-22", razao_social: "Logística Nacional S.A.", nome_fantasia: "LogNacional", uf: "MG", certificado: "Válido", expira_em: "2026-12-15", status: "active" }
-];
+type CnaeItem = { code: string; text: string; main?: boolean };
+
+type CompanyRow = {
+  id: string;
+  organization_id: string;
+  cnpj: string;
+  razao_social: string;
+  nome_fantasia: string | null;
+  uf: string | null;
+  regime_tributario: string | null;
+  inscricao_estadual: string | null;
+  inscricao_municipal: string | null;
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  municipio: string | null;
+  email: string | null;
+  telefone: string | null;
+  responsavel: string | null;
+  cnae_principal: string | null;
+  cnaes: CnaeItem[];
+  created_at: string;
+};
+
+const emptyForm = {
+  razao: "",
+  fantasia: "",
+  cnae: "",
+  cnaes: [] as CnaeItem[],
+  ie: "",
+  im: "",
+  cep: "",
+  logradouro: "",
+  numero: "",
+  complemento: "",
+  bairro: "",
+  municipio: "",
+  uf: "",
+  email: "",
+  telefone: "",
+  responsavel: "",
+};
+
+function formatCnpj(raw: string) {
+  const c = raw.replace(/\D/g, "").padStart(14, "0").slice(-14);
+  return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12, 14)}`;
+}
 
 function Companies() {
-  const { items: sortedCompanies, requestSort, sortConfig } = useSortableData(mockCompanies);
+  const queryClient = useQueryClient();
+
+  const { data: companies = [], isLoading } = useQuery({
+    queryKey: ["companies"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as CompanyRow[];
+    },
+  });
+
+  const [search, setSearch] = useState("");
+  const filtered = companies.filter((c) => {
+    const q = search.toLowerCase();
+    return (
+      !q ||
+      c.cnpj.toLowerCase().includes(q) ||
+      c.razao_social.toLowerCase().includes(q) ||
+      (c.nome_fantasia ?? "").toLowerCase().includes(q)
+    );
+  });
+  const { items: sortedCompanies, requestSort } = useSortableData(filtered);
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState<typeof mockCompanies[0] | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyRow | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [tab, setTab] = useState("cadastrais");
 
   const [cnpj, setCnpj] = useState("");
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
   const [isLoadingCep, setIsLoadingCep] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    razao: "",
-    fantasia: "",
-    cnae: "",
-    cnaes: [] as { code: string; text: string; main?: boolean }[],
-    ie: "",
-    im: "",
-    cep: "",
-    logradouro: "",
-    numero: "",
-    complemento: "",
-    bairro: "",
-    municipio: "",
-    uf: "",
-    email: "",
-    telefone: "",
-    responsavel: "",
-  });
+  const [formData, setFormData] = useState({ ...emptyForm });
 
   const getCompany = useServerFn(fetchCompanyByCnpj);
   const getAddress = useServerFn(fetchAddressByCep);
 
+  const resetForm = () => {
+    setCnpj("");
+    setFormData({ ...emptyForm });
+    setTab("cadastrais");
+  };
+
   const handleCnpjBlur = async () => {
     const cleanCnpj = cnpj.replace(/\D/g, "");
     if (cleanCnpj.length !== 14) return;
-
     setIsLoadingCnpj(true);
     try {
       const data = await getCompany({ data: { cnpj: cleanCnpj } });
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         razao: data.nome,
         fantasia: data.fantasia || "",
@@ -125,7 +172,7 @@ function Companies() {
         cep: data.cep.replace(/\D/g, ""),
         email: data.email || "",
         telefone: data.telefone || "",
-        cnae: data.atividades_economicas?.find(c => c.main)?.text || "",
+        cnae: data.atividades_economicas?.find((c) => c.main)?.text || "",
         cnaes: data.atividades_economicas || [],
         responsavel: data.responsavel || "",
         ie: data.inscricao_estadual || "",
@@ -143,11 +190,10 @@ function Companies() {
   const handleCepBlur = async () => {
     const cleanCep = formData.cep.replace(/\D/g, "");
     if (cleanCep.length !== 8) return;
-
     setIsLoadingCep(true);
     try {
       const data = await getAddress({ data: { cep: cleanCep } });
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         logradouro: data.street,
         bairro: data.neighborhood,
@@ -163,6 +209,71 @@ function Companies() {
     }
   };
 
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const cleanCnpj = cnpj.replace(/\D/g, "");
+      if (cleanCnpj.length !== 14) throw new Error("Informe um CNPJ válido (14 dígitos).");
+      if (!formData.razao.trim()) throw new Error("Razão Social é obrigatória.");
+      if (!formData.uf.trim()) throw new Error("UF é obrigatória.");
+
+      const { data: orgId, error: orgErr } = await supabase.rpc("ensure_user_organization");
+      if (orgErr) throw orgErr;
+
+      const payload = {
+        organization_id: orgId as unknown as string,
+        cnpj: formatCnpj(cleanCnpj),
+        razao_social: formData.razao.trim(),
+        nome_fantasia: formData.fantasia || null,
+        uf: formData.uf || null,
+        inscricao_estadual: formData.ie || null,
+        inscricao_municipal: formData.im || null,
+        cep: formData.cep || null,
+        logradouro: formData.logradouro || null,
+        numero: formData.numero || null,
+        complemento: formData.complemento || null,
+        bairro: formData.bairro || null,
+        municipio: formData.municipio || null,
+        email: formData.email || null,
+        telefone: formData.telefone || null,
+        responsavel: formData.responsavel || null,
+        cnae_principal: formData.cnae || null,
+        cnaes: formData.cnaes as unknown as never,
+      };
+
+      const { error } = await supabase.from("companies").insert(payload as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Empresa cadastrada com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["companies"] });
+      setIsAddDialogOpen(false);
+      resetForm();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Erro ao salvar empresa.";
+      if (msg.toLowerCase().includes("duplicate")) {
+        toast.error("Esta empresa (CNPJ) já está cadastrada.");
+      } else {
+        toast.error(msg);
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("companies").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Empresa removida.");
+      queryClient.invalidateQueries({ queryKey: ["companies"] });
+      setIsDetailsOpen(false);
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Erro ao remover empresa.");
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -170,7 +281,13 @@ function Companies() {
           <h1 className="text-2xl font-bold text-slate-900">Empresas (CNPJs)</h1>
           <p className="text-slate-500">Gerencie as empresas e filiais da sua organização.</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog
+          open={isAddDialogOpen}
+          onOpenChange={(o) => {
+            setIsAddDialogOpen(o);
+            if (!o) resetForm();
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="bg-blue-600 hover:bg-blue-700">
               <Plus className="mr-2 h-4 w-4" /> Nova Empresa
@@ -186,26 +303,17 @@ function Companies() {
                 Utilizamos o BrasilAPI para preencher os dados automaticamente via CNPJ e CEP.
               </DialogDescription>
             </DialogHeader>
-            
-            <Tabs defaultValue="cadastrais" className="flex-1 flex flex-col overflow-hidden">
+
+            <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col overflow-hidden">
               <div className="px-6 border-b">
                 <TabsList className="w-full justify-start rounded-none h-12 bg-transparent gap-6 p-0">
-                  <TabsTrigger 
-                    value="cadastrais" 
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
-                  >
+                  <TabsTrigger value="cadastrais" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
                     Dados Cadastrais
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="endereco"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
-                  >
+                  <TabsTrigger value="endereco" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
                     Endereço
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="fiscais"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
-                  >
+                  <TabsTrigger value="fiscais" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
                     Dados Fiscais
                   </TabsTrigger>
                 </TabsList>
@@ -218,9 +326,9 @@ function Companies() {
                       <div className="grid gap-2">
                         <Label htmlFor="cnpj">CNPJ <span className="text-red-500">*</span></Label>
                         <div className="relative">
-                          <Input 
-                            id="cnpj" 
-                            placeholder="00.000.000/0000-00" 
+                          <Input
+                            id="cnpj"
+                            placeholder="00.000.000/0000-00"
                             value={cnpj}
                             onChange={(e) => setCnpj(e.target.value)}
                             onBlur={handleCnpjBlur}
@@ -235,58 +343,31 @@ function Companies() {
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="razao">Razão Social <span className="text-red-500">*</span></Label>
-                        <Input 
-                          id="razao" 
-                          placeholder="Razão Social completa" 
-                          value={formData.razao}
-                          onChange={(e) => setFormData({ ...formData, razao: e.target.value })}
-                        />
+                        <Input id="razao" value={formData.razao} onChange={(e) => setFormData({ ...formData, razao: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="fantasia">Nome Fantasia</Label>
-                        <Input 
-                          id="fantasia" 
-                          placeholder="Nome Fantasia" 
-                          value={formData.fantasia}
-                          onChange={(e) => setFormData({ ...formData, fantasia: e.target.value })}
-                        />
+                        <Input id="fantasia" value={formData.fantasia} onChange={(e) => setFormData({ ...formData, fantasia: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="responsavel">Responsável pela Empresa</Label>
-                        <Input 
-                          id="responsavel" 
-                          placeholder="Nome do responsável" 
-                          value={formData.responsavel}
-                          onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
-                        />
+                        <Input id="responsavel" value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="email">E-mail do Responsável</Label>
-                        <Input 
-                          id="email" 
-                          type="email"
-                          placeholder="email@empresa.com" 
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        />
+                        <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="telefone">Telefone</Label>
+                        <Input id="telefone" value={formData.telefone} onChange={(e) => setFormData({ ...formData, telefone: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="ie">Inscrição Estadual</Label>
-                        <Input 
-                          id="ie" 
-                          placeholder="IE" 
-                          value={formData.ie}
-                          onChange={(e) => setFormData({ ...formData, ie: e.target.value })}
-                        />
+                        <Input id="ie" value={formData.ie} onChange={(e) => setFormData({ ...formData, ie: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="im">Inscrição Municipal</Label>
-                        <Input 
-                          id="im" 
-                          placeholder="IM" 
-                          value={formData.im}
-                          onChange={(e) => setFormData({ ...formData, im: e.target.value })}
-                        />
+                        <Input id="im" value={formData.im} onChange={(e) => setFormData({ ...formData, im: e.target.value })} />
                       </div>
                     </div>
                   </TabsContent>
@@ -296,14 +377,7 @@ function Companies() {
                       <div className="grid gap-2">
                         <Label htmlFor="cep">CEP <span className="text-red-500">*</span></Label>
                         <div className="relative">
-                          <Input 
-                            id="cep" 
-                            placeholder="00000-000" 
-                            value={formData.cep}
-                            onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                            onBlur={handleCepBlur}
-                            className="font-mono"
-                          />
+                          <Input id="cep" placeholder="00000-000" value={formData.cep} onChange={(e) => setFormData({ ...formData, cep: e.target.value })} onBlur={handleCepBlur} className="font-mono" />
                           {isLoadingCep && (
                             <div className="absolute right-3 top-1/2 -translate-y-1/2">
                               <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
@@ -313,58 +387,27 @@ function Companies() {
                       </div>
                       <div className="grid gap-2 md:col-span-2">
                         <Label htmlFor="logradouro">Logradouro <span className="text-red-500">*</span></Label>
-                        <Input 
-                          id="logradouro" 
-                          placeholder="Rua, Av, etc" 
-                          value={formData.logradouro}
-                          onChange={(e) => setFormData({ ...formData, logradouro: e.target.value })}
-                        />
+                        <Input id="logradouro" value={formData.logradouro} onChange={(e) => setFormData({ ...formData, logradouro: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="numero">Número <span className="text-red-500">*</span></Label>
-                        <Input 
-                          id="numero" 
-                          placeholder="Ex: 123" 
-                          value={formData.numero}
-                          onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
-                        />
+                        <Input id="numero" value={formData.numero} onChange={(e) => setFormData({ ...formData, numero: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="complemento">Complemento</Label>
-                        <Input 
-                          id="complemento" 
-                          placeholder="Apto, Sala, etc" 
-                          value={formData.complemento}
-                          onChange={(e) => setFormData({ ...formData, complemento: e.target.value })}
-                        />
+                        <Input id="complemento" value={formData.complemento} onChange={(e) => setFormData({ ...formData, complemento: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="bairro">Bairro <span className="text-red-500">*</span></Label>
-                        <Input 
-                          id="bairro" 
-                          placeholder="Bairro" 
-                          value={formData.bairro}
-                          onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
-                        />
+                        <Input id="bairro" value={formData.bairro} onChange={(e) => setFormData({ ...formData, bairro: e.target.value })} />
                       </div>
                       <div className="grid gap-2 md:col-span-2">
                         <Label htmlFor="municipio">Cidade <span className="text-red-500">*</span></Label>
-                        <Input 
-                          id="municipio" 
-                          placeholder="Cidade" 
-                          value={formData.municipio}
-                          onChange={(e) => setFormData({ ...formData, municipio: e.target.value })}
-                        />
+                        <Input id="municipio" value={formData.municipio} onChange={(e) => setFormData({ ...formData, municipio: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="uf">UF <span className="text-red-500">*</span></Label>
-                        <Input 
-                          id="uf" 
-                          placeholder="SP" 
-                          value={formData.uf}
-                          maxLength={2}
-                          onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })}
-                        />
+                        <Input id="uf" value={formData.uf} maxLength={2} onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })} />
                       </div>
                     </div>
                   </TabsContent>
@@ -408,13 +451,23 @@ function Companies() {
               <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Salvar Empresa
+              <Button
+                type="button"
+                className="bg-blue-600 hover:bg-blue-700"
+                disabled={saveMutation.isPending}
+                onClick={() => saveMutation.mutate()}
+              >
+                {saveMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...
+                  </>
+                ) : (
+                  "Salvar Empresa"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
       </div>
 
       <Card className="border-slate-200 shadow-sm">
@@ -422,7 +475,12 @@ function Companies() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="relative w-full md:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input placeholder="Buscar por CNPJ ou Razão Social..." className="pl-9 bg-slate-50 border-slate-200 focus:bg-white" />
+              <Input
+                placeholder="Buscar por CNPJ ou Razão Social..."
+                className="pl-9 bg-slate-50 border-slate-200 focus:bg-white"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
             <Button variant="outline" size="sm">
               <Filter className="mr-2 h-4 w-4" /> Filtros
@@ -433,154 +491,169 @@ function Companies() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-slate-100">
-                <TableHead 
-                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('nome_fantasia')}
-                >
-                  <div className="flex items-center gap-1">
-                    Empresa <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                <TableHead className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600" onClick={() => requestSort("nome_fantasia")}>
+                  <div className="flex items-center gap-1">Empresa <ArrowUpDown className="h-3 w-3" /></div>
                 </TableHead>
-                <TableHead 
-                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('cnpj')}
-                >
-                  <div className="flex items-center gap-1">
-                    CNPJ <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                <TableHead className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600" onClick={() => requestSort("cnpj")}>
+                  <div className="flex items-center gap-1">CNPJ <ArrowUpDown className="h-3 w-3" /></div>
                 </TableHead>
-                <TableHead 
-                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('uf')}
-                >
-                  <div className="flex items-center gap-1">
-                    UF <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                <TableHead className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600" onClick={() => requestSort("uf")}>
+                  <div className="flex items-center gap-1">UF <ArrowUpDown className="h-3 w-3" /></div>
                 </TableHead>
+                <TableHead className="text-slate-500 font-semibold">Município</TableHead>
                 <TableHead className="text-slate-500 font-semibold">Certificado Digital</TableHead>
-                <TableHead 
-                  className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                  onClick={() => requestSort('expira_em')}
-                >
-                  <div className="flex items-center gap-1">
-                    Expiração <ArrowUpDown className="h-3 w-3" />
-                  </div>
-                </TableHead>
                 <TableHead className="text-right text-slate-500 font-semibold">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedCompanies.map((company) => (
-
-                <TableRow key={company.id} className="border-slate-100 hover:bg-slate-50 transition-colors">
-                  <TableCell>
-                    <div>
-                      <div className="font-medium text-slate-900">{company.nome_fantasia || company.razao_social}</div>
-                      <div className="text-xs text-slate-500 truncate max-w-[200px]">{company.razao_social}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-slate-600 font-mono text-xs">{company.cnpj}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-semibold text-slate-600 border-slate-200">
-                      {company.uf}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {company.status === 'active' ? (
-                        <ShieldCheck className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <ShieldAlert className="h-4 w-4 text-amber-500" />
-                      )}
-                      <span className={`text-sm font-medium ${company.status === 'active' ? 'text-green-700' : 'text-amber-700'}`}>
-                        {company.certificado}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-slate-600 text-sm">
-                    {new Date(company.expira_em).toLocaleDateString('pt-BR')}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                        onClick={() => {
-                          setSelectedCompany(company);
-                          setIsDetailsOpen(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </div>
-
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                    <Loader2 className="h-5 w-5 animate-spin inline-block mr-2" /> Carregando empresas...
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : sortedCompanies.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                    Nenhuma empresa cadastrada. Clique em <b>Nova Empresa</b> para começar.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                sortedCompanies.map((company) => (
+                  <TableRow key={company.id} className="border-slate-100 hover:bg-slate-50">
+                    <TableCell>
+                      <div>
+                        <div className="font-medium text-slate-900">{company.nome_fantasia || company.razao_social}</div>
+                        <div className="text-xs text-slate-500 truncate max-w-[240px]">{company.razao_social}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-slate-600 font-mono text-xs">{company.cnpj}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-semibold text-slate-600 border-slate-200">
+                        {company.uf || "-"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-slate-600 text-sm">{company.municipio || "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <ShieldAlert className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-medium text-amber-700">Pendente</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                          onClick={() => {
+                            setSelectedCompany(company);
+                            setIsDetailsOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes da Empresa</DialogTitle>
-            <DialogDescription>
-              Informações completas do cadastro selecionado.
-            </DialogDescription>
+            <DialogDescription>Informações completas do cadastro selecionado.</DialogDescription>
           </DialogHeader>
           {selectedCompany && (
-            <div className="space-y-4 py-4">
+            <div className="space-y-6 py-2">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Razão Social</Label>
-                  <p className="font-medium">{selectedCompany.razao_social}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Nome Fantasia</Label>
-                  <p className="font-medium">{selectedCompany.nome_fantasia || "-"}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">CNPJ</Label>
-                  <p className="font-mono">{selectedCompany.cnpj}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">UF</Label>
-                  <p className="font-medium">{selectedCompany.uf}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Status Certificado</Label>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={selectedCompany.status === 'active' ? 'secondary' : 'destructive'} className="bg-green-100 text-green-700">
-                      {selectedCompany.certificado}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-slate-500">Data de Expiração</Label>
-                  <p className="font-medium">{new Date(selectedCompany.expira_em).toLocaleDateString('pt-BR')}</p>
-                </div>
+                <Field label="Razão Social" value={selectedCompany.razao_social} />
+                <Field label="Nome Fantasia" value={selectedCompany.nome_fantasia} />
+                <Field label="CNPJ" value={selectedCompany.cnpj} mono />
+                <Field label="UF" value={selectedCompany.uf} />
+                <Field label="Inscrição Estadual" value={selectedCompany.inscricao_estadual} />
+                <Field label="Inscrição Municipal" value={selectedCompany.inscricao_municipal} />
+                <Field label="Responsável" value={selectedCompany.responsavel} />
+                <Field label="E-mail" value={selectedCompany.email} />
+                <Field label="Telefone" value={selectedCompany.telefone} />
               </div>
               <Separator />
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-start gap-3">
-                <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-700">
-                  Para editar estas informações, utilize o módulo de configurações ou entre em contato com o suporte.
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Endereço</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="CEP" value={selectedCompany.cep} mono />
+                  <Field label="Município" value={selectedCompany.municipio} />
+                  <Field
+                    label="Logradouro"
+                    value={
+                      [selectedCompany.logradouro, selectedCompany.numero].filter(Boolean).join(", ") || null
+                    }
+                  />
+                  <Field label="Complemento" value={selectedCompany.complemento} />
+                  <Field label="Bairro" value={selectedCompany.bairro} />
                 </div>
               </div>
+              {selectedCompany.cnaes && selectedCompany.cnaes.length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">CNAEs</h3>
+                    <div className="border rounded-md divide-y overflow-hidden">
+                      {selectedCompany.cnaes.map((c, i) => (
+                        <div key={i} className="p-3 flex items-start gap-3 bg-white">
+                          {c.main ? (
+                            <Badge className="bg-blue-600 whitespace-nowrap">Principal</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-slate-500 whitespace-nowrap">Secundário</Badge>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-mono font-medium text-slate-700">{c.code}</div>
+                            <div className="text-sm text-slate-600 break-words">{c.text}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {selectedCompany && (
+              <Button
+                variant="outline"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (confirm("Remover esta empresa? Esta ação não pode ser desfeita.")) {
+                    deleteMutation.mutate(selectedCompany.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" /> Remover
+              </Button>
+            )}
             <Button onClick={() => setIsDetailsOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
 
+function Field({ label, value, mono }: { label: string; value: string | null | undefined; mono?: boolean }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-slate-500">{label}</Label>
+      <p className={`font-medium ${mono ? "font-mono" : ""}`}>{value || "-"}</p>
     </div>
   );
 }

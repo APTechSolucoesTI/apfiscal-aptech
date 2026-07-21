@@ -135,6 +135,12 @@ function isValidCnpj(raw: string): boolean {
   return d1 === parseInt(c[12], 10) && d2 === parseInt(c[13], 10);
 }
 
+function maskCep(raw: string) {
+  const c = raw.replace(/\D/g, "").slice(0, 8);
+  if (c.length > 5) return `${c.slice(0, 5)}-${c.slice(5)}`;
+  return c;
+}
+
 function Companies() {
   const queryClient = useQueryClient();
 

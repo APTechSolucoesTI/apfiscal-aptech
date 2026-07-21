@@ -480,6 +480,14 @@ export type Database = {
     }
     Functions: {
       ensure_user_organization: { Args: never; Returns: string }
+      has_org_role: {
+        Args: {
+          _org_id: string
+          _roles: Database["public"]["Enums"]["app_role"][]
+        }
+        Returns: boolean
+      }
+      is_org_member: { Args: { _org_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "financeiro" | "visualizador"

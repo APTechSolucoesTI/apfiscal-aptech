@@ -48,11 +48,11 @@ export const saveProduct = createServerFn({ method: "POST" })
     const payload = { ...data, organization_id: company.organization_id };
     const { id, ...rest } = payload;
     if (id) {
-      const { error } = await context.supabase.from("products").update(rest).eq("id", id);
+      const { error } = await context.supabase.from("products").update(rest as never).eq("id", id);
       if (error) throw new Error(error.message);
       return { id };
     }
-    const { data: inserted, error } = await context.supabase.from("products").insert(rest).select("id").single();
+    const { data: inserted, error } = await context.supabase.from("products").insert(rest as never).select("id").single();
     if (error) throw new Error(error.message);
     return { id: inserted.id };
   });
@@ -103,10 +103,10 @@ export const ingestNfeCatalog = createServerFn({ method: "POST" })
       _company_id: data.companyId,
       _cnpj: data.emitente.cnpj,
       _razao_social: data.emitente.razao_social,
-      _nome_fantasia: data.emitente.nome_fantasia ?? null,
-      _ie: data.emitente.inscricao_estadual ?? null,
+      _nome_fantasia: data.emitente.nome_fantasia ?? undefined,
+      _ie: data.emitente.inscricao_estadual ?? undefined,
       _endereco: data.emitente.endereco ?? {},
-    });
+    } as never);
     if (sErr) throw new Error(sErr.message);
 
     const productIds: string[] = [];
@@ -116,13 +116,13 @@ export const ingestNfeCatalog = createServerFn({ method: "POST" })
         _company_id: data.companyId,
         _codigo: item.codigo,
         _descricao: item.descricao,
-        _ncm: item.ncm ?? null,
-        _cfop: item.cfop ?? null,
-        _unidade: item.unidade ?? null,
-        _ean: item.ean ?? null,
-        _valor_unitario: item.valor_unitario ?? null,
+        _ncm: item.ncm ?? undefined,
+        _cfop: item.cfop ?? undefined,
+        _unidade: item.unidade ?? undefined,
+        _ean: item.ean ?? undefined,
+        _valor_unitario: item.valor_unitario ?? undefined,
         _supplier_id: supplierId as string,
-      });
+      } as never);
       if (pErr) throw new Error(pErr.message);
       productIds.push(pid as string);
     }

@@ -624,7 +624,7 @@ function Companies() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...
                   </>
                 ) : (
-                  "Salvar Empresa"
+                  editingId ? "Atualizar Empresa" : "Salvar Empresa"
                 )}
               </Button>
             </DialogFooter>

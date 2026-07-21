@@ -100,6 +100,7 @@ function SuppliersPage() {
     return suppliers.filter((f: any) =>
       !s ||
       f.razao_social?.toLowerCase().includes(s) ||
+      onlyDigits(f.cnpj_cpf ?? "").includes(onlyDigits(s)) && onlyDigits(s).length > 0 ||
       f.cnpj_cpf?.includes(s) ||
       f.nome_fantasia?.toLowerCase().includes(s),
     );

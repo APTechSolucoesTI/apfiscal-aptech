@@ -19,6 +19,8 @@ import {
   Search,
   Filter,
   ShieldAlert,
+  ShieldCheck,
+  ShieldX,
   Loader2,
   Info,
   ArrowUpDown,
@@ -163,6 +165,32 @@ function Companies() {
       return (data ?? []) as unknown as CompanyRow[];
     },
   });
+
+  const { data: certificates = [] } = useQuery({
+    queryKey: ["digital_certificates", "by_company"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("digital_certificates")
+        .select("id, company_id, status, expires_at")
+        .order("expires_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as { id: string; company_id: string; status: string | null; expires_at: string | null }[];
+    },
+  });
+
+  const certByCompany = new Map<string, { status: string | null; expires_at: string | null }>();
+  for (const c of certificates) {
+    if (!certByCompany.has(c.company_id)) certByCompany.set(c.company_id, { status: c.status, expires_at: c.expires_at });
+  }
+
+  const getCertStatus = (companyId: string) => {
+    const cert = certByCompany.get(companyId);
+    if (!cert) return { label: "Pendente", tone: "amber" as const };
+    const daysLeft = cert.expires_at ? Math.ceil((new Date(cert.expires_at).getTime() - Date.now()) / 86400000) : null;
+    if (cert.status !== "active" || (daysLeft !== null && daysLeft < 0)) return { label: "Expirado", tone: "red" as const };
+    if (daysLeft !== null && daysLeft < 30) return { label: `Expira em ${daysLeft}d`, tone: "amber" as const };
+    return { label: "Válido", tone: "green" as const };
+  };
 
   const [search, setSearch] = useState("");
   const filtered = companies.filter((c) => {
@@ -697,10 +725,20 @@ function Companies() {
                     </TableCell>
                     <TableCell className="text-slate-600 text-sm">{company.municipio || "-"}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <ShieldAlert className="h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-medium text-amber-700">Pendente</span>
-                      </div>
+                      {(() => {
+                        const s = getCertStatus(company.id);
+                        const Icon = s.tone === "green" ? ShieldCheck : s.tone === "red" ? ShieldX : ShieldAlert;
+                        const color =
+                          s.tone === "green" ? "text-green-600" : s.tone === "red" ? "text-red-600" : "text-amber-500";
+                        const textColor =
+                          s.tone === "green" ? "text-green-700" : s.tone === "red" ? "text-red-700" : "text-amber-700";
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Icon className={`h-4 w-4 ${color}`} />
+                            <span className={`text-sm font-medium ${textColor}`}>{s.label}</span>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">

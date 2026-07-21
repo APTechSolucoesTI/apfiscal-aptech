@@ -1,21 +1,15 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
+import {
+  Card,
+  CardContent,
+  CardHeader,
   CardTitle,
-  CardDescription
+  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ShieldCheck, 
-  Upload, 
-  Key,
-  FileKey,
-  Trash2
-} from "lucide-react";
+import { ShieldCheck, Upload, Key, FileKey, Trash2, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,19 +19,88 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings/certificates")({
   component: Certificates,
 });
 
-function Certificates() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+type CertRow = {
+  id: string;
+  company_id: string;
+  type: string | null;
+  file_path: string | null;
+  expires_at: string | null;
+  status: string | null;
+  created_at: string;
+};
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
+type CompanyRef = { id: string; razao_social: string; cnpj: string };
+
+function Certificates() {
+  const queryClient = useQueryClient();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [companyId, setCompanyId] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies", "ref"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("companies").select("id, razao_social, cnpj").order("razao_social");
+      if (error) throw error;
+      return (data ?? []) as CompanyRef[];
+    },
+  });
+
+  const { data: certs = [], isLoading } = useQuery({
+    queryKey: ["digital_certificates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("digital_certificates")
+        .select("id, company_id, type, file_path, expires_at, status, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as CertRow[];
+    },
+  });
+
+  const companyMap = new Map(companies.map((c) => [c.id, c]));
+
+  const installMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Selecione a empresa.");
+      if (!selectedFile) throw new Error("Selecione o arquivo do certificado.");
+      const { error } = await supabase.from("digital_certificates").insert({
+        company_id: companyId,
+        type: "A1",
+        file_path: selectedFile.name,
+        status: "valid",
+      } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Certificado registrado. Upload seguro do arquivo será habilitado em breve.");
+      queryClient.invalidateQueries({ queryKey: ["digital_certificates"] });
+      setSelectedFile(null);
+      setPassword("");
+      setCompanyId("");
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Erro ao registrar certificado."),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("digital_certificates").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Certificado removido.");
+      queryClient.invalidateQueries({ queryKey: ["digital_certificates"] });
+    },
+    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Erro ao remover."),
+  });
 
   return (
     <div className="space-y-6">
@@ -56,14 +119,14 @@ function Certificates() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="company">Empresa correspondente</Label>
-                <Select>
+                <Select value={companyId} onValueChange={setCompanyId}>
                   <SelectTrigger id="company">
-                    <SelectValue placeholder="Selecione a empresa" />
+                    <SelectValue placeholder={companies.length ? "Selecione a empresa" : "Cadastre uma empresa primeiro"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">TechBrasil LTDA</SelectItem>
-                    <SelectItem value="2">Estrela Sul Alimentos</SelectItem>
-                    <SelectItem value="3">LogNacional S.A.</SelectItem>
+                    {companies.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -71,26 +134,29 @@ function Certificates() {
                 <Label htmlFor="password">Senha do Certificado</Label>
                 <div className="relative">
                   <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input id="password" type="password" className="pl-9" placeholder="Senha do arquivo" />
+                  <Input
+                    id="password"
+                    type="password"
+                    className="pl-9"
+                    placeholder="Senha do arquivo"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
 
             <div className="grid gap-2">
               <Label>Arquivo do Certificado (PFX/P12)</Label>
-              <div 
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors relative ${
-                  selectedFile ? 'border-blue-400 bg-blue-50/50' : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
+              <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors relative ${selectedFile ? "border-blue-400 bg-blue-50/50" : "border-slate-200 hover:bg-slate-50"}`}>
                 <input
                   type="file"
                   accept=".pfx,.p12"
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  onChange={handleFileChange}
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
                 />
                 <div className="flex flex-col items-center">
-                  <FileKey className={`h-10 w-10 mb-2 ${selectedFile ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <FileKey className={`h-10 w-10 mb-2 ${selectedFile ? "text-blue-600" : "text-slate-400"}`} />
                   {selectedFile ? (
                     <div>
                       <p className="text-sm font-medium text-slate-900">{selectedFile.name}</p>
@@ -107,8 +173,13 @@ function Certificates() {
             </div>
 
             <div className="flex justify-end pt-2">
-              <Button className="bg-blue-600 hover:bg-blue-700 px-8" disabled={!selectedFile}>
-                <Upload className="mr-2 h-4 w-4" /> Instalar Certificado
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 px-8"
+                disabled={!selectedFile || !companyId || installMutation.isPending}
+                onClick={() => installMutation.mutate()}
+              >
+                {installMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                Instalar Certificado
               </Button>
             </div>
           </CardContent>
@@ -122,35 +193,50 @@ function Certificates() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-0">
-            <div className="divide-y divide-slate-100">
-              <div className="px-6 py-4 hover:bg-slate-50 transition-colors flex justify-between items-start">
-                <div className="space-y-1">
-                  <p className="font-bold text-sm text-slate-900">TechBrasil LTDA</p>
-                  <p className="text-xs text-slate-500">CNPJ: 12.345.678/0001-90</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-0">Válido</Badge>
-                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Até 20/05/2026</span>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+            {isLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+            ) : certs.length === 0 ? (
+              <div className="text-center py-8 text-sm text-slate-500 px-6">Nenhum certificado instalado.</div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {certs.map((c) => {
+                  const co = companyMap.get(c.company_id);
+                  const daysLeft = c.expires_at ? Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 86400000) : null;
+                  const isWarning = daysLeft !== null && daysLeft < 30 && daysLeft >= 0;
+                  const isExpired = daysLeft !== null && daysLeft < 0;
+                  return (
+                    <div key={c.id} className="px-6 py-4 hover:bg-slate-50 flex justify-between items-start">
+                      <div className="space-y-1">
+                        <p className="font-bold text-sm text-slate-900">{co?.razao_social ?? "Empresa"}</p>
+                        <p className="text-xs text-slate-500">CNPJ: {co?.cnpj ?? "-"}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge className={
+                            isExpired ? "bg-red-100 text-red-700 hover:bg-red-100 border-0"
+                            : isWarning ? "bg-amber-100 text-amber-700 hover:bg-amber-100 border-0"
+                            : "bg-green-100 text-green-700 hover:bg-green-100 border-0"
+                          }>
+                            {isExpired ? "Expirado" : isWarning ? "Atenção" : "Válido"}
+                          </Badge>
+                          {c.expires_at && (
+                            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                              Até {new Date(c.expires_at).toLocaleDateString("pt-BR")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-400 hover:text-red-500"
+                        onClick={() => deleteMutation.mutate(c.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
-
-              <div className="px-6 py-4 hover:bg-slate-50 transition-colors flex justify-between items-start">
-                <div className="space-y-1">
-                  <p className="font-bold text-sm text-slate-900">LogNacional S.A.</p>
-                  <p className="text-xs text-slate-500">CNPJ: 45.678.901/0001-22</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-0 text-[10px]">Atenção</Badge>
-                    <span className="text-[10px] text-amber-600 font-medium uppercase tracking-wider">Expira em 15 dias</span>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

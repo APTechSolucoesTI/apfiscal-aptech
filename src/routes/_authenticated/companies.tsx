@@ -707,16 +707,20 @@ function Companies() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          title="Editar empresa"
                           className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                          onClick={() => {
-                            setSelectedCompany(company);
-                            setIsDetailsOpen(true);
-                          }}
+                          onClick={() => openEdit(company)}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Excluir empresa"
+                          className="h-8 w-8 text-red-600 hover:bg-red-50"
+                          onClick={() => requestDelete(company)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>

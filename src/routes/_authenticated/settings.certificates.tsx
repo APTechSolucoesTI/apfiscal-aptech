@@ -198,7 +198,7 @@ function Certificates() {
             <div className="flex justify-end pt-2">
               <Button
                 className="bg-blue-600 hover:bg-blue-700 px-8"
-                disabled={!selectedFile || !companyId || installMutation.isPending}
+                disabled={!selectedFile || !companyId || !password || installMutation.isPending}
                 onClick={() => installMutation.mutate()}
               >
                 {installMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}

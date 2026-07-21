@@ -35,86 +35,85 @@ const CompanySchema = z.object({
 export type CompanyData = z.infer<typeof CompanySchema>;
 
 /**
- * Server function to fetch company data by CNPJ.
- * Switched to BrasilAPI as it's more reliable and has better coverage for CNPJ data without the strict CORS/Rate limits of ReceitaWS free tier.
+ * Server function to fetch company data by CNPJ via OpenCNPJ API.
+ * https://api.opencnpj.org/{cnpj}
  */
 export const fetchCompanyByCnpj = createServerFn({ method: "GET" })
   .inputValidator((data) => z.object({ cnpj: z.string() }).parse(data))
   .handler(async ({ data }) => {
     const cleanCnpj = data.cnpj.replace(/\D/g, "");
-    
+
     if (cleanCnpj.length !== 14) {
       throw new Error("CNPJ inválido. Deve conter 14 dígitos.");
     }
 
     try {
-      console.log(`Fetching CNPJ ${cleanCnpj} via BrasilAPI...`);
-      // BrasilAPI is generally more stable and comprehensive for public Brazilian data
-      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
-      
+      console.log(`Fetching CNPJ ${cleanCnpj} via OpenCNPJ...`);
+      const response = await fetch(`https://api.opencnpj.org/${cleanCnpj}`);
+
       if (!response.ok) {
         if (response.status === 404) {
-           throw new Error("CNPJ não encontrado na base de dados.");
+          throw new Error("CNPJ não encontrado na base de dados.");
         }
         throw new Error(`Erro na API de consulta (Status ${response.status}): ${response.statusText}`);
       }
 
       const result = await response.json();
 
-      // Mapping BrasilAPI response to our internal CompanySchema
+      // Build endereço completo
+      const logradouro = [result.tipo_logradouro, result.logradouro]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      // Build telefone principal (DDD + número)
+      const telPrincipal = Array.isArray(result.telefones) && result.telefones.length > 0
+        ? `(${result.telefones[0].ddd || ""}) ${result.telefones[0].numero || ""}`.trim()
+        : "";
+
+      // Build CNAEs (principal + secundários)
+      const cnaesArray: any[] = Array.isArray(result.cnaes) && result.cnaes.length > 0
+        ? result.cnaes.map((c: any) => ({
+            code: c.codigo?.toString() || "",
+            text: c.descricao || "",
+            main: !!c.is_principal,
+          }))
+        : [
+            {
+              code: result.cnae_principal?.toString() || "",
+              text: "",
+              main: true,
+            },
+            ...(result.cnaes_secundarios || []).map((c: any) => ({
+              code: typeof c === "string" ? c : c.codigo?.toString() || "",
+              text: typeof c === "string" ? "" : c.descricao || "",
+              main: false,
+            })),
+          ];
+
       return CompanySchema.parse({
         status: "OK",
         cnpj: result.cnpj,
-        tipo: result.descricao_identificador_matriz_filial,
+        tipo: result.matriz_filial,
         abertura: result.data_inicio_atividade,
         nome: result.razao_social,
         fantasia: result.nome_fantasia || "",
         uf: result.uf,
         municipio: result.municipio,
-        logradouro: result.logradouro,
+        logradouro,
         numero: result.numero,
         bairro: result.bairro,
         cep: result.cep,
         email: result.email || "",
-        telefone: result.ddd_telefone_1 || "",
-        situacao: result.descricao_situacao_cadastral,
-        atividades_economicas: [
-          { 
-            code: result.cnae_fiscal?.toString() || "", 
-            text: result.cnae_fiscal_descricao || "",
-            main: true
-          },
-          ...(result.cnaes_secundarios || []).map((c: any) => ({
-            code: c.codigo?.toString() || "",
-            text: c.descricao || "",
-            main: false
-          }))
-        ],
-        responsavel: result.qsa?.[0]?.nome || "",
+        telefone: telPrincipal,
+        situacao: result.situacao_cadastral,
+        atividades_economicas: cnaesArray,
+        responsavel: result.QSA?.[0]?.nome_socio || "",
         inscricao_estadual: "ISENTO",
         inscricao_municipal: "A consultar",
       });
     } catch (error) {
       console.error("Error fetching CNPJ:", error);
-      
-      // Fallback to ReceitaWS if BrasilAPI fails for some reason
-      try {
-        console.log(`Attempting fallback to ReceitaWS for CNPJ ${cleanCnpj}...`);
-        const fallbackResponse = await fetch(`https://receitaws.com.br/v1/cnpj/${cleanCnpj}`);
-        if (fallbackResponse.ok) {
-          const fallbackResult = await fallbackResponse.json();
-          if (fallbackResult.status !== "ERROR") {
-             return CompanySchema.parse({
-                ...fallbackResult,
-                inscricao_estadual: "ISENTO",
-                inscricao_municipal: "A consultar",
-             });
-          }
-        }
-      } catch (fallbackError) {
-        console.error("Fallback also failed:", fallbackError);
-      }
-
       throw error instanceof Error ? error : new Error("Erro inesperado ao buscar CNPJ.");
     }
   });

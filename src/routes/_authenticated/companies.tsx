@@ -108,6 +108,33 @@ function formatCnpj(raw: string) {
   return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12, 14)}`;
 }
 
+function maskCnpj(raw: string) {
+  const c = raw.replace(/\D/g, "").slice(0, 14);
+  let out = c;
+  if (c.length > 2) out = `${c.slice(0, 2)}.${c.slice(2)}`;
+  if (c.length > 5) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5)}`;
+  if (c.length > 8) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8)}`;
+  if (c.length > 12) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+  return out;
+}
+
+function isValidCnpj(raw: string): boolean {
+  const c = raw.replace(/\D/g, "");
+  if (c.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(c)) return false;
+  const calc = (base: string) => {
+    const weights = base.length === 12
+      ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+      : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = base.split("").reduce((acc, d, i) => acc + parseInt(d, 10) * weights[i], 0);
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const d1 = calc(c.slice(0, 12));
+  const d2 = calc(c.slice(0, 12) + d1);
+  return d1 === parseInt(c[12], 10) && d2 === parseInt(c[13], 10);
+}
+
 function Companies() {
   const queryClient = useQueryClient();
 
@@ -154,9 +181,19 @@ function Companies() {
     setTab("cadastrais");
   };
 
-  const handleCnpjBlur = async () => {
-    const cleanCnpj = cnpj.replace(/\D/g, "");
+  const handleFetchCnpj = async (rawCnpj: string) => {
+    const cleanCnpj = rawCnpj.replace(/\D/g, "");
     if (cleanCnpj.length !== 14) return;
+    if (!isValidCnpj(cleanCnpj)) {
+      toast.error("CNPJ inválido. Verifique os dígitos informados.");
+      return;
+    }
+    const formatted = formatCnpj(cleanCnpj);
+    const exists = companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj);
+    if (exists) {
+      toast.error("Já existe uma empresa cadastrada com este CNPJ.");
+      return;
+    }
     setIsLoadingCnpj(true);
     try {
       const data = await getCompany({ data: { cnpj: cleanCnpj } });
@@ -181,11 +218,22 @@ function Companies() {
       toast.success("Dados da empresa carregados via CNPJ!");
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao buscar CNPJ. Verifique se o número está correto.");
+      toast.error(error instanceof Error ? error.message : "Erro ao buscar CNPJ.");
     } finally {
       setIsLoadingCnpj(false);
     }
+    void formatted;
   };
+
+  const handleCnpjChange = (value: string) => {
+    const masked = maskCnpj(value);
+    setCnpj(masked);
+    if (masked.replace(/\D/g, "").length === 14) {
+      void handleFetchCnpj(masked);
+    }
+  };
+
+
 
   const handleCepBlur = async () => {
     const cleanCep = formData.cep.replace(/\D/g, "");
@@ -212,7 +260,10 @@ function Companies() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const cleanCnpj = cnpj.replace(/\D/g, "");
-      if (cleanCnpj.length !== 14) throw new Error("Informe um CNPJ válido (14 dígitos).");
+      if (!isValidCnpj(cleanCnpj)) throw new Error("Informe um CNPJ válido.");
+      if (companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj)) {
+        throw new Error("Já existe uma empresa cadastrada com este CNPJ.");
+      }
       if (!formData.razao.trim()) throw new Error("Razão Social é obrigatória.");
       if (!formData.uf.trim()) throw new Error("UF é obrigatória.");
 
@@ -330,9 +381,10 @@ function Companies() {
                             id="cnpj"
                             placeholder="00.000.000/0000-00"
                             value={cnpj}
-                            onChange={(e) => setCnpj(e.target.value)}
-                            onBlur={handleCnpjBlur}
+                            onChange={(e) => handleCnpjChange(e.target.value)}
+                            onBlur={() => handleFetchCnpj(cnpj)}
                             className="font-mono"
+                            maxLength={18}
                           />
                           {isLoadingCnpj && (
                             <div className="absolute right-3 top-1/2 -translate-y-1/2">

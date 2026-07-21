@@ -304,21 +304,13 @@ function Companies() {
     mutationFn: async () => {
       const cleanCnpj = cnpj.replace(/\D/g, "");
       if (!isValidCnpj(cleanCnpj)) throw new Error("Informe um CNPJ válido.");
-      if (companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj)) {
+      if (companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj && c.id !== editingId)) {
         throw new Error("Já existe uma empresa cadastrada com este CNPJ.");
       }
       if (!formData.razao.trim()) throw new Error("Razão Social é obrigatória.");
       if (!formData.uf.trim()) throw new Error("UF é obrigatória.");
 
-      const { data: orgId, error: orgErr } = await supabase.rpc("ensure_user_organization");
-      if (orgErr) {
-        console.error("[companies] ensure_user_organization error:", orgErr);
-        throw new Error(orgErr.message || "Falha ao obter organização.");
-      }
-      if (!orgId) throw new Error("Organização não encontrada para o usuário.");
-
-      const payload = {
-        organization_id: orgId as unknown as string,
+      const basePayload = {
         cnpj: formatCnpj(cleanCnpj),
         razao_social: formData.razao.trim(),
         nome_fantasia: formData.fantasia || null,
@@ -338,30 +330,46 @@ function Companies() {
         cnaes: (formData.cnaes ?? []) as unknown as never,
       };
 
-      console.log("[companies] insert payload:", payload);
+      if (editingId) {
+        const { data, error } = await supabase
+          .from("companies")
+          .update(basePayload as never)
+          .eq("id", editingId)
+          .select()
+          .single();
+        if (error) {
+          const detail = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
+            .filter(Boolean).join(" · ");
+          throw new Error(detail || "Erro ao atualizar empresa.");
+        }
+        return { data, mode: "update" as const };
+      }
+
+      const { data: orgId, error: orgErr } = await supabase.rpc("ensure_user_organization");
+      if (orgErr) throw new Error(orgErr.message || "Falha ao obter organização.");
+      if (!orgId) throw new Error("Organização não encontrada para o usuário.");
+
+      const payload = { ...basePayload, organization_id: orgId as unknown as string };
       const { data, error } = await supabase
         .from("companies")
         .insert(payload as never)
         .select()
         .single();
       if (error) {
-        console.error("[companies] insert error:", error);
         const detail = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
-          .filter(Boolean)
-          .join(" · ");
+          .filter(Boolean).join(" · ");
         throw new Error(detail || "Erro ao salvar empresa.");
       }
-      return data;
+      return { data, mode: "insert" as const };
     },
-    onSuccess: () => {
-      toast.success("Empresa cadastrada com sucesso!");
+    onSuccess: (res) => {
+      toast.success(res.mode === "update" ? "Empresa atualizada com sucesso!" : "Empresa cadastrada com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["companies"] });
       setIsAddDialogOpen(false);
       resetForm();
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Erro ao salvar empresa.";
-      console.error("[companies] save error:", err);
       if (msg.toLowerCase().includes("duplicate")) {
         toast.error("Esta empresa (CNPJ) já está cadastrada.");
       } else {
@@ -369,6 +377,22 @@ function Companies() {
       }
     },
   });
+
+  const requestDelete = async (company: CompanyRow) => {
+    setDeleteTarget(company);
+    setDeleteCheck({ loading: true, count: 0 });
+    const { count, error } = await supabase
+      .from("fiscal_documents")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", company.id);
+    if (error) {
+      toast.error("Não foi possível verificar movimentações da empresa.");
+      setDeleteTarget(null);
+      setDeleteCheck(null);
+      return;
+    }
+    setDeleteCheck({ loading: false, count: count ?? 0 });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -378,6 +402,8 @@ function Companies() {
     onSuccess: () => {
       toast.success("Empresa removida.");
       queryClient.invalidateQueries({ queryKey: ["companies"] });
+      setDeleteTarget(null);
+      setDeleteCheck(null);
       setIsDetailsOpen(false);
     },
     onError: (err: unknown) => {

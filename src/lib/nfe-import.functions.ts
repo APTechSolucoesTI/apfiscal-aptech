@@ -122,29 +122,77 @@ export const importNfeXml = createServerFn({ method: "POST" })
       };
     }
 
-    // Upsert supplier (emitente)
+    // Determine catalog scope for the organization
+    const orgId = (company as any).organization_id as string;
+    const companyId = (company as any).id as string;
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("catalog_scope")
+      .eq("id", orgId)
+      .maybeSingle();
+    const isGlobal = (org as any)?.catalog_scope === "global";
+
+    // Supplier: check existence first (by CNPJ, masked or unmasked)
     let supplierId: string | null = null;
+    let supplierCreated = false;
+    let supplierExisted = false;
     if (nfe.emitente.cnpj) {
-      const { data: supId, error: supErr } = await supabase.rpc("upsert_supplier_from_nfe", {
-        _organization_id: (company as any).organization_id,
-        _company_id: (company as any).id,
-        _cnpj: nfe.emitente.cnpj,
-        _razao_social: nfe.emitente.nome || nfe.emitente.cnpj,
-        _nome_fantasia: nfe.emitente.fantasia ?? undefined,
-        _ie: nfe.emitente.ie ?? undefined,
-        _endereco: nfe.emitente.endereco,
-      });
-      if (supErr) throw new Error(`Erro ao cadastrar fornecedor: ${supErr.message}`);
-      supplierId = (supId as string) ?? null;
+      const c = nfe.emitente.cnpj;
+      const maskedEmit = c.length === 14
+        ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
+        : c.length === 11
+        ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`
+        : c;
+
+      let supplierQuery = supabase
+        .from("suppliers")
+        .select("id")
+        .eq("organization_id", orgId)
+        .in("cnpj_cpf", [maskedEmit, c]);
+      if (!isGlobal) supplierQuery = supplierQuery.eq("company_id", companyId);
+
+      const { data: existingSupplier } = await supplierQuery.limit(1).maybeSingle();
+      if (existingSupplier) {
+        supplierId = (existingSupplier as any).id as string;
+        supplierExisted = true;
+      } else {
+        const { data: supId, error: supErr } = await supabase.rpc("upsert_supplier_from_nfe", {
+          _organization_id: orgId,
+          _company_id: companyId,
+          _cnpj: nfe.emitente.cnpj,
+          _razao_social: nfe.emitente.nome || nfe.emitente.cnpj,
+          _nome_fantasia: nfe.emitente.fantasia ?? undefined,
+          _ie: nfe.emitente.ie ?? undefined,
+          _endereco: nfe.emitente.endereco,
+        });
+        if (supErr) throw new Error(`Erro ao cadastrar fornecedor: ${supErr.message}`);
+        supplierId = (supId as string) ?? null;
+        supplierCreated = true;
+      }
     }
 
-    // Upsert products
+    // Products: check existence first per item
     let productsCreated = 0;
+    let productsExisted = 0;
     for (const item of nfe.itens) {
       if (!item.codigo || !item.descricao) continue;
+
+      let prodQuery = supabase
+        .from("products")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("codigo", item.codigo);
+      if (!isGlobal) prodQuery = prodQuery.eq("company_id", companyId);
+
+      const { data: existingProduct } = await prodQuery.limit(1).maybeSingle();
+      if (existingProduct) {
+        productsExisted++;
+        continue;
+      }
+
       const { error: prodErr } = await supabase.rpc("upsert_product_from_nfe", {
-        _organization_id: (company as any).organization_id,
-        _company_id: (company as any).id,
+        _organization_id: orgId,
+        _company_id: companyId,
         _codigo: item.codigo,
         _descricao: item.descricao,
         _ncm: item.ncm ?? undefined,
@@ -162,7 +210,7 @@ export const importNfeXml = createServerFn({ method: "POST" })
     const { data: inserted, error: insErr } = await supabase
       .from("fiscal_documents")
       .insert({
-        company_id: (company as any).id,
+        company_id: companyId,
         tipo: "nfe",
         chave_acesso: nfe.chave,
         numero: nfe.numero || "0",
@@ -187,6 +235,9 @@ export const importNfeXml = createServerFn({ method: "POST" })
       companyName: (company as any).razao_social as string,
       itemCount: nfe.itens.length,
       productsCreated,
-      supplierCreated: !!supplierId,
+      productsExisted,
+      supplierCreated,
+      supplierExisted,
     };
   });
+

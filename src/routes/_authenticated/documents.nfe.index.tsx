@@ -169,6 +169,9 @@ function NFeList() {
           <p className="text-slate-500">Notas fiscais eletrônicas recebidas.</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => { setImportFiles([]); setImportOpen(true); }}>
+            <Upload className="mr-2 h-4 w-4" /> Importar XML
+          </Button>
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" /> Exportar CSV
           </Button>
@@ -176,6 +179,7 @@ function NFeList() {
             <FileDown className="mr-2 h-4 w-4" /> Baixar XMLs (Lote)
           </Button>
         </div>
+
       </div>
 
       <Card className="border-slate-200 shadow-sm">

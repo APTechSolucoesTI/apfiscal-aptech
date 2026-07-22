@@ -280,7 +280,7 @@ function SuppliersPage() {
           <p className="text-sm text-slate-500">Cadastro de fornecedores por empresa com vínculo a ERPs.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={companies.length === 0}>
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && companies.length === 0}>
             <Upload className="h-4 w-4 mr-1" /> Importar XLSX
           </Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Fornecedor</Button>

@@ -46,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/suppliers")({
 });
 
 const empty: SupplierInput = {
-  company_id: "",
+  company_id: null,
   cnpj_cpf: "",
   tipo_pessoa: "juridica",
   razao_social: "",

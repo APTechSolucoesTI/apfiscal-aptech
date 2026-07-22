@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_authenticated/products")({
 });
 
 const empty: ProductInput = {
-  company_id: "",
+  company_id: null,
   codigo: "",
   descricao: "",
   ativo: true,

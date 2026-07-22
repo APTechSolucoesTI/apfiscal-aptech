@@ -215,7 +215,7 @@ function ProductsPage() {
           <p className="text-sm text-slate-500">Catálogo de produtos por empresa com vínculo a ERPs.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={companies.length === 0}>
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && companies.length === 0}>
             <Upload className="h-4 w-4 mr-1" /> Importar XLSX
           </Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
@@ -225,11 +225,16 @@ function ProductsPage() {
           open={importOpen}
           onOpenChange={setImportOpen}
           title="Importar Produtos via Excel"
-          description={(() => { const c: any = companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id)); return `Registros serão vinculados à empresa: ${c ? `${c.razao_social}${c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}` : "—"}`; })()}
+          description={isGlobal
+            ? "Selecione se os produtos serão compartilhados por todas as empresas (Global) ou vinculados a uma empresa específica."
+            : "Selecione a empresa em que os produtos serão cadastrados."}
           fields={productImportFields}
-          buildRow={(m) => {
-            const cid = companyId !== "all" ? companyId : companies[0]?.id;
-            if (!cid) throw new Error("Selecione uma empresa antes de importar");
+          companies={companies.map((c: any) => ({ id: c.id, label: `${c.razao_social}${c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}` }))}
+          allowGlobal={isGlobal}
+          requireCompanySelection={!isGlobal}
+          buildRow={(m, ctx) => {
+            const cid = ctx.companyId;
+            if (!isGlobal && !cid) throw new Error("Selecione uma empresa antes de importar");
             if (!m.codigo) throw new Error("Código obrigatório");
             if (!m.descricao) throw new Error("Descrição obrigatória");
             const num = (v: unknown) => v == null || v === "" ? null : (Number.isFinite(Number(v)) ? Number(v) : null);
@@ -251,6 +256,13 @@ function ProductsPage() {
               erp_code: m.erp_code ? String(m.erp_code) : null,
               ativo: true,
             } as ProductInput;
+          }}
+          checkDuplicate={async (row) => {
+            const q = supabase.from("products").select("id", { count: "exact", head: true }).eq("codigo", row.codigo);
+            const scoped = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
+            const { count, error } = await scoped;
+            if (error) return false;
+            return (count ?? 0) > 0;
           }}
           onImportRow={async (row) => { await save({ data: row }); }}
           onDone={() => qc.invalidateQueries({ queryKey: ["products"] })}

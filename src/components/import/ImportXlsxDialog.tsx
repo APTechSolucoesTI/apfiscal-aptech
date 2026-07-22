@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -13,7 +13,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, Loader2, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, Loader2, Sparkles, CheckCircle2, AlertCircle, Globe2, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 export type ImportField = {
@@ -24,15 +24,27 @@ export type ImportField = {
   transform?: (value: unknown) => unknown;
 };
 
+export type ImportCompanyOption = { id: string; label: string };
+
+export type ImportContext = { companyId: string | null };
+
 export type ImportXlsxDialogProps<T> = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   title: string;
   description?: string;
   fields: ImportField[];
-  buildRow: (mapped: Record<string, unknown>) => T | null;
+  buildRow: (mapped: Record<string, unknown>, ctx: ImportContext) => T | null;
   onImportRow: (row: T, index: number) => Promise<void>;
   onDone?: () => void;
+  /** List of companies available for scoping the import. */
+  companies?: ImportCompanyOption[];
+  /** When true, allows the "Global (todas as empresas)" option to be selected. */
+  allowGlobal?: boolean;
+  /** When true, the import cannot start until the user picks a company (or global if allowed). */
+  requireCompanySelection?: boolean;
+  /** Optional async duplicate check per built row. When it returns true, the row is skipped. */
+  checkDuplicate?: (row: T, ctx: ImportContext) => Promise<boolean>;
 };
 
 const normalize = (s: string) =>
@@ -40,6 +52,8 @@ const normalize = (s: string) =>
     .replace(/[^a-z0-9]+/g, "");
 
 const NONE = "__none__";
+const GLOBAL = "__global__";
+const UNSET = "__unset__";
 
 function autoMap(headers: string[], fields: ImportField[]): Record<string, string> {
   const map: Record<string, string> = {};
@@ -54,6 +68,7 @@ function autoMap(headers: string[], fields: ImportField[]): Record<string, strin
 
 export function ImportXlsxDialog<T>({
   open, onOpenChange, title, description, fields, buildRow, onImportRow, onDone,
+  companies, allowGlobal, requireCompanySelection, checkDuplicate,
 }: ImportXlsxDialogProps<T>) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string>("");
@@ -62,9 +77,28 @@ export function ImportXlsxDialog<T>({
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{ ok: number; fail: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<{ ok: number; fail: number; skipped: number; errors: string[] } | null>(null);
+  const [scopeValue, setScopeValue] = useState<string>(UNSET);
+
+  const showScope = !!companies && companies.length > 0;
+  const scopeReady = !showScope
+    || (!requireCompanySelection && scopeValue === UNSET)
+    || scopeValue !== UNSET;
+
+  useEffect(() => {
+    if (!open) return;
+    if (!showScope) return;
+    if (scopeValue !== UNSET) return;
+    if (allowGlobal && !requireCompanySelection) setScopeValue(GLOBAL);
+  }, [open, showScope, allowGlobal, requireCompanySelection, scopeValue]);
 
   const previewRows = useMemo(() => rows.slice(0, 5), [rows]);
+
+  function currentCompanyId(): string | null {
+    if (!showScope) return null;
+    if (scopeValue === GLOBAL || scopeValue === UNSET) return null;
+    return scopeValue;
+  }
 
   function reset() {
     setFileName("");
@@ -74,6 +108,7 @@ export function ImportXlsxDialog<T>({
     setImporting(false);
     setProgress(0);
     setResult(null);
+    setScopeValue(UNSET);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -106,6 +141,10 @@ export function ImportXlsxDialog<T>({
   }
 
   async function handleImport() {
+    if (showScope && requireCompanySelection && scopeValue === UNSET) {
+      toast.error("Selecione a empresa (ou Global) para vincular os registros importados.");
+      return;
+    }
     const missingRequired = fields.filter((f) => f.required && !mapping[f.key]);
     if (missingRequired.length > 0) {
       toast.error(`Mapeamento obrigatório faltando: ${missingRequired.map((f) => f.label).join(", ")}`);
@@ -113,8 +152,9 @@ export function ImportXlsxDialog<T>({
     }
     setImporting(true);
     setProgress(0);
-    let ok = 0, fail = 0;
+    let ok = 0, fail = 0, skipped = 0;
     const errors: string[] = [];
+    const ctx: ImportContext = { companyId: currentCompanyId() };
     for (let i = 0; i < rows.length; i++) {
       const src = rows[i];
       const mapped: Record<string, unknown> = {};
@@ -129,8 +169,12 @@ export function ImportXlsxDialog<T>({
         mapped[f.key] = val;
       }
       try {
-        const built = buildRow(mapped);
+        const built = buildRow(mapped, ctx);
         if (!built) throw new Error("Linha inválida");
+        if (checkDuplicate) {
+          const dup = await checkDuplicate(built, ctx);
+          if (dup) { skipped++; setProgress(Math.round(((i + 1) / rows.length) * 100)); continue; }
+        }
         await onImportRow(built, i);
         ok++;
       } catch (e) {
@@ -139,12 +183,13 @@ export function ImportXlsxDialog<T>({
       }
       setProgress(Math.round(((i + 1) / rows.length) * 100));
     }
-    setResult({ ok, fail, errors: errors.slice(0, 10) });
+    setResult({ ok, fail, skipped, errors: errors.slice(0, 10) });
     setImporting(false);
     if (ok > 0) {
       toast.success(`${ok} registro(s) importado(s).`);
       onDone?.();
     }
+    if (skipped > 0) toast.info(`${skipped} registro(s) já existiam e foram ignorados.`);
     if (fail > 0) toast.error(`${fail} linha(s) com erro.`);
   }
 
@@ -157,6 +202,34 @@ export function ImportXlsxDialog<T>({
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
 
+        {showScope && (
+          <div className="mb-4 p-3 rounded-lg border bg-slate-50 dark:bg-slate-900 space-y-2">
+            <Label className="text-xs flex items-center gap-1">
+              <Building2 className="h-3.5 w-3.5" /> Vincular importação à empresa
+              {requireCompanySelection && <span className="text-red-500">*</span>}
+            </Label>
+            <Select value={scopeValue} onValueChange={setScopeValue}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Selecione a empresa…" />
+              </SelectTrigger>
+              <SelectContent>
+                {allowGlobal && (
+                  <SelectItem value={GLOBAL}>
+                    <span className="flex items-center gap-2"><Globe2 className="h-3.5 w-3.5" /> Global — Todas as empresas</span>
+                  </SelectItem>
+                )}
+                {(companies ?? []).map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {allowGlobal && (
+              <p className="text-[11px] text-slate-500">
+                A organização está configurada para catálogo global. Você pode importar como Global (compartilhado) ou vincular a uma empresa específica.
+              </p>
+            )}
+          </div>
+        )}
 
         {rows.length === 0 ? (
           <div className="border-2 border-dashed rounded-lg p-10 text-center space-y-3">
@@ -172,9 +245,15 @@ export function ImportXlsxDialog<T>({
               className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
-            <Button onClick={() => fileInputRef.current?.click()}>
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={showScope && requireCompanySelection && scopeValue === UNSET}
+            >
               <Upload className="h-4 w-4 mr-1" /> Escolher arquivo
             </Button>
+            {showScope && requireCompanySelection && scopeValue === UNSET && (
+              <p className="text-xs text-amber-600">Selecione uma empresa acima para habilitar a importação.</p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -253,8 +332,9 @@ export function ImportXlsxDialog<T>({
 
             {result && (
               <div className="space-y-2 text-sm">
-                <div className="flex gap-3">
-                  <Badge variant="default" className="bg-green-600"><CheckCircle2 className="h-3 w-3 mr-1" />{result.ok} sucesso</Badge>
+                <div className="flex gap-3 flex-wrap">
+                  <Badge variant="default" className="bg-green-600"><CheckCircle2 className="h-3 w-3 mr-1" />{result.ok} importados</Badge>
+                  {result.skipped > 0 && <Badge variant="secondary">{result.skipped} já existiam</Badge>}
                   {result.fail > 0 && <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />{result.fail} falhas</Badge>}
                 </div>
                 {result.errors.length > 0 && (
@@ -271,7 +351,7 @@ export function ImportXlsxDialog<T>({
         <DialogFooter className="p-6 pt-3 border-t shrink-0">
           <Button variant="outline" onClick={() => handleClose(false)}>Fechar</Button>
           {rows.length > 0 && !result && (
-            <Button onClick={handleImport} disabled={importing}>
+            <Button onClick={handleImport} disabled={importing || !scopeReady}>
               {importing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Importar {rows.length} registro(s)
             </Button>
@@ -281,4 +361,3 @@ export function ImportXlsxDialog<T>({
     </Dialog>
   );
 }
-

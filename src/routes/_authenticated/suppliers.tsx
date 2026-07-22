@@ -291,7 +291,7 @@ function SuppliersPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Fornecedores via Excel"
-        description={`Registros serão vinculados à empresa: ${companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id))?.razao_social ?? "—"}`}
+        description={(() => { const c: any = companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id)); return `Registros serão vinculados à empresa: ${c ? `${c.razao_social}${c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}` : "—"}`; })()}
         fields={supplierImportFields}
         buildRow={(m) => {
           const cid = companyId !== "all" ? companyId : companies[0]?.id;

@@ -455,18 +455,21 @@ export type Database = {
       }
       organizations: {
         Row: {
+          catalog_scope: string
           created_at: string | null
           id: string
           name: string
           plan: string
         }
         Insert: {
+          catalog_scope?: string
           created_at?: string | null
           id?: string
           name: string
           plan?: string
         }
         Update: {
+          catalog_scope?: string
           created_at?: string | null
           id?: string
           name?: string
@@ -483,7 +486,7 @@ export type Database = {
           cfop_padrao: string | null
           codigo: string
           codigo_fornecedor: string | null
-          company_id: string
+          company_id: string | null
           created_at: string
           descricao: string
           ean: string | null
@@ -510,7 +513,7 @@ export type Database = {
           cfop_padrao?: string | null
           codigo: string
           codigo_fornecedor?: string | null
-          company_id: string
+          company_id?: string | null
           created_at?: string
           descricao: string
           ean?: string | null
@@ -537,7 +540,7 @@ export type Database = {
           cfop_padrao?: string | null
           codigo?: string
           codigo_fornecedor?: string | null
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           descricao?: string
           ean?: string | null
@@ -585,7 +588,7 @@ export type Database = {
           bairro: string | null
           cep: string | null
           cnpj_cpf: string
-          company_id: string
+          company_id: string | null
           complemento: string | null
           created_at: string
           email: string | null
@@ -613,7 +616,7 @@ export type Database = {
           bairro?: string | null
           cep?: string | null
           cnpj_cpf: string
-          company_id: string
+          company_id?: string | null
           complemento?: string | null
           created_at?: string
           email?: string | null
@@ -641,7 +644,7 @@ export type Database = {
           bairro?: string | null
           cep?: string | null
           cnpj_cpf?: string
-          company_id?: string
+          company_id?: string | null
           complemento?: string | null
           created_at?: string
           email?: string | null

@@ -134,7 +134,13 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           }}>
             <Download className="mr-2 h-4 w-4" /> XML
           </Button>
-          <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4" /> DANFE (PDF)</Button>
+          <Button variant="outline" size="sm" onClick={() => {
+            try {
+              generateDanfePdf(doc, items);
+            } catch (e) {
+              toast.error(`Falha ao gerar DANFE: ${e instanceof Error ? e.message : "erro"}`);
+            }
+          }}><Download className="mr-2 h-4 w-4" /> DANFE (PDF)</Button>
           <Button variant="outline" size="sm"><Mail className="mr-2 h-4 w-4" /> Reenviar</Button>
           <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10"><XCircle className="mr-2 h-4 w-4" /> Cancelar</Button>
           <Button variant="outline" size="sm"><History className="mr-2 h-4 w-4" /> Eventos</Button>

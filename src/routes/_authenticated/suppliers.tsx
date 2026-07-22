@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { listSuppliers, saveSupplier, deleteSupplier, deleteSuppliers, type SupplierInput } from "@/lib/suppliers.functions";
+import { getOrgSettings } from "@/lib/organization.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";

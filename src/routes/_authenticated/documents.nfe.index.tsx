@@ -24,14 +24,25 @@ import {
   ArrowUpDown,
   Loader2,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
+import { importNfeXml } from "@/lib/nfe-import.functions";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/documents/nfe/")({
   component: NFeList,
@@ -65,7 +76,11 @@ function NFeList() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFiles, setImportFiles] = useState<File[]>([]);
   const removeMany = useServerFn(deleteFiscalDocuments);
+  const importXml = useServerFn(importNfeXml);
+
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["fiscal_documents", "nfe"],
@@ -143,8 +158,46 @@ function NFeList() {
     bulkDelMut.mutate(Array.from(selectedIds));
   }
 
+  const importMut = useMutation({
+    mutationFn: async (files: File[]) => {
+      const results: Array<{ name: string; ok: boolean; duplicated?: boolean; message: string }> = [];
+      for (const f of files) {
+        try {
+          const xml = await f.text();
+          const r = await importXml({ data: { fileName: f.name, xml } });
+          if (r.ok) {
+            results.push({ name: f.name, ok: true, message: `Importada para ${r.companyName} (${r.itemCount} item(ns))` });
+          } else if (r.duplicated) {
+            results.push({ name: f.name, ok: false, duplicated: true, message: r.message });
+          } else {
+            results.push({ name: f.name, ok: false, message: "Falha desconhecida" });
+          }
+        } catch (e) {
+          results.push({ name: f.name, ok: false, message: e instanceof Error ? e.message : "Erro" });
+        }
+      }
+      return results;
+    },
+    onSuccess: (results) => {
+      const ok = results.filter((r) => r.ok).length;
+      const dup = results.filter((r) => r.duplicated).length;
+      const err = results.length - ok - dup;
+      if (ok) toast.success(`${ok} NF-e importada(s)`);
+      if (dup) toast.warning(`${dup} já existente(s)`);
+      if (err) toast.error(`${err} com erro`);
+      results.filter((r) => !r.ok && !r.duplicated).forEach((r) => toast.error(`${r.name}: ${r.message}`));
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+      qc.invalidateQueries({ queryKey: ["suppliers"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setImportOpen(false);
+      setImportFiles([]);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const totalConfirmed = docs.filter((d) => (d.status_manifestacao ?? "").toLowerCase().includes("confirm")).length;
   const totalPending = docs.length - totalConfirmed;
+
 
   return (
     <div className="space-y-6">
@@ -154,6 +207,9 @@ function NFeList() {
           <p className="text-slate-500">Notas fiscais eletrônicas recebidas.</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => { setImportFiles([]); setImportOpen(true); }}>
+            <Upload className="mr-2 h-4 w-4" /> Importar XML
+          </Button>
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" /> Exportar CSV
           </Button>
@@ -161,6 +217,7 @@ function NFeList() {
             <FileDown className="mr-2 h-4 w-4" /> Baixar XMLs (Lote)
           </Button>
         </div>
+
       </div>
 
       <Card className="border-slate-200 shadow-sm">
@@ -298,6 +355,45 @@ function NFeList() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={importOpen} onOpenChange={(o) => { if (!importMut.isPending) setImportOpen(o); }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Importar NF-e via XML</DialogTitle>
+            <DialogDescription>
+              Selecione um ou mais arquivos XML. A plataforma valida se o destinatário pertence a uma empresa cadastrada e cria fornecedores/produtos automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Input
+              type="file"
+              accept=".xml,text/xml,application/xml"
+              multiple
+              disabled={importMut.isPending}
+              onChange={(e) => setImportFiles(Array.from(e.target.files ?? []))}
+            />
+            {importFiles.length > 0 && (
+              <div className="text-sm text-slate-600">
+                {importFiles.length} arquivo(s) selecionado(s):
+                <ul className="mt-1 max-h-32 overflow-auto text-xs text-slate-500 list-disc pl-5">
+                  {importFiles.map((f) => <li key={f.name}>{f.name}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setImportOpen(false)} disabled={importMut.isPending}>Cancelar</Button>
+            <Button
+              onClick={() => importMut.mutate(importFiles)}
+              disabled={importFiles.length === 0 || importMut.isPending}
+            >
+              {importMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+              Importar {importFiles.length > 0 ? `(${importFiles.length})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 }

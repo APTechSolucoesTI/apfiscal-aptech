@@ -63,3 +63,15 @@ export const deleteSupplier = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const deleteSuppliers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { ids: string[] }) => data)
+  .handler(async ({ data, context }) => {
+    if (!data.ids?.length) return { ok: true, count: 0 };
+    const { error, count } = await context.supabase
+      .from("suppliers").delete({ count: "exact" }).in("id", data.ids);
+    if (error) throw new Error(error.message);
+    return { ok: true, count: count ?? data.ids.length };
+  });
+

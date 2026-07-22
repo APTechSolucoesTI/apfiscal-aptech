@@ -66,6 +66,18 @@ export const deleteProduct = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const deleteProducts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { ids: string[] }) => data)
+  .handler(async ({ data, context }) => {
+    if (!data.ids?.length) return { ok: true, count: 0 };
+    const { error, count } = await context.supabase
+      .from("products").delete({ count: "exact" }).in("id", data.ids);
+    if (error) throw new Error(error.message);
+    return { ok: true, count: count ?? data.ids.length };
+  });
+
+
 /**
  * Ingest NF-e emitente + itens and auto-create supplier/products if missing.
  * Called by the NF-e ingestion pipeline.

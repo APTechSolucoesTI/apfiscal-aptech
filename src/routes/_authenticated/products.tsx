@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { listProducts, saveProduct, deleteProduct, type ProductInput } from "@/lib/products.functions";
+import { listProducts, saveProduct, deleteProduct, deleteProducts, type ProductInput } from "@/lib/products.functions";
 import { listSuppliers } from "@/lib/suppliers.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import {
   Card, CardContent, CardHeader,
 } from "@/components/ui/card";
@@ -84,7 +86,9 @@ function ProductsPage() {
   const list = useServerFn(listProducts);
   const save = useServerFn(saveProduct);
   const remove = useServerFn(deleteProduct);
+  const removeMany = useServerFn(deleteProducts);
   const suppliersFn = useServerFn(listSuppliers);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", companyId],
@@ -117,6 +121,16 @@ function ProductsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const bulkDelMut = useMutation({
+    mutationFn: (ids: string[]) => removeMany({ data: { ids } }),
+    onSuccess: (r) => {
+      toast.success(`${r.count} produto(s) excluído(s)`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
     return products.filter((p: any) =>
@@ -127,6 +141,35 @@ function ProductsPage() {
       p.ean?.includes(s),
     );
   }, [products, search]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const visible = new Set(filtered.map((p: any) => p.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (visible.has(id)) next.add(id); });
+      return next;
+    });
+  }, [filtered]);
+
+  const allChecked = filtered.length > 0 && filtered.every((p: any) => selectedIds.has(p.id));
+  const someChecked = selectedIds.size > 0 && !allChecked;
+  function toggleAll() {
+    if (allChecked) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map((p: any) => p.id)));
+  }
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} produto(s) selecionado(s)?`)) return;
+    bulkDelMut.mutate(Array.from(selectedIds));
+  }
+
 
   function openNew() {
     setForm({ ...empty, company_id: companyId !== "all" ? companyId : (companies[0]?.id ?? "") });
@@ -230,9 +273,28 @@ function ProductsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 mb-3 rounded border bg-amber-50 dark:bg-amber-950/30">
+              <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Limpar</Button>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDelMut.isPending}>
+                  {bulkDelMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Excluir selecionados
+                </Button>
+              </div>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead>NCM</TableHead>
@@ -245,11 +307,18 @@ function ProductsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-slate-500"><Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-slate-500"><Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.</TableCell></TableRow>
               ) : filtered.map((p: any) => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} data-state={selectedIds.has(p.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(p.id)}
+                      onCheckedChange={() => toggleRow(p.id)}
+                      aria-label={`Selecionar ${p.descricao}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{p.codigo}</TableCell>
                   <TableCell><div className="font-medium">{p.descricao}</div></TableCell>
                   <TableCell className="font-mono text-xs">{p.ncm ?? "—"}</TableCell>
@@ -279,6 +348,7 @@ function ProductsPage() {
             </TableBody>
           </Table>
         </CardContent>
+
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>

@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { listSuppliers, saveSupplier, deleteSupplier, type SupplierInput } from "@/lib/suppliers.functions";
+import { listSuppliers, saveSupplier, deleteSupplier, deleteSuppliers, type SupplierInput } from "@/lib/suppliers.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
 import { maskCnpj, maskCpf, maskCnpjCpf, maskCep, onlyDigits, isValidCnpj, isValidCpf } from "@/lib/br-format";
 import {
@@ -88,9 +90,11 @@ function SuppliersPage() {
   const list = useServerFn(listSuppliers);
   const save = useServerFn(saveSupplier);
   const remove = useServerFn(deleteSupplier);
+  const removeMany = useServerFn(deleteSuppliers);
   const lookupCnpj = useServerFn(fetchCompanyByCnpj);
   const lookupCep = useServerFn(fetchAddressByCep);
   const [lookingUp, setLookingUp] = useState<"cnpj" | "cep" | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", companyId],
@@ -117,6 +121,17 @@ function SuppliersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const bulkDelMut = useMutation({
+    mutationFn: (ids: string[]) => removeMany({ data: { ids } }),
+    onSuccess: (r) => {
+      toast.success(`${r.count} fornecedor(es) excluído(s)`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["suppliers"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
     return suppliers.filter((f: any) =>
@@ -127,6 +142,35 @@ function SuppliersPage() {
       f.nome_fantasia?.toLowerCase().includes(s),
     );
   }, [suppliers, search]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const visible = new Set(filtered.map((f: any) => f.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (visible.has(id)) next.add(id); });
+      return next;
+    });
+  }, [filtered]);
+
+  const allChecked = filtered.length > 0 && filtered.every((f: any) => selectedIds.has(f.id));
+  const someChecked = selectedIds.size > 0 && !allChecked;
+  function toggleAll() {
+    if (allChecked) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map((f: any) => f.id)));
+  }
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} fornecedor(es) selecionado(s)?`)) return;
+    bulkDelMut.mutate(Array.from(selectedIds));
+  }
+
 
   function openNew() {
     setForm({ ...empty, company_id: companyId !== "all" ? companyId : (companies[0]?.id ?? "") });
@@ -296,9 +340,28 @@ function SuppliersPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 mb-3 rounded border bg-amber-50 dark:bg-amber-950/30">
+              <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Limpar</Button>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDelMut.isPending}>
+                  {bulkDelMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Excluir selecionados
+                </Button>
+              </div>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>CNPJ/CPF</TableHead>
                 <TableHead>Razão Social</TableHead>
                 <TableHead>Empresa</TableHead>
@@ -309,11 +372,18 @@ function SuppliersPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
               ) : filtered.map((f: any) => (
-                <TableRow key={f.id}>
+                <TableRow key={f.id} data-state={selectedIds.has(f.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(f.id)}
+                      onCheckedChange={() => toggleRow(f.id)}
+                      aria-label={`Selecionar ${f.razao_social}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{maskCnpjCpf(f.cnpj_cpf ?? "")}</TableCell>
                   <TableCell>
                     <div className="font-medium">{f.razao_social}</div>
@@ -344,6 +414,7 @@ function SuppliersPage() {
             </TableBody>
           </Table>
         </CardContent>
+
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>

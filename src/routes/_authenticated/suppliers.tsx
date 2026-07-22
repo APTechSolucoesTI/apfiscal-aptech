@@ -23,8 +23,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Building2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Building2, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
+import { onlyDigits as digitsOnly } from "@/lib/br-format";
 
 export const Route = createFileRoute("/_authenticated/suppliers")({
   component: SuppliersPage,

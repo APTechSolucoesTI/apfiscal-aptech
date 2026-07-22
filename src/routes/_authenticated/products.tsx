@@ -165,7 +165,47 @@ function ProductsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Produtos</h1>
           <p className="text-sm text-slate-500">Catálogo de produtos por empresa com vínculo a ERPs.</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={companies.length === 0}>
+            <Upload className="h-4 w-4 mr-1" /> Importar XLSX
+          </Button>
+          <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
+        </div>
+
+        <ImportXlsxDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          title="Importar Produtos via Excel"
+          description={`Registros serão vinculados à empresa: ${companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id))?.razao_social ?? "—"}`}
+          fields={productImportFields}
+          buildRow={(m) => {
+            const cid = companyId !== "all" ? companyId : companies[0]?.id;
+            if (!cid) throw new Error("Selecione uma empresa antes de importar");
+            if (!m.codigo) throw new Error("Código obrigatório");
+            if (!m.descricao) throw new Error("Descrição obrigatória");
+            const num = (v: unknown) => v == null || v === "" ? null : (Number.isFinite(Number(v)) ? Number(v) : null);
+            return {
+              company_id: cid,
+              codigo: String(m.codigo),
+              descricao: String(m.descricao),
+              codigo_fornecedor: m.codigo_fornecedor ? String(m.codigo_fornecedor) : null,
+              ncm: m.ncm ? String(m.ncm) : null,
+              cest: m.cest ? String(m.cest) : null,
+              cfop_padrao: m.cfop_padrao ? String(m.cfop_padrao) : null,
+              unidade: m.unidade ? String(m.unidade) : null,
+              ean: m.ean ? String(m.ean) : null,
+              valor_unitario: num(m.valor_unitario),
+              aliquota_icms: num(m.aliquota_icms),
+              aliquota_ipi: num(m.aliquota_ipi),
+              origem_mercadoria: m.origem_mercadoria ? String(m.origem_mercadoria) : null,
+              erp_system: m.erp_system ? String(m.erp_system) : null,
+              erp_code: m.erp_code ? String(m.erp_code) : null,
+              ativo: true,
+            } as ProductInput;
+          }}
+          onImportRow={async (row) => { await save({ data: row }); }}
+          onDone={() => qc.invalidateQueries({ queryKey: ["products"] })}
+        />
       </div>
 
       <Card>

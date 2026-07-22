@@ -124,8 +124,8 @@ export const importNfeXml = createServerFn({ method: "POST" })
         _company_id: (company as any).id,
         _cnpj: nfe.emitente.cnpj,
         _razao_social: nfe.emitente.nome || nfe.emitente.cnpj,
-        _nome_fantasia: nfe.emitente.fantasia,
-        _ie: nfe.emitente.ie,
+        _nome_fantasia: nfe.emitente.fantasia ?? undefined,
+        _ie: nfe.emitente.ie ?? undefined,
         _endereco: nfe.emitente.endereco,
       });
       if (supErr) throw new Error(`Erro ao cadastrar fornecedor: ${supErr.message}`);
@@ -141,15 +141,16 @@ export const importNfeXml = createServerFn({ method: "POST" })
         _company_id: (company as any).id,
         _codigo: item.codigo,
         _descricao: item.descricao,
-        _ncm: item.ncm,
-        _cfop: item.cfop,
-        _unidade: item.unidade,
-        _ean: item.ean,
-        _valor_unitario: item.valorUnitario,
-        _supplier_id: supplierId,
+        _ncm: item.ncm ?? undefined,
+        _cfop: item.cfop ?? undefined,
+        _unidade: item.unidade ?? undefined,
+        _ean: item.ean ?? undefined,
+        _valor_unitario: item.valorUnitario ?? undefined,
+        _supplier_id: supplierId ?? undefined,
       });
       if (!prodErr) productsCreated++;
     }
+
 
     // Insert fiscal document
     const { data: inserted, error: insErr } = await supabase

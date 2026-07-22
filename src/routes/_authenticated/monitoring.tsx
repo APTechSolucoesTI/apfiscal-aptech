@@ -91,7 +91,7 @@ function MonitoringPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("id, cnpj, razao_social, uf")
+        .select("id, cnpj, razao_social, nome_fantasia, uf")
         .order("razao_social");
       if (error) throw error;
       return data ?? [];
@@ -233,7 +233,7 @@ function MonitoringPage() {
             <SelectContent>
               {empresas.map((e) => (
                 <SelectItem key={e.id} value={e.id}>
-                  {e.razao_social} — {e.cnpj}
+                  {e.razao_social}{e.nome_fantasia ? ` (${e.nome_fantasia})` : ""} — {e.cnpj}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -246,7 +246,7 @@ function MonitoringPage() {
         <CardHeader>
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div>
-              <CardTitle className="text-xl">{empresa.razao_social}</CardTitle>
+              <CardTitle className="text-xl">{empresa.razao_social}{empresa.nome_fantasia ? ` (${empresa.nome_fantasia})` : ""}</CardTitle>
               <CardDescription className="mt-1 font-mono">
                 {empresa.cnpj}
                 {empresa.uf ? ` · ${empresa.uf}` : ""}

@@ -178,7 +178,8 @@ function SuppliersPage() {
 
 
   function openNew() {
-    setForm({ ...empty, company_id: companyId !== "all" ? companyId : (companies[0]?.id ?? "") });
+    const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : (companies[0]?.id ?? null));
+    setForm({ ...empty, company_id: defaultCompany });
     setOpen(true);
   }
 

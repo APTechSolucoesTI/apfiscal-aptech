@@ -150,11 +150,13 @@ export function ImportXlsxDialog<T>({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-[95vw] sm:max-w-3xl lg:max-w-4xl max-h-[85vh] p-0 gap-0 flex flex-col">
+        <DialogHeader className="p-6 pb-3 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" /> {title}</DialogTitle>
           <DialogDescription>{description ?? "Envie um arquivo .xlsx. A plataforma sugere o mapeamento das colunas automaticamente."}</DialogDescription>
         </DialogHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+
 
         {rows.length === 0 ? (
           <div className="border-2 border-dashed rounded-lg p-10 text-center space-y-3">
@@ -265,7 +267,8 @@ export function ImportXlsxDialog<T>({
           </div>
         )}
 
-        <DialogFooter>
+        </div>
+        <DialogFooter className="p-6 pt-3 border-t shrink-0">
           <Button variant="outline" onClick={() => handleClose(false)}>Fechar</Button>
           {rows.length > 0 && !result && (
             <Button onClick={handleImport} disabled={importing}>
@@ -278,3 +281,4 @@ export function ImportXlsxDialog<T>({
     </Dialog>
   );
 }
+

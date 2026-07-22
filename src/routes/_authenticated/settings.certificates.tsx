@@ -52,7 +52,7 @@ type CertRow = {
   created_at: string;
 };
 
-type CompanyRef = { id: string; razao_social: string; cnpj: string };
+type CompanyRef = { id: string; razao_social: string; nome_fantasia: string | null; cnpj: string };
 
 function Certificates() {
   const queryClient = useQueryClient();
@@ -63,7 +63,7 @@ function Certificates() {
   const { data: companies = [] } = useQuery({
     queryKey: ["companies", "ref"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("id, razao_social, cnpj").order("razao_social");
+      const { data, error } = await supabase.from("companies").select("id, razao_social, nome_fantasia, cnpj").order("razao_social");
       if (error) throw error;
       return (data ?? []) as CompanyRef[];
     },
@@ -148,7 +148,7 @@ function Certificates() {
                   </SelectTrigger>
                   <SelectContent>
                     {companies.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>
+                      <SelectItem key={c.id} value={c.id}>{c.razao_social}{c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -230,7 +230,7 @@ function Certificates() {
                   return (
                     <div key={c.id} className="px-6 py-4 hover:bg-slate-50 flex justify-between items-start">
                       <div className="space-y-1">
-                        <p className="font-bold text-sm text-slate-900">{co?.razao_social ?? "Empresa"}</p>
+                        <p className="font-bold text-sm text-slate-900">{co ? `${co.razao_social}${co.nome_fantasia ? ` (${co.nome_fantasia})` : ""}` : "Empresa"}</p>
                         <p className="text-xs text-slate-500">CNPJ: {co?.cnpj ?? "-"}</p>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge className={

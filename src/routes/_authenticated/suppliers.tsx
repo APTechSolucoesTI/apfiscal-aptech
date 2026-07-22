@@ -82,7 +82,7 @@ function SuppliersPage() {
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("id, razao_social, cnpj").order("razao_social");
+      const { data, error } = await supabase.from("companies").select("id, razao_social, nome_fantasia, cnpj").order("razao_social");
       if (error) throw error;
       return data;
     },
@@ -291,7 +291,7 @@ function SuppliersPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Fornecedores via Excel"
-        description={`Registros serão vinculados à empresa: ${companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id))?.razao_social ?? "—"}`}
+        description={(() => { const c: any = companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id)); return `Registros serão vinculados à empresa: ${c ? `${c.razao_social}${c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}` : "—"}`; })()}
         fields={supplierImportFields}
         buildRow={(m) => {
           const cid = companyId !== "all" ? companyId : companies[0]?.id;
@@ -334,7 +334,7 @@ function SuppliersPage() {
                 <SelectContent>
                   <SelectItem value="all">Todas as empresas</SelectItem>
                   {companies.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.razao_social}{c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -446,7 +446,7 @@ function SuppliersPage() {
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {isGlobal && <SelectItem value="__global__">🌐 Global — Todas as empresas</SelectItem>}
-                      {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>)}
+                      {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}{c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Table,
@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Search, Download, Eye, ArrowUpDown, Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Download, Eye, ArrowUpDown, Loader2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import {
@@ -24,7 +25,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/documents/nfse")({
   component: NFSeList,
@@ -44,9 +48,12 @@ type FiscalDoc = {
 type Row = FiscalDoc & { data_num: number; valor_num: number };
 
 function NFSeList() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedDoc, setSelectedDoc] = useState<FiscalDoc | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const removeMany = useServerFn(deleteFiscalDocuments);
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["fiscal_documents", "nfse"],
@@ -61,14 +68,57 @@ function NFSeList() {
     },
   });
 
-  const rows: Row[] = docs
-    .filter((d) => {
-      const q = search.toLowerCase();
-      return !q || (d.numero ?? "").toLowerCase().includes(q) || (d.emitente_nome ?? "").toLowerCase().includes(q);
-    })
-    .map((d) => ({ ...d, data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0, valor_num: Number(d.valor_total ?? 0) }));
+  const rows: Row[] = useMemo(
+    () =>
+      docs
+        .filter((d) => {
+          const q = search.toLowerCase();
+          return !q || (d.numero ?? "").toLowerCase().includes(q) || (d.emitente_nome ?? "").toLowerCase().includes(q);
+        })
+        .map((d) => ({ ...d, data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0, valor_num: Number(d.valor_total ?? 0) })),
+    [docs, search],
+  );
 
   const { items: sortedDocs, requestSort } = useSortableData(rows);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const visible = new Set(sortedDocs.map((d) => d.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (visible.has(id)) next.add(id); });
+      return next;
+    });
+  }, [sortedDocs]);
+
+  const allChecked = sortedDocs.length > 0 && sortedDocs.every((d) => selectedIds.has(d.id));
+  const someChecked = selectedIds.size > 0 && !allChecked;
+
+  const bulkDelMut = useMutation({
+    mutationFn: (ids: string[]) => removeMany({ data: { ids } }),
+    onSuccess: (r) => {
+      toast.success(`${r.count} NFS-e excluída(s)`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function toggleAll() {
+    if (allChecked) setSelectedIds(new Set());
+    else setSelectedIds(new Set(sortedDocs.map((d) => d.id)));
+  }
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} NFS-e selecionada(s)?`)) return;
+    bulkDelMut.mutate(Array.from(selectedIds));
+  }
 
   return (
     <div className="space-y-6">
@@ -95,6 +145,18 @@ function NFSeList() {
           </div>
         </CardHeader>
         <CardContent>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 mb-3 rounded border bg-amber-50">
+              <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Limpar</Button>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDelMut.isPending}>
+                  {bulkDelMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Excluir selecionadas
+                </Button>
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
           ) : sortedDocs.length === 0 ? (
@@ -103,6 +165,13 @@ function NFSeList() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50/50">
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                      onCheckedChange={toggleAll}
+                      aria-label="Selecionar todas"
+                    />
+                  </TableHead>
                   <TableHead className="cursor-pointer" onClick={() => requestSort("numero")}>
                     <div className="flex items-center gap-1">Número <ArrowUpDown className="h-3 w-3" /></div>
                   </TableHead>
@@ -120,7 +189,14 @@ function NFSeList() {
               </TableHeader>
               <TableBody>
                 {sortedDocs.map((doc) => (
-                  <TableRow key={doc.id}>
+                  <TableRow key={doc.id} data-state={selectedIds.has(doc.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={() => toggleRow(doc.id)}
+                        aria-label={`Selecionar NFS-e ${doc.numero ?? doc.id}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{doc.numero ?? "-"}</TableCell>
                     <TableCell>{doc.data_emissao ? new Date(doc.data_emissao).toLocaleDateString("pt-BR") : "-"}</TableCell>
                     <TableCell>{doc.emitente_nome ?? doc.emitente_cnpj ?? "-"}</TableCell>

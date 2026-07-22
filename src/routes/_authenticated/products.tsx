@@ -273,9 +273,28 @@ function ProductsPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 mb-3 rounded border bg-amber-50 dark:bg-amber-950/30">
+              <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Limpar</Button>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDelMut.isPending}>
+                  {bulkDelMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Excluir selecionados
+                </Button>
+              </div>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead>NCM</TableHead>
@@ -288,11 +307,18 @@ function ProductsPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-slate-500"><Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-8 text-slate-500"><Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.</TableCell></TableRow>
               ) : filtered.map((p: any) => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} data-state={selectedIds.has(p.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(p.id)}
+                      onCheckedChange={() => toggleRow(p.id)}
+                      aria-label={`Selecionar ${p.descricao}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{p.codigo}</TableCell>
                   <TableCell><div className="font-medium">{p.descricao}</div></TableCell>
                   <TableCell className="font-mono text-xs">{p.ncm ?? "—"}</TableCell>
@@ -322,6 +348,7 @@ function ProductsPage() {
             </TableBody>
           </Table>
         </CardContent>
+
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>

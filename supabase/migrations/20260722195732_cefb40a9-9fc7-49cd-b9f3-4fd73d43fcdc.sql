@@ -1,0 +1,2 @@
+GRANT EXECUTE ON FUNCTION public.upsert_supplier_from_nfe(uuid, uuid, text, text, text, text, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_product_from_nfe(uuid, uuid, text, text, text, text, text, text, numeric, uuid) TO authenticated;

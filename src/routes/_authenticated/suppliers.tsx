@@ -49,6 +49,25 @@ const empty: SupplierInput = {
   razao_social: "",
 };
 
+const supplierImportFields: ImportField[] = [
+  { key: "cnpj_cpf", label: "CNPJ/CPF", required: true, aliases: ["cnpj", "cpf", "documento", "doc"] },
+  { key: "razao_social", label: "Razão Social", required: true, aliases: ["razaosocial", "nome", "empresa", "fornecedor"] },
+  { key: "nome_fantasia", label: "Nome Fantasia", aliases: ["fantasia", "apelido"] },
+  { key: "email", label: "E-mail", aliases: ["email", "mail"] },
+  { key: "telefone", label: "Telefone", aliases: ["fone", "celular", "tel"] },
+  { key: "inscricao_estadual", label: "Inscrição Estadual", aliases: ["ie", "inscricaoestadual"] },
+  { key: "inscricao_municipal", label: "Inscrição Municipal", aliases: ["im", "inscricaomunicipal"] },
+  { key: "cep", label: "CEP" },
+  { key: "logradouro", label: "Logradouro", aliases: ["endereco", "rua"] },
+  { key: "numero", label: "Número", aliases: ["num", "numero"] },
+  { key: "complemento", label: "Complemento" },
+  { key: "bairro", label: "Bairro" },
+  { key: "municipio", label: "Município", aliases: ["cidade", "municipio"] },
+  { key: "uf", label: "UF", aliases: ["estado", "uf"] },
+  { key: "erp_system", label: "Sistema ERP", aliases: ["erp"] },
+  { key: "erp_code", label: "Código no ERP", aliases: ["codigoerp", "erpcode"] },
+];
+
 function SuppliersPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");

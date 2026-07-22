@@ -76,7 +76,11 @@ function NFeList() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFiles, setImportFiles] = useState<File[]>([]);
   const removeMany = useServerFn(deleteFiscalDocuments);
+  const importXml = useServerFn(importNfeXml);
+
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["fiscal_documents", "nfe"],

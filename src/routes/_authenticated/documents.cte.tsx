@@ -82,9 +82,11 @@ function CTeList() {
 
   useEffect(() => {
     setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
       const visible = new Set(sortedDocs.map((d) => d.id));
       const next = new Set<string>();
       prev.forEach((id) => { if (visible.has(id)) next.add(id); });
+      if (next.size === prev.size) return prev;
       return next;
     });
   }, [sortedDocs]);

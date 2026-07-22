@@ -247,10 +247,9 @@ export const importNfeXml = createServerFn({ method: "POST" })
         _valor_unitario: item.valorUnitario ?? undefined,
         _supplier_id: supplierId ?? undefined,
       });
-      if (!prodErr) {
-        productsCreated++;
-        if (newId) productIdByCodigo.set(item.codigo, newId as string);
-      }
+      if (prodErr) throw new Error(`Erro ao cadastrar produto ${item.codigo}: ${prodErr.message}`);
+      productsCreated++;
+      if (newId) productIdByCodigo.set(item.codigo, newId as string);
     }
 
     // Insert fiscal document with full payload

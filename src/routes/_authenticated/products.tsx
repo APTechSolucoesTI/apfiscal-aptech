@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { listProducts, saveProduct, deleteProduct, deleteProducts, type ProductInput } from "@/lib/products.functions";
+import { getOrgSettings } from "@/lib/organization.functions";
 import { listSuppliers } from "@/lib/suppliers.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -43,7 +44,7 @@ export const Route = createFileRoute("/_authenticated/products")({
 });
 
 const empty: ProductInput = {
-  company_id: "",
+  company_id: null,
   codigo: "",
   descricao: "",
   ativo: true,
@@ -82,6 +83,10 @@ function ProductsPage() {
       return data;
     },
   });
+
+  const orgSettingsFn = useServerFn(getOrgSettings);
+  const { data: orgSettings } = useQuery({ queryKey: ["org-settings"], queryFn: () => orgSettingsFn() });
+  const isGlobal = orgSettings?.catalog_scope === "global";
 
   const list = useServerFn(listProducts);
   const save = useServerFn(saveProduct);
@@ -172,7 +177,8 @@ function ProductsPage() {
 
 
   function openNew() {
-    setForm({ ...empty, company_id: companyId !== "all" ? companyId : (companies[0]?.id ?? "") });
+    const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : (companies[0]?.id ?? null));
+    setForm({ ...empty, company_id: defaultCompany });
     setOpen(true);
   }
 
@@ -366,10 +372,14 @@ function ProductsPage() {
             <TabsContent value="dados" className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Empresa *</Label>
-                  <Select value={form.company_id} onValueChange={(v) => setForm({ ...form, company_id: v })}>
+                  <Label>Empresa {isGlobal ? "" : "*"}</Label>
+                  <Select
+                    value={form.company_id ?? "__global__"}
+                    onValueChange={(v) => setForm({ ...form, company_id: v === "__global__" ? null : v })}
+                  >
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
+                      {isGlobal && <SelectItem value="__global__">🌐 Global — Todas as empresas</SelectItem>}
                       {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -447,7 +457,7 @@ function ProductsPage() {
           </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || !form.company_id || !form.codigo || !form.descricao}>
+            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !form.codigo || !form.descricao}>
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>
           </DialogFooter>

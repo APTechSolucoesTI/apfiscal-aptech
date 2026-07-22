@@ -24,6 +24,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCompaniesRouteImport } from './routes/_authenticated/companies'
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings.members'
 import { Route as AuthenticatedSettingsCertificatesRouteImport } from './routes/_authenticated/settings.certificates'
+import { Route as AuthenticatedSettingsCatalogRouteImport } from './routes/_authenticated/settings.catalog'
 import { Route as AuthenticatedSettingsApiRouteImport } from './routes/_authenticated/settings.api'
 import { Route as AuthenticatedDocumentsNfseRouteImport } from './routes/_authenticated/documents.nfse'
 import { Route as AuthenticatedDocumentsCteRouteImport } from './routes/_authenticated/documents.cte'
@@ -107,6 +108,12 @@ const AuthenticatedSettingsCertificatesRoute =
     path: '/certificates',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
+const AuthenticatedSettingsCatalogRoute =
+  AuthenticatedSettingsCatalogRouteImport.update({
+    id: '/catalog',
+    path: '/catalog',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsApiRoute =
   AuthenticatedSettingsApiRouteImport.update({
     id: '/api',
@@ -154,6 +161,7 @@ export interface FileRoutesByFullPath {
   '/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/settings/api': typeof AuthenticatedSettingsApiRoute
+  '/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
   '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
@@ -175,6 +183,7 @@ export interface FileRoutesByTo {
   '/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/settings/api': typeof AuthenticatedSettingsApiRoute
+  '/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
   '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
@@ -198,6 +207,7 @@ export interface FileRoutesById {
   '/_authenticated/documents/cte': typeof AuthenticatedDocumentsCteRoute
   '/_authenticated/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/_authenticated/settings/api': typeof AuthenticatedSettingsApiRoute
+  '/_authenticated/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
   '/_authenticated/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/documents/cte'
     | '/documents/nfse'
     | '/settings/api'
+    | '/settings/catalog'
     | '/settings/certificates'
     | '/settings/members'
     | '/documents/nfe/$nfeId'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/documents/cte'
     | '/documents/nfse'
     | '/settings/api'
+    | '/settings/catalog'
     | '/settings/certificates'
     | '/settings/members'
     | '/documents/nfe/$nfeId'
@@ -264,6 +276,7 @@ export interface FileRouteTypes {
     | '/_authenticated/documents/cte'
     | '/_authenticated/documents/nfse'
     | '/_authenticated/settings/api'
+    | '/_authenticated/settings/catalog'
     | '/_authenticated/settings/certificates'
     | '/_authenticated/settings/members'
     | '/_authenticated/documents/nfe/$nfeId'
@@ -384,6 +397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsCertificatesRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
+    '/_authenticated/settings/catalog': {
+      id: '/_authenticated/settings/catalog'
+      path: '/catalog'
+      fullPath: '/settings/catalog'
+      preLoaderRoute: typeof AuthenticatedSettingsCatalogRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/settings/api': {
       id: '/_authenticated/settings/api'
       path: '/api'
@@ -444,12 +464,14 @@ const AuthenticatedDocumentsRouteWithChildren =
 
 interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsApiRoute: typeof AuthenticatedSettingsApiRoute
+  AuthenticatedSettingsCatalogRoute: typeof AuthenticatedSettingsCatalogRoute
   AuthenticatedSettingsCertificatesRoute: typeof AuthenticatedSettingsCertificatesRoute
   AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsApiRoute: AuthenticatedSettingsApiRoute,
+  AuthenticatedSettingsCatalogRoute: AuthenticatedSettingsCatalogRoute,
   AuthenticatedSettingsCertificatesRoute:
     AuthenticatedSettingsCertificatesRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,

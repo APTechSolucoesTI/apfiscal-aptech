@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type SupplierInput = {
   id?: string;
-  company_id: string;
+  company_id: string | null;
   cnpj_cpf: string;
   tipo_pessoa?: string;
   razao_social: string;
@@ -40,10 +40,18 @@ export const saveSupplier = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: SupplierInput) => data)
   .handler(async ({ data, context }) => {
-    const { data: company, error: cErr } = await context.supabase
-      .from("companies").select("organization_id").eq("id", data.company_id).maybeSingle();
-    if (cErr || !company) throw new Error("Empresa não encontrada");
-    const payload = { ...data, organization_id: company.organization_id };
+    let organization_id: string;
+    if (data.company_id) {
+      const { data: company, error: cErr } = await context.supabase
+        .from("companies").select("organization_id").eq("id", data.company_id).maybeSingle();
+      if (cErr || !company) throw new Error("Empresa não encontrada");
+      organization_id = company.organization_id as string;
+    } else {
+      const { data: orgId, error: oErr } = await context.supabase.rpc("ensure_user_organization");
+      if (oErr || !orgId) throw new Error("Organização não encontrada");
+      organization_id = orgId as string;
+    }
+    const payload = { ...data, company_id: data.company_id ?? null, organization_id };
     const { id, ...rest } = payload;
     if (id) {
       const { error } = await context.supabase.from("suppliers").update(rest as never).eq("id", id);

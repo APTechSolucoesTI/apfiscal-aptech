@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { listSuppliers, saveSupplier, deleteSupplier, deleteSuppliers, type SupplierInput } from "@/lib/suppliers.functions";
+import { getOrgSettings } from "@/lib/organization.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
@@ -45,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/suppliers")({
 });
 
 const empty: SupplierInput = {
-  company_id: "",
+  company_id: null,
   cnpj_cpf: "",
   tipo_pessoa: "juridica",
   razao_social: "",
@@ -86,6 +87,10 @@ function SuppliersPage() {
       return data;
     },
   });
+
+  const orgSettingsFn = useServerFn(getOrgSettings);
+  const { data: orgSettings } = useQuery({ queryKey: ["org-settings"], queryFn: () => orgSettingsFn() });
+  const isGlobal = orgSettings?.catalog_scope === "global";
 
   const list = useServerFn(listSuppliers);
   const save = useServerFn(saveSupplier);
@@ -173,7 +178,8 @@ function SuppliersPage() {
 
 
   function openNew() {
-    setForm({ ...empty, company_id: companyId !== "all" ? companyId : (companies[0]?.id ?? "") });
+    const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : (companies[0]?.id ?? null));
+    setForm({ ...empty, company_id: defaultCompany });
     setOpen(true);
   }
 
@@ -389,7 +395,7 @@ function SuppliersPage() {
                     <div className="font-medium">{f.razao_social}</div>
                     {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
                   </TableCell>
-                  <TableCell className="text-xs">{f.companies?.razao_social ?? "—"}</TableCell>
+                  <TableCell className="text-xs">{f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge>}</TableCell>
                   <TableCell>
                     {f.erp_system ? (
                       <div className="text-xs">
@@ -432,10 +438,14 @@ function SuppliersPage() {
             <TabsContent value="dados" className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Empresa *</Label>
-                  <Select value={form.company_id} onValueChange={(v) => setForm({ ...form, company_id: v })}>
+                  <Label>Empresa {isGlobal ? "" : "*"}</Label>
+                  <Select
+                    value={form.company_id ?? "__global__"}
+                    onValueChange={(v) => setForm({ ...form, company_id: v === "__global__" ? null : v })}
+                  >
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
+                      {isGlobal && <SelectItem value="__global__">🌐 Global — Todas as empresas</SelectItem>}
                       {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -537,7 +547,7 @@ function SuppliersPage() {
           </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || !form.company_id || !form.cnpj_cpf || !form.razao_social}>
+            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !form.cnpj_cpf || !form.razao_social}>
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>
           </DialogFooter>

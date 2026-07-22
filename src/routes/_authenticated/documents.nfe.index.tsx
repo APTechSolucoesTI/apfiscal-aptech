@@ -158,8 +158,46 @@ function NFeList() {
     bulkDelMut.mutate(Array.from(selectedIds));
   }
 
+  const importMut = useMutation({
+    mutationFn: async (files: File[]) => {
+      const results: Array<{ name: string; ok: boolean; duplicated?: boolean; message: string }> = [];
+      for (const f of files) {
+        try {
+          const xml = await f.text();
+          const r = await importXml({ data: { fileName: f.name, xml } });
+          if (r.ok) {
+            results.push({ name: f.name, ok: true, message: `Importada para ${r.companyName} (${r.itemCount} item(ns))` });
+          } else if (r.duplicated) {
+            results.push({ name: f.name, ok: false, duplicated: true, message: r.message });
+          } else {
+            results.push({ name: f.name, ok: false, message: "Falha desconhecida" });
+          }
+        } catch (e) {
+          results.push({ name: f.name, ok: false, message: e instanceof Error ? e.message : "Erro" });
+        }
+      }
+      return results;
+    },
+    onSuccess: (results) => {
+      const ok = results.filter((r) => r.ok).length;
+      const dup = results.filter((r) => r.duplicated).length;
+      const err = results.length - ok - dup;
+      if (ok) toast.success(`${ok} NF-e importada(s)`);
+      if (dup) toast.warning(`${dup} já existente(s)`);
+      if (err) toast.error(`${err} com erro`);
+      results.filter((r) => !r.ok && !r.duplicated).forEach((r) => toast.error(`${r.name}: ${r.message}`));
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+      qc.invalidateQueries({ queryKey: ["suppliers"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      setImportOpen(false);
+      setImportFiles([]);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const totalConfirmed = docs.filter((d) => (d.status_manifestacao ?? "").toLowerCase().includes("confirm")).length;
   const totalPending = docs.length - totalConfirmed;
+
 
   return (
     <div className="space-y-6">

@@ -10,6 +10,7 @@ import { NfeItemDrawer } from "./NfeItemDrawer";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
+import { generateDanfePdf } from "@/lib/danfe-pdf";
 
 const fmt = (v: unknown) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

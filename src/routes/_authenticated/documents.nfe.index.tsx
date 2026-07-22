@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Table,
@@ -11,6 +11,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Search,
   Filter,
@@ -22,11 +23,15 @@ import {
   FileDown,
   ArrowUpDown,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/documents/nfe/")({
   component: NFeList,
@@ -57,7 +62,10 @@ function statusStyle(status: string | null) {
 }
 
 function NFeList() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const removeMany = useServerFn(deleteFiscalDocuments);
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["fiscal_documents", "nfe"],
@@ -72,23 +80,66 @@ function NFeList() {
     },
   });
 
-  const rows: Row[] = docs
-    .filter((d) => {
-      const q = search.toLowerCase();
-      if (!q) return true;
-      return (
-        (d.numero ?? "").toLowerCase().includes(q) ||
-        (d.emitente_nome ?? "").toLowerCase().includes(q) ||
-        (d.chave_acesso ?? "").toLowerCase().includes(q)
-      );
-    })
-    .map((d) => ({
-      ...d,
-      data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
-      valor_num: Number(d.valor_total ?? 0),
-    }));
+  const rows: Row[] = useMemo(
+    () =>
+      docs
+        .filter((d) => {
+          const q = search.toLowerCase();
+          if (!q) return true;
+          return (
+            (d.numero ?? "").toLowerCase().includes(q) ||
+            (d.emitente_nome ?? "").toLowerCase().includes(q) ||
+            (d.chave_acesso ?? "").toLowerCase().includes(q)
+          );
+        })
+        .map((d) => ({
+          ...d,
+          data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
+          valor_num: Number(d.valor_total ?? 0),
+        })),
+    [docs, search],
+  );
 
   const { items: sortedDocs, requestSort } = useSortableData(rows);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const visible = new Set(sortedDocs.map((d) => d.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (visible.has(id)) next.add(id); });
+      return next;
+    });
+  }, [sortedDocs]);
+
+  const allChecked = sortedDocs.length > 0 && sortedDocs.every((d) => selectedIds.has(d.id));
+  const someChecked = selectedIds.size > 0 && !allChecked;
+
+  const bulkDelMut = useMutation({
+    mutationFn: (ids: string[]) => removeMany({ data: { ids } }),
+    onSuccess: (r) => {
+      toast.success(`${r.count} nota(s) excluída(s)`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function toggleAll() {
+    if (allChecked) setSelectedIds(new Set());
+    else setSelectedIds(new Set(sortedDocs.map((d) => d.id)));
+  }
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} nota(s) selecionada(s)? Esta ação não pode ser desfeita.`)) return;
+    bulkDelMut.mutate(Array.from(selectedIds));
+  }
 
   const totalConfirmed = docs.filter((d) => (d.status_manifestacao ?? "").toLowerCase().includes("confirm")).length;
   const totalPending = docs.length - totalConfirmed;
@@ -140,6 +191,18 @@ function NFeList() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-amber-50">
+              <span className="text-sm font-medium">{selectedIds.size} selecionada(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Limpar</Button>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDelMut.isPending}>
+                  {bulkDelMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Excluir selecionadas
+                </Button>
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex justify-center py-16">
               <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
@@ -153,6 +216,13 @@ function NFeList() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50/30">
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                      onCheckedChange={toggleAll}
+                      aria-label="Selecionar todas"
+                    />
+                  </TableHead>
                   <TableHead className="w-[120px] text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("numero")}>
                     <div className="flex items-center gap-1">Número <ArrowUpDown className="h-3 w-3" /></div>
                   </TableHead>
@@ -174,7 +244,14 @@ function NFeList() {
                   const st = statusStyle(doc.status_manifestacao);
                   const Icon = st.icon;
                   return (
-                    <TableRow key={doc.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors">
+                    <TableRow key={doc.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors" data-state={selectedIds.has(doc.id) ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(doc.id)}
+                          onCheckedChange={() => toggleRow(doc.id)}
+                          aria-label={`Selecionar NF-e ${doc.numero ?? doc.id}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium text-slate-900">
                         <div className="flex flex-col">
                           <span>{doc.numero ?? "-"}</span>

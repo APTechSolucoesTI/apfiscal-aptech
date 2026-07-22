@@ -52,7 +52,7 @@ type CertRow = {
   created_at: string;
 };
 
-type CompanyRef = { id: string; razao_social: string; cnpj: string };
+type CompanyRef = { id: string; razao_social: string; nome_fantasia: string | null; cnpj: string };
 
 function Certificates() {
   const queryClient = useQueryClient();

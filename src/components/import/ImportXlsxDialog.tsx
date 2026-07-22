@@ -267,7 +267,8 @@ export function ImportXlsxDialog<T>({
           </div>
         )}
 
-        <DialogFooter>
+        </div>
+        <DialogFooter className="p-6 pt-3 border-t shrink-0">
           <Button variant="outline" onClick={() => handleClose(false)}>Fechar</Button>
           {rows.length > 0 && !result && (
             <Button onClick={handleImport} disabled={importing}>
@@ -280,3 +281,4 @@ export function ImportXlsxDialog<T>({
     </Dialog>
   );
 }
+

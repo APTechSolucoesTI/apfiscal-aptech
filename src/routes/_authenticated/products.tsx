@@ -372,10 +372,14 @@ function ProductsPage() {
             <TabsContent value="dados" className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Empresa *</Label>
-                  <Select value={form.company_id} onValueChange={(v) => setForm({ ...form, company_id: v })}>
+                  <Label>Empresa {isGlobal ? "" : "*"}</Label>
+                  <Select
+                    value={form.company_id ?? "__global__"}
+                    onValueChange={(v) => setForm({ ...form, company_id: v === "__global__" ? null : v })}
+                  >
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
+                      {isGlobal && <SelectItem value="__global__">🌐 Global — Todas as empresas</SelectItem>}
                       {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>)}
                     </SelectContent>
                   </Select>

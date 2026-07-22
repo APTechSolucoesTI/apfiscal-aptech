@@ -395,7 +395,7 @@ function SuppliersPage() {
                     <div className="font-medium">{f.razao_social}</div>
                     {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
                   </TableCell>
-                  <TableCell className="text-xs">{f.companies?.razao_social ?? "—"}</TableCell>
+                  <TableCell className="text-xs">{f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge>}</TableCell>
                   <TableCell>
                     {f.erp_system ? (
                       <div className="text-xs">

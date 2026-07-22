@@ -340,9 +340,28 @@ function SuppliersPage() {
           </div>
         </CardHeader>
         <CardContent>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center justify-between px-3 py-2 mb-3 rounded border bg-amber-50 dark:bg-amber-950/30">
+              <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Limpar</Button>
+                <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDelMut.isPending}>
+                  {bulkDelMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                  Excluir selecionados
+                </Button>
+              </div>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                    onCheckedChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </TableHead>
                 <TableHead>CNPJ/CPF</TableHead>
                 <TableHead>Razão Social</TableHead>
                 <TableHead>Empresa</TableHead>
@@ -353,11 +372,18 @@ function SuppliersPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
               ) : filtered.map((f: any) => (
-                <TableRow key={f.id}>
+                <TableRow key={f.id} data-state={selectedIds.has(f.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(f.id)}
+                      onCheckedChange={() => toggleRow(f.id)}
+                      aria-label={`Selecionar ${f.razao_social}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-xs">{maskCnpjCpf(f.cnpj_cpf ?? "")}</TableCell>
                   <TableCell>
                     <div className="font-medium">{f.razao_social}</div>
@@ -388,6 +414,7 @@ function SuppliersPage() {
             </TableBody>
           </Table>
         </CardContent>
+
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>

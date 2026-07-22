@@ -547,7 +547,7 @@ function SuppliersPage() {
           </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || !form.company_id || !form.cnpj_cpf || !form.razao_social}>
+            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !form.cnpj_cpf || !form.razao_social}>
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>
           </DialogFooter>

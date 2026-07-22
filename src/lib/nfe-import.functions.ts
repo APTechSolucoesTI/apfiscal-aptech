@@ -89,21 +89,21 @@ export const importNfeXml = createServerFn({ method: "POST" })
     if (!nfe.destinatarioCnpj) {
       throw new Error("Destinatário da NF-e não possui CNPJ/CPF.");
     }
+    const c = nfe.destinatarioCnpj;
+    const maskedDest = c.length === 14
+      ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
+      : c.length === 11
+      ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`
+      : c;
     const { data: company, error: cErr } = await supabase
       .from("companies")
       .select("id, organization_id, razao_social, nome_fantasia, cnpj")
-      .eq("cnpj", nfe.destinatarioCnpj)
+      .in("cnpj", [maskedDest, c])
       .maybeSingle();
     if (cErr) throw new Error(cErr.message);
     if (!company) {
-      const c = nfe.destinatarioCnpj;
-      const masked = c.length === 14
-        ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
-        : c.length === 11
-        ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`
-        : c;
       throw new Error(
-        `A NF-e é destinada ao CNPJ ${masked}, que não pertence a nenhuma empresa cadastrada na sua organização.`,
+        `A NF-e é destinada ao CNPJ ${maskedDest}, que não pertence a nenhuma empresa cadastrada na sua organização.`,
       );
     }
 

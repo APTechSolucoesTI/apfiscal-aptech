@@ -13,6 +13,18 @@ function asArray<T>(v: T | T[] | undefined | null): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
+function num(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function maskCnpjCpf(c: string): string {
+  if (c.length === 14) return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+  if (c.length === 11) return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`;
+  return c;
+}
+
 function parseNfe(xml: string) {
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -23,8 +35,8 @@ function parseNfe(xml: string) {
   });
   const doc = parser.parse(xml);
 
-  // Locate infNFe (may be under nfeProc.NFe.infNFe or NFe.infNFe)
-  const nfe = doc?.nfeProc?.NFe ?? doc?.NFe;
+  const nfeProc = doc?.nfeProc;
+  const nfe = nfeProc?.NFe ?? doc?.NFe;
   const inf = nfe?.infNFe;
   if (!inf) throw new Error("XML inválido: elemento infNFe não encontrado. Certifique-se de importar uma NF-e.");
 
@@ -34,12 +46,21 @@ function parseNfe(xml: string) {
   const ide = inf.ide ?? {};
   const emit = inf.emit ?? {};
   const dest = inf.dest ?? {};
-  const total = inf.total?.ICMSTot ?? {};
+  const totalIcms = inf.total?.ICMSTot ?? {};
+  const transp = inf.transp ?? {};
+  const cobr = inf.cobr ?? null;
+  const pag = inf.pag ?? null;
+  const infAdic = inf.infAdic ?? {};
+  const protNFe = nfeProc?.protNFe?.infProt ?? null;
 
   return {
     chave,
     numero: String(ide.nNF ?? ""),
     serie: String(ide.serie ?? ""),
+    modelo: ide.mod ? String(ide.mod) : null,
+    tipoOperacao: ide.tpNF ? String(ide.tpNF) : null,
+    finalidade: ide.finNFe ? String(ide.finNFe) : null,
+    naturezaOperacao: ide.natOp ? String(ide.natOp) : null,
     dataEmissao: String(ide.dhEmi ?? ide.dEmi ?? ""),
     emitente: {
       cnpj: onlyDigits(emit.CNPJ ?? emit.CPF ?? ""),
@@ -56,21 +77,54 @@ function parseNfe(xml: string) {
         uf: emit.enderEmit?.UF ?? null,
       },
     },
-    destinatarioCnpj: onlyDigits(dest.CNPJ ?? dest.CPF ?? ""),
-    valorTotal: Number(total.vNF ?? 0),
-    valorImpostos: Number(total.vTotTrib ?? 0) || null,
+    destinatario: {
+      cnpj: onlyDigits(dest.CNPJ ?? dest.CPF ?? ""),
+      nome: dest.xNome ? String(dest.xNome) : null,
+      raw: dest,
+    },
+    totais: totalIcms,
+    valorTotal: num(totalIcms.vNF) ?? 0,
+    valorProdutos: num(totalIcms.vProd),
+    valorImpostos: num(totalIcms.vTotTrib),
+    valorFrete: num(totalIcms.vFrete),
+    valorSeguro: num(totalIcms.vSeg),
+    valorDesconto: num(totalIcms.vDesc),
+    valorOutros: num(totalIcms.vOutro),
+    transporte: transp,
+    cobranca: cobr,
+    pagamentos: pag,
+    infAdicional: infAdic,
+    protocolo: protNFe,
+    ide,
     itens: asArray<any>(inf.det).map((d: any) => {
       const prod = d.prod ?? {};
+      const imposto = d.imposto ?? {};
       return {
+        numero: Number(d.nItem ?? 0),
         codigo: String(prod.cProd ?? ""),
         descricao: String(prod.xProd ?? ""),
         ncm: prod.NCM ? String(prod.NCM) : null,
+        cest: prod.CEST ? String(prod.CEST) : null,
         cfop: prod.CFOP ? String(prod.CFOP) : null,
         unidade: prod.uCom ? String(prod.uCom) : null,
+        quantidade: num(prod.qCom),
+        valorUnitario: num(prod.vUnCom),
+        valorBruto: num(prod.vProd),
+        unidadeTrib: prod.uTrib ? String(prod.uTrib) : null,
+        quantidadeTrib: num(prod.qTrib),
+        valorUnitarioTrib: num(prod.vUnTrib),
         ean: prod.cEAN && prod.cEAN !== "SEM GTIN" ? String(prod.cEAN) : null,
-        valorUnitario: Number(prod.vUnCom ?? 0) || null,
+        eanTrib: prod.cEANTrib && prod.cEANTrib !== "SEM GTIN" ? String(prod.cEANTrib) : null,
+        vFrete: num(prod.vFrete),
+        vSeg: num(prod.vSeg),
+        vDesc: num(prod.vDesc),
+        vOutro: num(prod.vOutro),
+        infAdProd: d.infAdProd ? String(d.infAdProd) : null,
+        produto: prod,
+        impostos: imposto,
       };
     }),
+    raw: doc,
   };
 }
 
@@ -85,16 +139,11 @@ export const importNfeXml = createServerFn({ method: "POST" })
     const { supabase } = context;
     const nfe = parseNfe(data.xml);
 
-    // Find destination company within the tenant's organizations
-    if (!nfe.destinatarioCnpj) {
+    if (!nfe.destinatario.cnpj) {
       throw new Error("Destinatário da NF-e não possui CNPJ/CPF.");
     }
-    const c = nfe.destinatarioCnpj;
-    const maskedDest = c.length === 14
-      ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
-      : c.length === 11
-      ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`
-      : c;
+    const c = nfe.destinatario.cnpj;
+    const maskedDest = maskCnpjCpf(c);
     const { data: company, error: cErr } = await supabase
       .from("companies")
       .select("id, organization_id, razao_social, nome_fantasia, cnpj")
@@ -107,7 +156,6 @@ export const importNfeXml = createServerFn({ method: "POST" })
       );
     }
 
-    // Duplicate check by chave_acesso
     const { data: existing } = await supabase
       .from("fiscal_documents")
       .select("id")
@@ -122,7 +170,6 @@ export const importNfeXml = createServerFn({ method: "POST" })
       };
     }
 
-    // Determine catalog scope for the organization
     const orgId = (company as any).organization_id as string;
     const companyId = (company as any).id as string;
     const { data: org } = await supabase
@@ -132,23 +179,19 @@ export const importNfeXml = createServerFn({ method: "POST" })
       .maybeSingle();
     const isGlobal = (org as any)?.catalog_scope === "global";
 
-    // Supplier: check existence first (by CNPJ, masked or unmasked)
+    // Supplier
     let supplierId: string | null = null;
     let supplierCreated = false;
     let supplierExisted = false;
     if (nfe.emitente.cnpj) {
-      const c = nfe.emitente.cnpj;
-      const maskedEmit = c.length === 14
-        ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
-        : c.length === 11
-        ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`
-        : c;
+      const ec = nfe.emitente.cnpj;
+      const maskedEmit = maskCnpjCpf(ec);
 
       let supplierQuery = supabase
         .from("suppliers")
         .select("id")
         .eq("organization_id", orgId)
-        .in("cnpj_cpf", [maskedEmit, c]);
+        .in("cnpj_cpf", [maskedEmit, ec]);
       if (!isGlobal) supplierQuery = supplierQuery.eq("company_id", companyId);
 
       const { data: existingSupplier } = await supplierQuery.limit(1).maybeSingle();
@@ -171,9 +214,10 @@ export const importNfeXml = createServerFn({ method: "POST" })
       }
     }
 
-    // Products: check existence first per item
+    // Products (upsert + map codigo->id for item linkage)
     let productsCreated = 0;
     let productsExisted = 0;
+    const productIdByCodigo = new Map<string, string>();
     for (const item of nfe.itens) {
       if (!item.codigo || !item.descricao) continue;
 
@@ -187,10 +231,11 @@ export const importNfeXml = createServerFn({ method: "POST" })
       const { data: existingProduct } = await prodQuery.limit(1).maybeSingle();
       if (existingProduct) {
         productsExisted++;
+        productIdByCodigo.set(item.codigo, (existingProduct as any).id as string);
         continue;
       }
 
-      const { error: prodErr } = await supabase.rpc("upsert_product_from_nfe", {
+      const { data: newId, error: prodErr } = await supabase.rpc("upsert_product_from_nfe", {
         _organization_id: orgId,
         _company_id: companyId,
         _codigo: item.codigo,
@@ -202,11 +247,14 @@ export const importNfeXml = createServerFn({ method: "POST" })
         _valor_unitario: item.valorUnitario ?? undefined,
         _supplier_id: supplierId ?? undefined,
       });
-      if (!prodErr) productsCreated++;
+      if (!prodErr) {
+        productsCreated++;
+        if (newId) productIdByCodigo.set(item.codigo, newId as string);
+      }
     }
 
-
-    // Insert fiscal document
+    // Insert fiscal document with full payload
+    const protoc = nfe.protocolo as any;
     const { data: inserted, error: insErr } = await supabase
       .from("fiscal_documents")
       .insert({
@@ -215,23 +263,94 @@ export const importNfeXml = createServerFn({ method: "POST" })
         chave_acesso: nfe.chave,
         numero: nfe.numero || "0",
         serie: nfe.serie || null,
+        modelo: nfe.modelo,
+        tipo_operacao: nfe.tipoOperacao,
+        finalidade: nfe.finalidade,
+        natureza_operacao: nfe.naturezaOperacao,
         emitente_cnpj: nfe.emitente.cnpj || null,
         emitente_nome: nfe.emitente.nome || null,
+        destinatario_cnpj: nfe.destinatario.cnpj || null,
+        destinatario_nome: nfe.destinatario.nome,
         valor_total: nfe.valorTotal || 0,
         valor_impostos: nfe.valorImpostos,
+        valor_produtos: nfe.valorProdutos,
+        valor_frete: nfe.valorFrete,
+        valor_seguro: nfe.valorSeguro,
+        valor_desconto: nfe.valorDesconto,
+        valor_outros: nfe.valorOutros,
         data_emissao: nfe.dataEmissao || null,
         status_manifestacao: "pendente",
         situacao: "importado_manual",
         xml_path: data.fileName,
+        xml_content: data.xml,
+        ide: nfe.ide,
+        emitente: nfe.emitente,
+        destinatario: nfe.destinatario.raw,
+        totais: nfe.totais,
+        transporte: nfe.transporte,
+        cobranca: nfe.cobranca,
+        pagamentos: nfe.pagamentos,
+        inf_adicional: nfe.infAdicional,
+        protocolo: protoc?.nProt ? String(protoc.nProt) : null,
+        data_autorizacao: protoc?.dhRecbto ? String(protoc.dhRecbto) : null,
+        raw_payload: nfe.raw,
       } as never)
       .select("id")
       .single();
     if (insErr) throw new Error(`Erro ao registrar NF-e: ${insErr.message}`);
 
+    const documentId = (inserted as any).id as string;
+
+    // Insert items
+    if (nfe.itens.length > 0) {
+      const itemRows = nfe.itens.map((it) => ({
+        document_id: documentId,
+        product_id: it.codigo ? productIdByCodigo.get(it.codigo) ?? null : null,
+        numero_item: it.numero,
+        codigo: it.codigo || null,
+        descricao: it.descricao || null,
+        ncm: it.ncm,
+        cest: it.cest,
+        cfop: it.cfop,
+        unidade_comercial: it.unidade,
+        quantidade_comercial: it.quantidade,
+        valor_unitario_comercial: it.valorUnitario,
+        valor_bruto: it.valorBruto,
+        unidade_tributavel: it.unidadeTrib,
+        quantidade_tributavel: it.quantidadeTrib,
+        valor_unitario_tributavel: it.valorUnitarioTrib,
+        ean: it.ean,
+        ean_tributavel: it.eanTrib,
+        valor_frete: it.vFrete,
+        valor_seguro: it.vSeg,
+        valor_desconto: it.vDesc,
+        valor_outros: it.vOutro,
+        valor_total: it.valorBruto,
+        produto: it.produto,
+        impostos: it.impostos,
+        inf_adicional: it.infAdProd,
+      }));
+      const { error: itemsErr } = await supabase.from("fiscal_document_items").insert(itemRows as never);
+      if (itemsErr) throw new Error(`Erro ao registrar itens: ${itemsErr.message}`);
+    }
+
+    // Insert authorization event (if present)
+    if (protoc) {
+      await supabase.from("fiscal_document_events").insert({
+        document_id: documentId,
+        tipo_evento: "autorizacao",
+        codigo_evento: protoc.cStat ? String(protoc.cStat) : null,
+        descricao: protoc.xMotivo ? String(protoc.xMotivo) : null,
+        protocolo: protoc.nProt ? String(protoc.nProt) : null,
+        data_evento: protoc.dhRecbto ? String(protoc.dhRecbto) : null,
+        payload: protoc,
+      } as never);
+    }
+
     return {
       ok: true,
       duplicated: false,
-      documentId: (inserted as any).id as string,
+      documentId,
       companyName: (company as any).razao_social as string,
       itemCount: nfe.itens.length,
       productsCreated,
@@ -240,4 +359,3 @@ export const importNfeXml = createServerFn({ method: "POST" })
       supplierExisted,
     };
   });
-

@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { listSuppliers, saveSupplier, deleteSupplier, type SupplierInput } from "@/lib/suppliers.functions";
+import { listSuppliers, saveSupplier, deleteSupplier, deleteSuppliers, type SupplierInput } from "@/lib/suppliers.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/companies.functions";
 import { maskCnpj, maskCpf, maskCnpjCpf, maskCep, onlyDigits, isValidCnpj, isValidCpf } from "@/lib/br-format";
 import {

@@ -231,62 +231,283 @@ export type Database = {
           },
         ]
       }
+      fiscal_document_events: {
+        Row: {
+          codigo_evento: string | null
+          created_at: string
+          data_evento: string | null
+          descricao: string | null
+          document_id: string
+          id: string
+          payload: Json | null
+          protocolo: string | null
+          sequencia: number | null
+          tipo_evento: string
+        }
+        Insert: {
+          codigo_evento?: string | null
+          created_at?: string
+          data_evento?: string | null
+          descricao?: string | null
+          document_id: string
+          id?: string
+          payload?: Json | null
+          protocolo?: string | null
+          sequencia?: number | null
+          tipo_evento: string
+        }
+        Update: {
+          codigo_evento?: string | null
+          created_at?: string
+          data_evento?: string | null
+          descricao?: string | null
+          document_id?: string
+          id?: string
+          payload?: Json | null
+          protocolo?: string | null
+          sequencia?: number | null
+          tipo_evento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_document_events_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_document_items: {
+        Row: {
+          cest: string | null
+          cfop: string | null
+          codigo: string | null
+          created_at: string
+          descricao: string | null
+          document_id: string
+          ean: string | null
+          ean_tributavel: string | null
+          id: string
+          impostos: Json | null
+          inf_adicional: string | null
+          ncm: string | null
+          numero_item: number
+          product_id: string | null
+          produto: Json | null
+          quantidade_comercial: number | null
+          quantidade_tributavel: number | null
+          unidade_comercial: string | null
+          unidade_tributavel: string | null
+          valor_bruto: number | null
+          valor_desconto: number | null
+          valor_frete: number | null
+          valor_outros: number | null
+          valor_seguro: number | null
+          valor_total: number | null
+          valor_unitario_comercial: number | null
+          valor_unitario_tributavel: number | null
+        }
+        Insert: {
+          cest?: string | null
+          cfop?: string | null
+          codigo?: string | null
+          created_at?: string
+          descricao?: string | null
+          document_id: string
+          ean?: string | null
+          ean_tributavel?: string | null
+          id?: string
+          impostos?: Json | null
+          inf_adicional?: string | null
+          ncm?: string | null
+          numero_item: number
+          product_id?: string | null
+          produto?: Json | null
+          quantidade_comercial?: number | null
+          quantidade_tributavel?: number | null
+          unidade_comercial?: string | null
+          unidade_tributavel?: string | null
+          valor_bruto?: number | null
+          valor_desconto?: number | null
+          valor_frete?: number | null
+          valor_outros?: number | null
+          valor_seguro?: number | null
+          valor_total?: number | null
+          valor_unitario_comercial?: number | null
+          valor_unitario_tributavel?: number | null
+        }
+        Update: {
+          cest?: string | null
+          cfop?: string | null
+          codigo?: string | null
+          created_at?: string
+          descricao?: string | null
+          document_id?: string
+          ean?: string | null
+          ean_tributavel?: string | null
+          id?: string
+          impostos?: Json | null
+          inf_adicional?: string | null
+          ncm?: string | null
+          numero_item?: number
+          product_id?: string | null
+          produto?: Json | null
+          quantidade_comercial?: number | null
+          quantidade_tributavel?: number | null
+          unidade_comercial?: string | null
+          unidade_tributavel?: string | null
+          valor_bruto?: number | null
+          valor_desconto?: number | null
+          valor_frete?: number | null
+          valor_outros?: number | null
+          valor_seguro?: number | null
+          valor_total?: number | null
+          valor_unitario_comercial?: number | null
+          valor_unitario_tributavel?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_document_items_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_document_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fiscal_documents: {
         Row: {
           chave_acesso: string
+          cobranca: Json | null
           company_id: string
           created_at: string | null
+          data_autorizacao: string | null
           data_emissao: string | null
+          destinatario: Json | null
+          destinatario_cnpj: string | null
+          destinatario_nome: string | null
+          emitente: Json | null
           emitente_cnpj: string | null
           emitente_nome: string | null
+          finalidade: string | null
           id: string
+          ide: Json | null
+          inf_adicional: Json | null
+          modelo: string | null
+          natureza_operacao: string | null
           numero: string
+          pagamentos: Json | null
           pdf_path: string | null
+          protocolo: string | null
+          raw_payload: Json | null
           risk_flag: boolean | null
           serie: string | null
           situacao: string | null
           status_manifestacao: string | null
           tipo: Database["public"]["Enums"]["document_type"]
+          tipo_operacao: string | null
+          totais: Json | null
+          transporte: Json | null
+          valor_desconto: number | null
+          valor_frete: number | null
           valor_impostos: number | null
+          valor_outros: number | null
+          valor_produtos: number | null
+          valor_seguro: number | null
           valor_total: number | null
+          xml_content: string | null
           xml_path: string | null
         }
         Insert: {
           chave_acesso: string
+          cobranca?: Json | null
           company_id: string
           created_at?: string | null
+          data_autorizacao?: string | null
           data_emissao?: string | null
+          destinatario?: Json | null
+          destinatario_cnpj?: string | null
+          destinatario_nome?: string | null
+          emitente?: Json | null
           emitente_cnpj?: string | null
           emitente_nome?: string | null
+          finalidade?: string | null
           id?: string
+          ide?: Json | null
+          inf_adicional?: Json | null
+          modelo?: string | null
+          natureza_operacao?: string | null
           numero: string
+          pagamentos?: Json | null
           pdf_path?: string | null
+          protocolo?: string | null
+          raw_payload?: Json | null
           risk_flag?: boolean | null
           serie?: string | null
           situacao?: string | null
           status_manifestacao?: string | null
           tipo: Database["public"]["Enums"]["document_type"]
+          tipo_operacao?: string | null
+          totais?: Json | null
+          transporte?: Json | null
+          valor_desconto?: number | null
+          valor_frete?: number | null
           valor_impostos?: number | null
+          valor_outros?: number | null
+          valor_produtos?: number | null
+          valor_seguro?: number | null
           valor_total?: number | null
+          xml_content?: string | null
           xml_path?: string | null
         }
         Update: {
           chave_acesso?: string
+          cobranca?: Json | null
           company_id?: string
           created_at?: string | null
+          data_autorizacao?: string | null
           data_emissao?: string | null
+          destinatario?: Json | null
+          destinatario_cnpj?: string | null
+          destinatario_nome?: string | null
+          emitente?: Json | null
           emitente_cnpj?: string | null
           emitente_nome?: string | null
+          finalidade?: string | null
           id?: string
+          ide?: Json | null
+          inf_adicional?: Json | null
+          modelo?: string | null
+          natureza_operacao?: string | null
           numero?: string
+          pagamentos?: Json | null
           pdf_path?: string | null
+          protocolo?: string | null
+          raw_payload?: Json | null
           risk_flag?: boolean | null
           serie?: string | null
           situacao?: string | null
           status_manifestacao?: string | null
           tipo?: Database["public"]["Enums"]["document_type"]
+          tipo_operacao?: string | null
+          totais?: Json | null
+          transporte?: Json | null
+          valor_desconto?: number | null
+          valor_frete?: number | null
           valor_impostos?: number | null
+          valor_outros?: number | null
+          valor_produtos?: number | null
+          valor_seguro?: number | null
           valor_total?: number | null
+          xml_content?: string | null
           xml_path?: string | null
         }
         Relationships: [

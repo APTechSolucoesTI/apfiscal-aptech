@@ -380,7 +380,7 @@ function ProductsPage() {
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {isGlobal && <SelectItem value="__global__">🌐 Global — Todas as empresas</SelectItem>}
-                      {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>)}
+                      {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}{c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

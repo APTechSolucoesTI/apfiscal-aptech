@@ -96,8 +96,14 @@ export const importNfeXml = createServerFn({ method: "POST" })
       .maybeSingle();
     if (cErr) throw new Error(cErr.message);
     if (!company) {
+      const c = nfe.destinatarioCnpj;
+      const masked = c.length === 14
+        ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
+        : c.length === 11
+        ? `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9)}`
+        : c;
       throw new Error(
-        `A NF-e é destinada ao CNPJ ${nfe.destinatarioCnpj}, que não pertence a nenhuma empresa cadastrada na sua organização.`,
+        `A NF-e é destinada ao CNPJ ${masked}, que não pertence a nenhuma empresa cadastrada na sua organização.`,
       );
     }
 

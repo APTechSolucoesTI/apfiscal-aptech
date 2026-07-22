@@ -24,14 +24,25 @@ import {
   ArrowUpDown,
   Loader2,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
+import { importNfeXml } from "@/lib/nfe-import.functions";
 import { toast } from "sonner";
+
 
 export const Route = createFileRoute("/_authenticated/documents/nfe/")({
   component: NFeList,

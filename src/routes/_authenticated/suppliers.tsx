@@ -90,9 +90,11 @@ function SuppliersPage() {
   const list = useServerFn(listSuppliers);
   const save = useServerFn(saveSupplier);
   const remove = useServerFn(deleteSupplier);
+  const removeMany = useServerFn(deleteSuppliers);
   const lookupCnpj = useServerFn(fetchCompanyByCnpj);
   const lookupCep = useServerFn(fetchAddressByCep);
   const [lookingUp, setLookingUp] = useState<"cnpj" | "cep" | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", companyId],
@@ -118,6 +120,17 @@ function SuppliersPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const bulkDelMut = useMutation({
+    mutationFn: (ids: string[]) => removeMany({ data: { ids } }),
+    onSuccess: (r) => {
+      toast.success(`${r.count} fornecedor(es) excluído(s)`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["suppliers"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();

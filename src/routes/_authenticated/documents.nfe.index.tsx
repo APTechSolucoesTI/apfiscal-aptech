@@ -355,6 +355,45 @@ function NFeList() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={importOpen} onOpenChange={(o) => { if (!importMut.isPending) setImportOpen(o); }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Importar NF-e via XML</DialogTitle>
+            <DialogDescription>
+              Selecione um ou mais arquivos XML. A plataforma valida se o destinatário pertence a uma empresa cadastrada e cria fornecedores/produtos automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Input
+              type="file"
+              accept=".xml,text/xml,application/xml"
+              multiple
+              disabled={importMut.isPending}
+              onChange={(e) => setImportFiles(Array.from(e.target.files ?? []))}
+            />
+            {importFiles.length > 0 && (
+              <div className="text-sm text-slate-600">
+                {importFiles.length} arquivo(s) selecionado(s):
+                <ul className="mt-1 max-h-32 overflow-auto text-xs text-slate-500 list-disc pl-5">
+                  {importFiles.map((f) => <li key={f.name}>{f.name}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setImportOpen(false)} disabled={importMut.isPending}>Cancelar</Button>
+            <Button
+              onClick={() => importMut.mutate(importFiles)}
+              disabled={importFiles.length === 0 || importMut.isPending}
+            >
+              {importMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+              Importar {importFiles.length > 0 ? `(${importFiles.length})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+
 }

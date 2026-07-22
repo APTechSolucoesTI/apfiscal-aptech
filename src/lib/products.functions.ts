@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type ProductInput = {
   id?: string;
-  company_id: string;
+  company_id: string | null;
   codigo: string;
   codigo_fornecedor?: string | null;
   descricao: string;

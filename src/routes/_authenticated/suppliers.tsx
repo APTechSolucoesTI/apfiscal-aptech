@@ -82,7 +82,7 @@ function SuppliersPage() {
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("id, razao_social, cnpj").order("razao_social");
+      const { data, error } = await supabase.from("companies").select("id, razao_social, nome_fantasia, cnpj").order("razao_social");
       if (error) throw error;
       return data;
     },

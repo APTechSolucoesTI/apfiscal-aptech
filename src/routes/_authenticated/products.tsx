@@ -86,7 +86,9 @@ function ProductsPage() {
   const list = useServerFn(listProducts);
   const save = useServerFn(saveProduct);
   const remove = useServerFn(deleteProduct);
+  const removeMany = useServerFn(deleteProducts);
   const suppliersFn = useServerFn(listSuppliers);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", companyId],
@@ -119,6 +121,16 @@ function ProductsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const bulkDelMut = useMutation({
+    mutationFn: (ids: string[]) => removeMany({ data: { ids } }),
+    onSuccess: (r) => {
+      toast.success(`${r.count} produto(s) excluído(s)`);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
     return products.filter((p: any) =>
@@ -129,6 +141,35 @@ function ProductsPage() {
       p.ean?.includes(s),
     );
   }, [products, search]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const visible = new Set(filtered.map((p: any) => p.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (visible.has(id)) next.add(id); });
+      return next;
+    });
+  }, [filtered]);
+
+  const allChecked = filtered.length > 0 && filtered.every((p: any) => selectedIds.has(p.id));
+  const someChecked = selectedIds.size > 0 && !allChecked;
+  function toggleAll() {
+    if (allChecked) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map((p: any) => p.id)));
+  }
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} produto(s) selecionado(s)?`)) return;
+    bulkDelMut.mutate(Array.from(selectedIds));
+  }
+
 
   function openNew() {
     setForm({ ...empty, company_id: companyId !== "all" ? companyId : (companies[0]?.id ?? "") });

@@ -23,8 +23,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Building2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Building2, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
+import { onlyDigits as digitsOnly } from "@/lib/br-format";
 
 export const Route = createFileRoute("/_authenticated/suppliers")({
   component: SuppliersPage,
@@ -47,11 +49,31 @@ const empty: SupplierInput = {
   razao_social: "",
 };
 
+const supplierImportFields: ImportField[] = [
+  { key: "cnpj_cpf", label: "CNPJ/CPF", required: true, aliases: ["cnpj", "cpf", "documento", "doc"] },
+  { key: "razao_social", label: "Razão Social", required: true, aliases: ["razaosocial", "nome", "empresa", "fornecedor"] },
+  { key: "nome_fantasia", label: "Nome Fantasia", aliases: ["fantasia", "apelido"] },
+  { key: "email", label: "E-mail", aliases: ["email", "mail"] },
+  { key: "telefone", label: "Telefone", aliases: ["fone", "celular", "tel"] },
+  { key: "inscricao_estadual", label: "Inscrição Estadual", aliases: ["ie", "inscricaoestadual"] },
+  { key: "inscricao_municipal", label: "Inscrição Municipal", aliases: ["im", "inscricaomunicipal"] },
+  { key: "cep", label: "CEP" },
+  { key: "logradouro", label: "Logradouro", aliases: ["endereco", "rua"] },
+  { key: "numero", label: "Número", aliases: ["num", "numero"] },
+  { key: "complemento", label: "Complemento" },
+  { key: "bairro", label: "Bairro" },
+  { key: "municipio", label: "Município", aliases: ["cidade", "municipio"] },
+  { key: "uf", label: "UF", aliases: ["estado", "uf"] },
+  { key: "erp_system", label: "Sistema ERP", aliases: ["erp"] },
+  { key: "erp_code", label: "Código no ERP", aliases: ["codigoerp", "erpcode"] },
+];
+
 function SuppliersPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState<SupplierInput>(empty);
 
   const { data: companies = [] } = useQuery({
@@ -207,8 +229,50 @@ function SuppliersPage() {
           <h1 className="text-2xl font-bold tracking-tight">Fornecedores</h1>
           <p className="text-sm text-slate-500">Cadastro de fornecedores por empresa com vínculo a ERPs.</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Fornecedor</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={companies.length === 0}>
+            <Upload className="h-4 w-4 mr-1" /> Importar XLSX
+          </Button>
+          <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Fornecedor</Button>
+        </div>
       </div>
+
+      <ImportXlsxDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Fornecedores via Excel"
+        description={`Registros serão vinculados à empresa: ${companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id))?.razao_social ?? "—"}`}
+        fields={supplierImportFields}
+        buildRow={(m) => {
+          const cid = companyId !== "all" ? companyId : companies[0]?.id;
+          if (!cid) throw new Error("Selecione uma empresa antes de importar");
+          const doc = digitsOnly(String(m.cnpj_cpf ?? ""));
+          if (!doc) throw new Error("CNPJ/CPF obrigatório");
+          if (!m.razao_social) throw new Error("Razão social obrigatória");
+          return {
+            company_id: cid,
+            cnpj_cpf: doc,
+            tipo_pessoa: doc.length === 14 ? "juridica" : "fisica",
+            razao_social: String(m.razao_social),
+            nome_fantasia: m.nome_fantasia ? String(m.nome_fantasia) : null,
+            email: m.email ? String(m.email) : null,
+            telefone: m.telefone ? String(m.telefone) : null,
+            inscricao_estadual: m.inscricao_estadual ? String(m.inscricao_estadual) : null,
+            inscricao_municipal: m.inscricao_municipal ? String(m.inscricao_municipal) : null,
+            cep: m.cep ? digitsOnly(String(m.cep)) : null,
+            logradouro: m.logradouro ? String(m.logradouro) : null,
+            numero: m.numero ? String(m.numero) : null,
+            complemento: m.complemento ? String(m.complemento) : null,
+            bairro: m.bairro ? String(m.bairro) : null,
+            municipio: m.municipio ? String(m.municipio) : null,
+            uf: m.uf ? String(m.uf).toUpperCase().slice(0, 2) : null,
+            erp_system: m.erp_system ? String(m.erp_system) : null,
+            erp_code: m.erp_code ? String(m.erp_code) : null,
+          } as SupplierInput;
+        }}
+        onImportRow={async (row) => { await save({ data: row }); }}
+        onDone={() => qc.invalidateQueries({ queryKey: ["suppliers"] })}
+      />
 
       <Card>
         <CardHeader>

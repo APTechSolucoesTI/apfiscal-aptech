@@ -22,8 +22,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Building2, Loader2, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Building2, Loader2, Package, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
 
 export const Route = createFileRoute("/_authenticated/products")({
   component: ProductsPage,
@@ -46,11 +47,29 @@ const empty: ProductInput = {
   ativo: true,
 };
 
+const productImportFields: ImportField[] = [
+  { key: "codigo", label: "Código", required: true, aliases: ["cod", "codigo", "sku", "codigointerno"] },
+  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "produto", "nome"] },
+  { key: "codigo_fornecedor", label: "Código Fornecedor", aliases: ["codfornecedor", "codigofornecedor"] },
+  { key: "ncm", label: "NCM" },
+  { key: "cest", label: "CEST" },
+  { key: "cfop_padrao", label: "CFOP", aliases: ["cfop", "cfoppadrao"] },
+  { key: "unidade", label: "Unidade", aliases: ["un", "unid", "unidade"] },
+  { key: "ean", label: "EAN/GTIN", aliases: ["ean", "gtin", "codigobarras"] },
+  { key: "valor_unitario", label: "Valor Unitário", aliases: ["valor", "preco", "precounit", "valorunit"], transform: (v) => Number(String(v).replace(",", ".")) },
+  { key: "aliquota_icms", label: "Alíquota ICMS (%)", aliases: ["icms", "aliqicms"], transform: (v) => Number(String(v).replace(",", ".")) },
+  { key: "aliquota_ipi", label: "Alíquota IPI (%)", aliases: ["ipi", "aliqipi"], transform: (v) => Number(String(v).replace(",", ".")) },
+  { key: "origem_mercadoria", label: "Origem Mercadoria", aliases: ["origem"] },
+  { key: "erp_system", label: "Sistema ERP", aliases: ["erp"] },
+  { key: "erp_code", label: "Código no ERP", aliases: ["codigoerp", "erpcode"] },
+];
+
 function ProductsPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState<ProductInput>(empty);
 
   const { data: companies = [] } = useQuery({
@@ -146,7 +165,47 @@ function ProductsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Produtos</h1>
           <p className="text-sm text-slate-500">Catálogo de produtos por empresa com vínculo a ERPs.</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={companies.length === 0}>
+            <Upload className="h-4 w-4 mr-1" /> Importar XLSX
+          </Button>
+          <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
+        </div>
+
+        <ImportXlsxDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          title="Importar Produtos via Excel"
+          description={`Registros serão vinculados à empresa: ${companies.find((c: any) => c.id === (companyId !== "all" ? companyId : companies[0]?.id))?.razao_social ?? "—"}`}
+          fields={productImportFields}
+          buildRow={(m) => {
+            const cid = companyId !== "all" ? companyId : companies[0]?.id;
+            if (!cid) throw new Error("Selecione uma empresa antes de importar");
+            if (!m.codigo) throw new Error("Código obrigatório");
+            if (!m.descricao) throw new Error("Descrição obrigatória");
+            const num = (v: unknown) => v == null || v === "" ? null : (Number.isFinite(Number(v)) ? Number(v) : null);
+            return {
+              company_id: cid,
+              codigo: String(m.codigo),
+              descricao: String(m.descricao),
+              codigo_fornecedor: m.codigo_fornecedor ? String(m.codigo_fornecedor) : null,
+              ncm: m.ncm ? String(m.ncm) : null,
+              cest: m.cest ? String(m.cest) : null,
+              cfop_padrao: m.cfop_padrao ? String(m.cfop_padrao) : null,
+              unidade: m.unidade ? String(m.unidade) : null,
+              ean: m.ean ? String(m.ean) : null,
+              valor_unitario: num(m.valor_unitario),
+              aliquota_icms: num(m.aliquota_icms),
+              aliquota_ipi: num(m.aliquota_ipi),
+              origem_mercadoria: m.origem_mercadoria ? String(m.origem_mercadoria) : null,
+              erp_system: m.erp_system ? String(m.erp_system) : null,
+              erp_code: m.erp_code ? String(m.erp_code) : null,
+              ativo: true,
+            } as ProductInput;
+          }}
+          onImportRow={async (row) => { await save({ data: row }); }}
+          onDone={() => qc.invalidateQueries({ queryKey: ["products"] })}
+        />
       </div>
 
       <Card>

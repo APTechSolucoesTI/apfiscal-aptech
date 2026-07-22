@@ -34,7 +34,7 @@ const asArr = <T,>(v: T | T[] | undefined | null): T[] => {
 const tpNfLabel = (v: unknown) => (String(v) === "0" ? "0 - Entrada" : String(v) === "1" ? "1 - Saída" : String(v ?? "-"));
 const finLabel = (v: unknown) => {
   const s = String(v ?? "");
-  return { "1": "1 - Normal", "2": "2 - Complementar", "3": "3 - Ajuste", "4": "4 - Devolução" }[s] ?? s || "-";
+  return ({ "1": "1 - Normal", "2": "2 - Complementar", "3": "3 - Ajuste", "4": "4 - Devolução" }[s] ?? (s || "-"));
 };
 
 export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {

@@ -47,6 +47,23 @@ const empty: ProductInput = {
   ativo: true,
 };
 
+const productImportFields: ImportField[] = [
+  { key: "codigo", label: "Código", required: true, aliases: ["cod", "codigo", "sku", "codigointerno"] },
+  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "produto", "nome"] },
+  { key: "codigo_fornecedor", label: "Código Fornecedor", aliases: ["codfornecedor", "codigofornecedor"] },
+  { key: "ncm", label: "NCM" },
+  { key: "cest", label: "CEST" },
+  { key: "cfop_padrao", label: "CFOP", aliases: ["cfop", "cfoppadrao"] },
+  { key: "unidade", label: "Unidade", aliases: ["un", "unid", "unidade"] },
+  { key: "ean", label: "EAN/GTIN", aliases: ["ean", "gtin", "codigobarras"] },
+  { key: "valor_unitario", label: "Valor Unitário", aliases: ["valor", "preco", "precounit", "valorunit"], transform: (v) => Number(String(v).replace(",", ".")) },
+  { key: "aliquota_icms", label: "Alíquota ICMS (%)", aliases: ["icms", "aliqicms"], transform: (v) => Number(String(v).replace(",", ".")) },
+  { key: "aliquota_ipi", label: "Alíquota IPI (%)", aliases: ["ipi", "aliqipi"], transform: (v) => Number(String(v).replace(",", ".")) },
+  { key: "origem_mercadoria", label: "Origem Mercadoria", aliases: ["origem"] },
+  { key: "erp_system", label: "Sistema ERP", aliases: ["erp"] },
+  { key: "erp_code", label: "Código no ERP", aliases: ["codigoerp", "erpcode"] },
+];
+
 function ProductsPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");

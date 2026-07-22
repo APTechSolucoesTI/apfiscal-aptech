@@ -143,6 +143,35 @@ function SuppliersPage() {
     );
   }, [suppliers, search]);
 
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const visible = new Set(filtered.map((f: any) => f.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (visible.has(id)) next.add(id); });
+      return next;
+    });
+  }, [filtered]);
+
+  const allChecked = filtered.length > 0 && filtered.every((f: any) => selectedIds.has(f.id));
+  const someChecked = selectedIds.size > 0 && !allChecked;
+  function toggleAll() {
+    if (allChecked) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map((f: any) => f.id)));
+  }
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} fornecedor(es) selecionado(s)?`)) return;
+    bulkDelMut.mutate(Array.from(selectedIds));
+  }
+
+
   function openNew() {
     setForm({ ...empty, company_id: companyId !== "all" ? companyId : (companies[0]?.id ?? "") });
     setOpen(true);

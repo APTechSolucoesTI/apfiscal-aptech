@@ -88,6 +88,10 @@ function SuppliersPage() {
     },
   });
 
+  const orgSettingsFn = useServerFn(getOrgSettings);
+  const { data: orgSettings } = useQuery({ queryKey: ["org-settings"], queryFn: () => orgSettingsFn() });
+  const isGlobal = orgSettings?.catalog_scope === "global";
+
   const list = useServerFn(listSuppliers);
   const save = useServerFn(saveSupplier);
   const remove = useServerFn(deleteSupplier);

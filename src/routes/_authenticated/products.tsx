@@ -84,6 +84,10 @@ function ProductsPage() {
     },
   });
 
+  const orgSettingsFn = useServerFn(getOrgSettings);
+  const { data: orgSettings } = useQuery({ queryKey: ["org-settings"], queryFn: () => orgSettingsFn() });
+  const isGlobal = orgSettings?.catalog_scope === "global";
+
   const list = useServerFn(listProducts);
   const save = useServerFn(saveProduct);
   const remove = useServerFn(deleteProduct);

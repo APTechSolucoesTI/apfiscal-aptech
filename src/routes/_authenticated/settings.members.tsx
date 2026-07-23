@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Table,
@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { UserPlus, ArrowUpDown, Eye, Loader2, Info } from "lucide-react";
 import { useSortableData } from "@/hooks/use-sortable-data";
+import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
+import { ColumnSettings } from "@/components/common/ColumnSettings";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -48,6 +50,8 @@ type MemberRow = {
   display: string;
 };
 
+type Col = ColumnDef & { sortKey?: keyof MemberRow; className?: string; headClassName?: string; render: (r: MemberRow) => ReactNode };
+
 function Members() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<MemberRow | null>(null);
@@ -73,6 +77,29 @@ function Members() {
 
   const { items: sortedMembers, requestSort } = useSortableData(members);
 
+  const columns: Col[] = useMemo(() => [
+    { key: "display", label: "Membro", sortKey: "display", headClassName: "pl-6", className: "font-medium text-slate-900 pl-6", render: (m) => (
+      <>
+        {m.display}
+        {m.is_me && <span className="ml-2 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">você</span>}
+      </>
+    ) },
+    { key: "role", label: "Papel", sortKey: "role", render: (m) => (
+      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 capitalize">{m.role}</span>
+    ) },
+    { key: "user_id", label: "ID do Usuário", className: "font-mono text-xs text-slate-500", render: (m) => m.user_id.slice(0, 8) },
+    { key: "created_at", label: "Desde", sortKey: "created_at", className: "text-slate-600 text-sm", render: (m) => new Date(m.created_at).toLocaleDateString("pt-BR") },
+    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "text-right pr-6", className: "text-right pr-6", render: (m) => (
+      <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => { setSelectedMember(m); setIsDetailsOpen(true); }}>
+        <Eye className="h-4 w-4" />
+      </Button>
+    ) },
+  ], []);
+
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("members", columns);
+  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
+  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -80,52 +107,55 @@ function Members() {
           <h1 className="text-2xl font-bold text-slate-900">Membros da Equipe</h1>
           <p className="text-slate-500">Gerencie quem tem acesso à sua organização.</p>
         </div>
-        <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <UserPlus className="mr-2 h-4 w-4" /> Convidar Membro
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Convidar Membro</DialogTitle>
-              <DialogDescription>
-                Envie um convite por e-mail para adicionar um novo membro à equipe.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" placeholder="email@exemplo.com" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="role">Papel / Função</Label>
-                <Select defaultValue="visualizador">
-                  <SelectTrigger id="role">
-                    <SelectValue placeholder="Selecione o papel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Administrador</SelectItem>
-                    <SelectItem value="financeiro">Financeiro</SelectItem>
-                    <SelectItem value="visualizador">Visualizador</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>Cancelar</Button>
-              <Button
-                className="bg-blue-600"
-                onClick={() => {
-                  toast.info("Envio de convites por e-mail será habilitado em breve.");
-                  setIsInviteDialogOpen(false);
-                }}
-              >
-                Enviar Convite
+        <div className="flex items-center gap-2">
+          <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+          <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <UserPlus className="mr-2 h-4 w-4" /> Convidar Membro
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Convidar Membro</DialogTitle>
+                <DialogDescription>
+                  Envie um convite por e-mail para adicionar um novo membro à equipe.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" type="email" placeholder="email@exemplo.com" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="role">Papel / Função</Label>
+                  <Select defaultValue="visualizador">
+                    <SelectTrigger id="role">
+                      <SelectValue placeholder="Selecione o papel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="financeiro">Financeiro</SelectItem>
+                      <SelectItem value="visualizador">Visualizador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>Cancelar</Button>
+                <Button
+                  className="bg-blue-600"
+                  onClick={() => {
+                    toast.info("Envio de convites por e-mail será habilitado em breve.");
+                    setIsInviteDialogOpen(false);
+                  }}
+                >
+                  Enviar Convite
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card className="border-slate-200">
@@ -138,43 +168,23 @@ function Members() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50/50">
-                  <TableHead className="pl-6 cursor-pointer" onClick={() => requestSort("display")}>
-                    <div className="flex items-center gap-1">Membro <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => requestSort("role")}>
-                    <div className="flex items-center gap-1">Papel <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => requestSort("created_at")}>
-                    <div className="flex items-center gap-1">Desde <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="text-right pr-6">Ações</TableHead>
+                  {visibleCols.map((c) => (
+                    <TableHead
+                      key={c.key}
+                      className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer" : ""}`}
+                      onClick={c.sortKey ? () => requestSort(c.sortKey!) : undefined}
+                    >
+                      <div className="flex items-center gap-1">{c.label}{c.sortKey && <ArrowUpDown className="h-3 w-3" />}</div>
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedMembers.map((member) => (
                   <TableRow key={member.id} className="border-slate-100 hover:bg-slate-50">
-                    <TableCell className="font-medium text-slate-900 pl-6">
-                      {member.display}
-                      {member.is_me && <span className="ml-2 text-[10px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">você</span>}
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 capitalize">
-                        {member.role}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-slate-600 text-sm">
-                      {new Date(member.created_at).toLocaleDateString("pt-BR")}
-                    </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-blue-600"
-                        onClick={() => { setSelectedMember(member); setIsDetailsOpen(true); }}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+                    {visibleCols.map((c) => (
+                      <TableCell key={c.key} className={c.className}>{c.render(member)}</TableCell>
+                    ))}
                   </TableRow>
                 ))}
               </TableBody>

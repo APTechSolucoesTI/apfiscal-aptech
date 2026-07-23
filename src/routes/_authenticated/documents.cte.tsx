@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Table,
@@ -14,6 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Search, Download, Eye, ArrowUpDown, Loader2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSortableData } from "@/hooks/use-sortable-data";
+import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
+import { ColumnSettings } from "@/components/common/ColumnSettings";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +47,8 @@ type FiscalDoc = {
 };
 
 type Row = FiscalDoc & { data_num: number; valor_num: number };
+
+type Col = ColumnDef & { sortKey?: keyof Row; className?: string; headClassName?: string; render: (r: Row) => ReactNode };
 
 function CTeList() {
   const qc = useQueryClient();
@@ -121,6 +125,24 @@ function CTeList() {
     bulkDelMut.mutate(Array.from(selectedIds));
   }
 
+  const columns: Col[] = useMemo(() => [
+    { key: "numero", label: "Número", sortKey: "numero", className: "font-medium", render: (d) => d.numero ?? "-" },
+    { key: "data", label: "Data", sortKey: "data_num", render: (d) => (d.data_emissao ? new Date(d.data_emissao).toLocaleDateString("pt-BR") : "-") },
+    { key: "transportadora", label: "Transportadora", sortKey: "emitente_nome", render: (d) => d.emitente_nome ?? d.emitente_cnpj ?? "-" },
+    { key: "cnpj", label: "CNPJ", render: (d) => d.emitente_cnpj ?? "-" },
+    { key: "valor", label: "Valor", sortKey: "valor_num", render: (d) => Number(d.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) },
+    { key: "chave", label: "Chave", render: (d) => <span className="font-mono text-[10px]">{d.chave_acesso ?? "-"}</span> },
+    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "text-right", className: "text-right", render: (d) => (
+      <Button variant="ghost" size="icon" onClick={() => { setSelectedDoc(d); setIsDetailsOpen(true); }}>
+        <Eye className="h-4 w-4" />
+      </Button>
+    ) },
+  ], []);
+
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("cte", columns);
+  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
+  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -135,14 +157,17 @@ function CTeList() {
 
       <Card className="border-slate-200">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Buscar por transportadora..."
-              className="max-w-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1">
+              <Search className="h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Buscar por transportadora..."
+                className="max-w-sm"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
           </div>
         </CardHeader>
         <CardContent>
@@ -173,19 +198,15 @@ function CTeList() {
                       aria-label="Selecionar todos"
                     />
                   </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => requestSort("numero")}>
-                    <div className="flex items-center gap-1">Número <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => requestSort("data_num")}>
-                    <div className="flex items-center gap-1">Data <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => requestSort("emitente_nome")}>
-                    <div className="flex items-center gap-1">Transportadora <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => requestSort("valor_num")}>
-                    <div className="flex items-center gap-1">Valor <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  {visibleCols.map((c) => (
+                    <TableHead
+                      key={c.key}
+                      className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer" : ""}`}
+                      onClick={c.sortKey ? () => requestSort(c.sortKey!) : undefined}
+                    >
+                      <div className="flex items-center gap-1">{c.label}{c.sortKey && <ArrowUpDown className="h-3 w-3" />}</div>
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -198,15 +219,9 @@ function CTeList() {
                         aria-label={`Selecionar CT-e ${doc.numero ?? doc.id}`}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{doc.numero ?? "-"}</TableCell>
-                    <TableCell>{doc.data_emissao ? new Date(doc.data_emissao).toLocaleDateString("pt-BR") : "-"}</TableCell>
-                    <TableCell>{doc.emitente_nome ?? doc.emitente_cnpj ?? "-"}</TableCell>
-                    <TableCell>{Number(doc.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => { setSelectedDoc(doc); setIsDetailsOpen(true); }}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+                    {visibleCols.map((c) => (
+                      <TableCell key={c.key} className={c.className}>{c.render(doc)}</TableCell>
+                    ))}
                   </TableRow>
                 ))}
               </TableBody>

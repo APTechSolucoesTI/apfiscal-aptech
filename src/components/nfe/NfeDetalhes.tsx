@@ -3,14 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2, Eye } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
-import { generateDanfePdf } from "@/lib/danfe-pdf";
+import { generateDanfePdfBlobUrl } from "@/lib/danfe-pdf";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const fmt = (v: unknown) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -40,7 +41,14 @@ const finLabel = (v: unknown) => {
 
 export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
   const fetchFn = useServerFn(getNfeDetails);
+
+  useEffect(() => {
+    return () => {
+      if (danfePreview) URL.revokeObjectURL(danfePreview.url);
+    };
+  }, [danfePreview]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["nfe-details", nfeId],
@@ -136,16 +144,42 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           </Button>
           <Button variant="outline" size="sm" onClick={() => {
             try {
-              generateDanfePdf(doc, items);
+              const preview = generateDanfePdfBlobUrl(doc, items);
+              setDanfePreview(preview);
             } catch (e) {
               toast.error(`Falha ao gerar DANFE: ${e instanceof Error ? e.message : "erro"}`);
             }
-          }}><Download className="mr-2 h-4 w-4" /> DANFE (PDF)</Button>
+          }}><Eye className="mr-2 h-4 w-4" /> DANFE (PDF)</Button>
           <Button variant="outline" size="sm"><Mail className="mr-2 h-4 w-4" /> Reenviar</Button>
           <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10"><XCircle className="mr-2 h-4 w-4" /> Cancelar</Button>
           <Button variant="outline" size="sm"><History className="mr-2 h-4 w-4" /> Eventos</Button>
         </div>
       </div>
+
+      <Dialog open={!!danfePreview} onOpenChange={(open) => { if (!open) setDanfePreview(null); }}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 border-b">
+            <DialogTitle>Prévia do DANFE</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden bg-muted">
+            {danfePreview && (
+              <iframe src={danfePreview.url} title="Prévia DANFE" className="w-full h-full border-0" />
+            )}
+          </div>
+          <DialogFooter className="p-4 border-t">
+            <Button variant="outline" onClick={() => setDanfePreview(null)}>Fechar</Button>
+            <Button onClick={() => {
+              if (!danfePreview) return;
+              const a = document.createElement("a");
+              a.href = danfePreview.url;
+              a.download = danfePreview.filename;
+              a.click();
+            }}>
+              <Download className="mr-2 h-4 w-4" /> Baixar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="resumo" className="flex-1 overflow-hidden flex flex-col">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 mb-4">

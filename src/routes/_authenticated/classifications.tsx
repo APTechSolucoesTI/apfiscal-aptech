@@ -23,8 +23,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Loader2, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, Layers, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
 
 export const Route = createFileRoute("/_authenticated/classifications")({
   component: ClassificationsPage,

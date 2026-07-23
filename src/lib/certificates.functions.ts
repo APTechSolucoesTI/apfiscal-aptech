@@ -12,16 +12,69 @@ type ParseInput = {
 // OID ICP-Brasil para e-CNPJ no otherName do SubjectAltName
 const OID_ICPBR_CNPJ = "2.16.76.1.3.3";
 
-function extractCnpjFromCert(cert: forge.pki.Certificate): string | null {
-  // 1) Tenta extrair via extensão subjectAltName (otherName com OID ICP-Brasil e-CNPJ)
+function walkAsn1ForIcpCnpj(node: forge.asn1.Asn1 | undefined): string | null {
+  if (!node) return null;
   try {
-    const ext = cert.getExtension({ name: "subjectAltName" }) as
-      | { altNames?: Array<{ type: number; value?: string; oid?: string }>; value?: string }
-      | undefined;
-    if (ext) {
-      // Procura sequência de 14 dígitos no valor bruto DER da extensão (cobre otherName ICP-Brasil)
-      const raw = (ext.value as string | undefined) ?? "";
-      const digits = raw.replace(/\D/g, "");
+    const anyNode = node as unknown as {
+      type: number;
+      tagClass: number;
+      constructed: boolean;
+      value: forge.asn1.Asn1[] | string;
+    };
+    if (Array.isArray(anyNode.value)) {
+      // otherName é [0] IMPLICIT SEQUENCE { OID, [0] EXPLICIT value }
+      if (anyNode.tagClass === 0x80 && anyNode.type === 0 && anyNode.constructed) {
+        const children = anyNode.value;
+        const oidNode = children.find(
+          (c) => (c as unknown as { type: number }).type === forge.asn1.Type.OID,
+        );
+        if (oidNode) {
+          const oidVal = forge.asn1.derToOid((oidNode as unknown as { value: string }).value);
+          if (oidVal === OID_ICPBR_CNPJ) {
+            const collectDigits = (n: forge.asn1.Asn1): string | null => {
+              const nn = n as unknown as { value: forge.asn1.Asn1[] | string };
+              if (typeof nn.value === "string") {
+                const m = nn.value.replace(/\D/g, "").match(/\d{14}/);
+                if (m) return m[0];
+              } else if (Array.isArray(nn.value)) {
+                for (const c of nn.value) {
+                  const r = collectDigits(c);
+                  if (r) return r;
+                }
+              }
+              return null;
+            };
+            for (const child of children) {
+              if (child === oidNode) continue;
+              const r = collectDigits(child);
+              if (r) return r;
+            }
+          }
+        }
+      }
+      for (const child of anyNode.value) {
+        const r = walkAsn1ForIcpCnpj(child);
+        if (r) return r;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function extractCnpjFromCert(cert: forge.pki.Certificate): string | null {
+  // 1) subjectAltName: parse DER manualmente para localizar otherName ICP-Brasil
+  try {
+    const sanExt = (
+      cert.extensions as Array<{ id?: string; name?: string; value?: string }> | undefined
+    )?.find((e) => e.id === "2.5.29.17" || e.name === "subjectAltName");
+    if (sanExt?.value) {
+      const asn1 = forge.asn1.fromDer(sanExt.value);
+      const found = walkAsn1ForIcpCnpj(asn1);
+      if (found) return found;
+      // fallback: procura 14 dígitos consecutivos no DER bruto da extensão
+      const digits = sanExt.value.replace(/[^0-9]/g, "");
       const m = digits.match(/\d{14}/);
       if (m) return m[0];
     }
@@ -29,11 +82,21 @@ function extractCnpjFromCert(cert: forge.pki.Certificate): string | null {
     // ignore
   }
 
-  // 2) Fallback: CN costuma vir como "NOME EMPRESA:CNPJ"
+  // 2) CN costuma vir como "NOME EMPRESA:CNPJ"
   const cn = cert.subject.attributes.find((a) => a.shortName === "CN")?.value as string | undefined;
   if (cn) {
     const m = cn.replace(/\D/g, "").match(/\d{14}/);
     if (m) return m[0];
+  }
+
+  // 3) Último recurso: procura 14 dígitos no DER completo do certificado
+  try {
+    const der = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes();
+    const digits = der.replace(/[^0-9]/g, "");
+    const m = digits.match(/\d{14}/);
+    if (m) return m[0];
+  } catch {
+    // ignore
   }
   return null;
 }

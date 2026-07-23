@@ -207,7 +207,7 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
         // Cria automaticamente o fornecedor a partir dos dados do emitente da NF-e
         const { data: newSupId, error: upsertErr } = await context.supabase.rpc("upsert_supplier_from_nfe", {
           _organization_id: orgId,
-          _company_id: companyId,
+          _company_id: (companyId ?? undefined) as any,
           _cnpj: digits,
           _razao_social: emitNome ?? `Fornecedor ${digits}`,
         });

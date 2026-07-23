@@ -559,55 +559,65 @@ function FornecedoresBlock({ produtoId, empresaId }: { produtoId: string; empres
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
+      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_180px_auto] gap-2 sm:items-end">
+        <div className="min-w-0">
           <Label>Fornecedor</Label>
           <Select value={newForn} onValueChange={setNewForn}>
-            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-            <SelectContent>
+            <SelectTrigger className="w-full min-w-0">
+              <SelectValue placeholder="Selecione" className="truncate" />
+            </SelectTrigger>
+            <SelectContent className="max-w-[90vw]">
               {(suppliers as any[]).map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.razao_social} — {s.cnpj_cpf}</SelectItem>
+                <SelectItem key={s.id} value={s.id}>
+                  <span className="truncate block max-w-[70vw] sm:max-w-[520px]">
+                    {s.razao_social} — {s.cnpj_cpf}
+                  </span>
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div className="w-56">
+        <div className="min-w-0">
           <Label>Código do Item na Nota</Label>
           <Input value={newCodigo} onChange={(e) => setNewCodigo(e.target.value)} />
         </div>
-        <Button onClick={() => saveMut.mutate()} disabled={!newForn || !newCodigo || saveMut.isPending}>
+        <Button className="w-full sm:w-auto" onClick={() => saveMut.mutate()} disabled={!newForn || !newCodigo || saveMut.isPending}>
           {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Adicionar
         </Button>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Fornecedor</TableHead>
-            <TableHead>Cód. Fornecedor</TableHead>
-            <TableHead>Cód. Item Nota</TableHead>
-            <TableHead className="w-16"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading ? (
-            <TableRow><TableCell colSpan={4} className="text-center py-4"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
-          ) : (vinculos as any[]).length === 0 ? (
-            <TableRow><TableCell colSpan={4} className="text-center py-4 text-slate-500">Nenhum fornecedor vinculado.</TableCell></TableRow>
-          ) : (vinculos as any[]).map((v) => (
-            <TableRow key={v.id}>
-              <TableCell>{v.suppliers?.razao_social ?? "—"}</TableCell>
-              <TableCell className="font-mono text-xs">{v.suppliers?.codigo_interno ?? "—"}</TableCell>
-              <TableCell className="font-mono text-xs">{v.codigo_item_nota}</TableCell>
-              <TableCell className="text-right">
-                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remover vínculo?")) removeMut.mutate(v.id); }}>
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
-              </TableCell>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Fornecedor</TableHead>
+              <TableHead>CNPJ / CPF</TableHead>
+              <TableHead>Cód. Item Nota</TableHead>
+              <TableHead className="w-16"></TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={4} className="text-center py-4"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+            ) : (vinculos as any[]).length === 0 ? (
+              <TableRow><TableCell colSpan={4} className="text-center py-4 text-slate-500">Nenhum fornecedor vinculado.</TableCell></TableRow>
+            ) : (vinculos as any[]).map((v) => (
+              <TableRow key={v.id}>
+                <TableCell className="max-w-[320px] truncate" title={v.suppliers?.razao_social ?? ""}>
+                  {v.suppliers?.razao_social ?? "—"}
+                </TableCell>
+                <TableCell className="font-mono text-xs">{v.suppliers?.cnpj_cpf ?? "—"}</TableCell>
+                <TableCell className="font-mono text-xs">{v.codigo_item_nota}</TableCell>
+                <TableCell className="text-right">
+                  <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remover vínculo?")) removeMut.mutate(v.id); }}>
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

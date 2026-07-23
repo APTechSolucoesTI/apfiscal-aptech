@@ -103,10 +103,27 @@ export const installCertificate = createServerFn({ method: "POST" })
     // Verify user has access to the company
     const { data: company, error: companyErr } = await supabase
       .from("companies")
-      .select("id, organization_id")
+      .select("id, organization_id, cnpj, razao_social")
       .eq("id", data.companyId)
       .maybeSingle();
     if (companyErr || !company) throw new Error("Empresa não encontrada ou sem acesso.");
+
+    // Verifica se o CNPJ do certificado corresponde ao da empresa selecionada
+    const companyCnpj = String((company as { cnpj?: string }).cnpj ?? "").replace(/\D/g, "");
+    if (!parsed.cnpj) {
+      throw new Error(
+        "Não foi possível identificar o CNPJ no certificado. Verifique se é um e-CNPJ ICP-Brasil (A1)."
+      );
+    }
+    if (companyCnpj && parsed.cnpj !== companyCnpj) {
+      const fmt = (c: string) =>
+        c.length === 14
+          ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`
+          : c;
+      throw new Error(
+        `O certificado pertence ao CNPJ ${fmt(parsed.cnpj)} e não corresponde ao CNPJ da empresa selecionada (${fmt(companyCnpj)}).`
+      );
+    }
 
     const now = Date.now();
     const notAfterMs = new Date(parsed.notAfter).getTime();

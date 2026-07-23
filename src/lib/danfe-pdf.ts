@@ -45,11 +45,12 @@ export function generateDanfePdf(doc: any, items: any[]) {
   let y = M;
 
   const emit = (doc.emitente ?? {}) as any;
-  const dest = (doc.destinatario ?? {}) as any;
+  const destRaw = (doc.destinatario ?? {}) as any;
+  const dest = (destRaw.raw ?? destRaw) as any;
   const totais = (doc.totais ?? {}) as any;
   const transp = (doc.transporte ?? {}) as any;
   const enderEmit = emit.enderEmit ?? emit.endereco ?? {};
-  const enderDest = dest.enderDest ?? {};
+  const enderDest = dest.enderDest ?? dest.endereco ?? {};
   const chave = String(doc.chave_acesso ?? "").replace(/\D/g, "");
 
   const box = (x: number, yy: number, w: number, h: number) => {

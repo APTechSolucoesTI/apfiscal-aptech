@@ -69,6 +69,21 @@ const empty: ProdutoInput = {
   ativo: true,
 };
 
+const productImportFields: ImportField[] = [
+  { key: "codigo_interno", label: "Código Interno", required: true, aliases: ["codigo", "codigointerno", "sku", "cod"] },
+  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "nome", "produto"] },
+  { key: "unidade", label: "Unidade", required: true, aliases: ["un", "unid", "unidade"] },
+  { key: "ncm", label: "NCM", required: true, aliases: ["ncm"] },
+  { key: "ean_gtin", label: "EAN/GTIN", aliases: ["ean", "gtin", "codigobarras"] },
+  { key: "cest", label: "CEST", aliases: ["cest"] },
+  { key: "origem_mercadoria", label: "Origem Mercadoria", aliases: ["origem", "origemmercadoria"] },
+  { key: "familia_codigo", label: "Código Família", aliases: ["familia", "codfamilia", "familiacodigo"] },
+  { key: "grupo_codigo", label: "Código Grupo", aliases: ["grupo", "codgrupo", "grupocodigo"] },
+  { key: "subgrupo_codigo", label: "Código Subgrupo", aliases: ["subgrupo", "codsubgrupo", "subgrupocodigo"] },
+  { key: "ativo", label: "Ativo", aliases: ["status", "ativo"] },
+];
+
+
 function ProductsPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");

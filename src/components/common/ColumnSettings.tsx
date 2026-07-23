@@ -71,6 +71,24 @@ export function ColumnSettings({ columns, isVisible, toggleVisible, moveColumn, 
           })}
         </div>
         <Separator />
+        {onPageSizeChange && (
+          <>
+            <div className="px-3 py-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-slate-700">Registros por página</span>
+              <Select value={String(pageSize ?? 20)} onValueChange={(v) => onPageSizeChange(Number(v))}>
+                <SelectTrigger className="h-7 w-24 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Separator />
+          </>
+        )}
         <div className="px-3 py-2 text-[11px] text-slate-500">Arraste para reordenar. Preferências salvas neste navegador.</div>
       </PopoverContent>
     </Popover>

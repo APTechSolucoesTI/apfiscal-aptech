@@ -32,6 +32,7 @@ import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXl
 import { onlyDigits as digitsOnly } from "@/lib/br-format";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { TablePagination } from "@/components/common/TablePagination";
 
 export const Route = createFileRoute("/_authenticated/suppliers")({
   component: SuppliersPage,
@@ -214,9 +215,13 @@ function SuppliersPage() {
     ) },
   ], []);
 
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("suppliers", columns);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("suppliers", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
   const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, companyId, pageSize, filtered.length]);
+  const pagedFiltered = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
 
 
 
@@ -399,7 +404,7 @@ function SuppliersPage() {
                 <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por CNPJ ou razão social" className="pl-9" />
               </div>
-              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
           </div>
         </CardHeader>
@@ -436,7 +441,7 @@ function SuppliersPage() {
                 <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
-              ) : filtered.map((f: any) => (
+              ) : pagedFiltered.map((f: any) => (
                 <TableRow key={f.id} data-state={selectedIds.has(f.id) ? "selected" : undefined}>
                   <TableCell>
                     <Checkbox
@@ -452,6 +457,7 @@ function SuppliersPage() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
         </CardContent>
 
       </Card>

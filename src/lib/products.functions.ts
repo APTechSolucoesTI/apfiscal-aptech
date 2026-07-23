@@ -181,32 +181,57 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: item, error: iErr } = await context.supabase
       .from("fiscal_document_items")
-      .select("id, codigo, document_id, fiscal_documents(company_id, companies(organization_id))")
+      .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, companies(organization_id))")
       .eq("id", data.itemId)
       .maybeSingle();
     if (iErr || !item) throw new Error("Item não encontrado");
-    const doc = (item as any).fiscal_documents;
-    const orgId = doc?.companies?.organization_id;
-    const companyId = doc?.company_id;
+    const doc: any = (item as any).fiscal_documents;
+    const orgId: string | null = doc?.companies?.organization_id ?? null;
+    const companyId: string | null = doc?.company_id ?? null;
+    const emitCnpj: string | null = doc?.emitente_cnpj ?? null;
+    const codigo: string | null = (item as any).codigo ?? null;
 
-    const { data: docRow } = await context.supabase
-      .from("fiscal_documents").select("emitente_cnpj").eq("id", (item as any).document_id).maybeSingle();
-    const emitCnpj: string | null = (docRow as any)?.emitente_cnpj ?? null;
-
-    if (emitCnpj) {
-      const { data: sup } = await context.supabase
+    if (orgId && emitCnpj && codigo) {
+      const digits = emitCnpj.replace(/\D/g, "");
+      const { data: sup, error: sErr } = await context.supabase
         .from("suppliers").select("id")
         .eq("organization_id", orgId)
-        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${emitCnpj.replace(/\D/g, "")}`)
+        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${digits}`)
         .limit(1).maybeSingle();
-      if (sup && (item as any).codigo) {
-        await context.supabase.from("produtos_fornecedores").upsert({
-          organization_id: orgId,
-          empresa_id: companyId,
-          produto_id: data.produtoId,
-          fornecedor_id: (sup as any).id,
-          codigo_item_nota: (item as any).codigo,
-        }, { onConflict: "empresa_id,fornecedor_id,codigo_item_nota", ignoreDuplicates: true } as any);
+      if (sErr) throw new Error(`Falha ao localizar fornecedor: ${sErr.message}`);
+      if (sup) {
+        const supplierId = (sup as any).id as string;
+        // Verifica manualmente antes de inserir: os índices UNIQUE são parciais
+        // (empresa_id NULL vs NOT NULL), e ON CONFLICT falha silenciosamente
+        // quando o índice esperado não cobre a linha.
+        let existingQ = context.supabase
+          .from("produtos_fornecedores")
+          .select("id, produto_id")
+          .eq("fornecedor_id", supplierId)
+          .eq("codigo_item_nota", codigo)
+          .limit(1);
+        existingQ = companyId
+          ? existingQ.eq("empresa_id", companyId)
+          : existingQ.is("empresa_id", null);
+        const { data: existing, error: eErr } = await existingQ.maybeSingle();
+        if (eErr) throw new Error(`Falha ao verificar vínculo existente: ${eErr.message}`);
+
+        if (!existing) {
+          const { error: insErr } = await context.supabase.from("produtos_fornecedores").insert({
+            organization_id: orgId,
+            empresa_id: companyId,
+            produto_id: data.produtoId,
+            fornecedor_id: supplierId,
+            codigo_item_nota: codigo,
+          });
+          if (insErr) throw new Error(`Falha ao vincular fornecedor ao produto: ${insErr.message}`);
+        } else if ((existing as any).produto_id !== data.produtoId) {
+          const { error: updErr } = await context.supabase
+            .from("produtos_fornecedores")
+            .update({ produto_id: data.produtoId })
+            .eq("id", (existing as any).id);
+          if (updErr) throw new Error(`Falha ao atualizar vínculo do fornecedor: ${updErr.message}`);
+        }
       }
     }
 
@@ -375,19 +400,37 @@ export const createProductAndLinkItem = createServerFn({ method: "POST" })
     if (cErr) throw new Error(`Falha ao criar produto: ${cErr.message}`);
     const produtoId = (created as any).id as string;
 
-    // 2) Criar vínculo produto x fornecedor
+    // 2) Criar vínculo produto x fornecedor (verifica antes; índices UNIQUE são parciais)
     if ((item as any).codigo) {
-      const { error: pfErr } = await context.supabase.from("produtos_fornecedores").upsert({
-        organization_id: orgId,
-        empresa_id: companyIdDoc,
-        produto_id: produtoId,
-        fornecedor_id: supplierId,
-        codigo_item_nota: (item as any).codigo,
-      }, { onConflict: "empresa_id,fornecedor_id,codigo_item_nota" } as any);
-      if (pfErr) {
-        // reverter produto criado
-        await context.supabase.from("produtos").delete().eq("id", produtoId);
-        throw new Error(`Falha ao vincular fornecedor: ${pfErr.message}`);
+      let existQ = context.supabase
+        .from("produtos_fornecedores")
+        .select("id")
+        .eq("fornecedor_id", supplierId)
+        .eq("codigo_item_nota", (item as any).codigo)
+        .limit(1);
+      existQ = companyIdDoc ? existQ.eq("empresa_id", companyIdDoc) : existQ.is("empresa_id", null);
+      const { data: existingPf } = await existQ.maybeSingle();
+      if (existingPf) {
+        const { error: updErr } = await context.supabase
+          .from("produtos_fornecedores")
+          .update({ produto_id: produtoId })
+          .eq("id", (existingPf as any).id);
+        if (updErr) {
+          await context.supabase.from("produtos").delete().eq("id", produtoId);
+          throw new Error(`Falha ao vincular fornecedor: ${updErr.message}`);
+        }
+      } else {
+        const { error: pfErr } = await context.supabase.from("produtos_fornecedores").insert({
+          organization_id: orgId,
+          empresa_id: companyIdDoc,
+          produto_id: produtoId,
+          fornecedor_id: supplierId,
+          codigo_item_nota: (item as any).codigo,
+        });
+        if (pfErr) {
+          await context.supabase.from("produtos").delete().eq("id", produtoId);
+          throw new Error(`Falha ao vincular fornecedor: ${pfErr.message}`);
+        }
       }
     }
 

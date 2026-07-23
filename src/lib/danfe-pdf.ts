@@ -38,7 +38,7 @@ function barcodePng(chave: string): string | null {
   }
 }
 
-export function generateDanfePdf(doc: any, items: any[]) {
+export function buildDanfePdf(doc: any, items: any[]) {
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = pdf.internal.pageSize.getWidth();
   const M = 8;
@@ -421,5 +421,17 @@ export function generateDanfePdf(doc: any, items: any[]) {
   y += adH;
 
   const filename = `DANFE-${doc.chave_acesso ?? doc.numero ?? "nfe"}.pdf`;
+  return { pdf, filename };
+}
+
+export function generateDanfePdf(doc: any, items: any[]) {
+  const { pdf, filename } = buildDanfePdf(doc, items);
   pdf.save(filename);
+}
+
+export function generateDanfePdfBlobUrl(doc: any, items: any[]) {
+  const { pdf, filename } = buildDanfePdf(doc, items);
+  const blob = pdf.output("blob");
+  const url = URL.createObjectURL(blob);
+  return { url, filename };
 }

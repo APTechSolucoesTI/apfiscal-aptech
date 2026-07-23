@@ -89,8 +89,10 @@ function ProductsPage() {
   const [companyId, setCompanyId] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState<ProdutoInput>(empty);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
 
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],

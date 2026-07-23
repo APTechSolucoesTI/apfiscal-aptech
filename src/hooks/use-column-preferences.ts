@@ -45,7 +45,7 @@ export function useColumnPreferences(tableKey: string, baseColumns: ColumnDef[])
 
   const [prefs, setPrefs] = useState<Prefs>(() => {
     const loaded = loadPrefs(tableKey);
-    return loaded ?? { order: defaultOrder, hidden: [] };
+    return loaded ?? { order: defaultOrder, hidden: [], pageSize: DEFAULT_PAGE_SIZE };
   });
 
   useEffect(() => {

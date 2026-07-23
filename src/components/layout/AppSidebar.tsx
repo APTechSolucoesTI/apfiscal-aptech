@@ -54,6 +54,11 @@ const menuItems = [
     url: "/products",
   },
   {
+    title: "Classificações",
+    icon: Layers,
+    url: "/classifications",
+  },
+  {
     title: "Documentos Fiscais",
     icon: FileText,
     url: "/documents",

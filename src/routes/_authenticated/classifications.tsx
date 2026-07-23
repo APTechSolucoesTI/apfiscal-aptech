@@ -161,9 +161,45 @@ function ClassificationCrud({ tabela }: { tabela: ClassificationTable }) {
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código ou descrição" className="pl-9" />
             </div>
           </div>
-          <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Nova {LABELS[tabela].slice(0, -1)}</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && (companies as any[]).length === 0}>
+              <Upload className="h-4 w-4 mr-1" /> Importar XLSX
+            </Button>
+            <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Nova {LABELS[tabela].slice(0, -1)}</Button>
+          </div>
         </div>
       </CardHeader>
+
+      <ImportXlsxDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title={`Importar ${LABELS[tabela]} via Excel`}
+        description={isGlobal
+          ? `Selecione se os registros serão compartilhados por todas as empresas (Global) ou vinculados a uma empresa específica.`
+          : `Selecione a empresa em que os registros serão cadastrados.`}
+        fields={importFields}
+        companies={(companies as any[]).map((c) => ({ id: c.id, label: c.razao_social }))}
+        allowGlobal={isGlobal}
+        requireCompanySelection={!isGlobal}
+        buildRow={(m, ctx) => {
+          const cid = ctx.companyId;
+          if (!isGlobal && !cid) throw new Error("Selecione uma empresa antes de importar");
+          const codigo = String(m.codigo ?? "").trim();
+          const descricao = String(m.descricao ?? "").trim();
+          if (!codigo) throw new Error("Código obrigatório");
+          if (!descricao) throw new Error("Descrição obrigatória");
+          return { tabela, company_id: cid, codigo, descricao } as ClassificationInput;
+        }}
+        checkDuplicate={async (row) => {
+          const q = supabase.from(tabela).select("id", { count: "exact", head: true }).eq("codigo", row.codigo);
+          const scoped = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
+          const { count, error } = await scoped;
+          if (error) return false;
+          return (count ?? 0) > 0;
+        }}
+        onImportRow={async (row) => { await saveFn({ data: row }); }}
+        onDone={() => qc.invalidateQueries({ queryKey: ["classif", tabela] })}
+      />
       <CardContent>
         <Table>
           <TableHeader>

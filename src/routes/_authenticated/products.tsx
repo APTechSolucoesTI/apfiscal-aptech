@@ -339,7 +339,7 @@ function ProductsPage() {
                 <SelectContent>
                   <SelectItem value="all">Todas as empresas</SelectItem>
                   {(companies as any[]).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>{c.razao_social}{c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

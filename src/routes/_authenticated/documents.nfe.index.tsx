@@ -204,6 +204,49 @@ function NFeList() {
   const totalConfirmed = docs.filter((d) => (d.status_manifestacao ?? "").toLowerCase().includes("confirm")).length;
   const totalPending = docs.length - totalConfirmed;
 
+  const columns: Col[] = useMemo(() => [
+    { key: "numero", label: "Número", sortKey: "numero", headClassName: "w-[120px] text-slate-500 font-semibold", className: "font-medium text-slate-900", render: (doc) => (
+      <div className="flex flex-col">
+        <span>{doc.numero ?? "-"}</span>
+        <span className="text-[10px] text-slate-400">Série {doc.serie ?? "-"}</span>
+      </div>
+    ) },
+    { key: "emissao", label: "Emissão", sortKey: "data_num", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-sm whitespace-nowrap", render: (doc) => (doc.data_emissao ? new Date(doc.data_emissao).toLocaleDateString("pt-BR") : "-") },
+    { key: "fornecedor", label: "Fornecedor", sortKey: "emitente_nome", headClassName: "text-slate-500 font-semibold", render: (doc) => (
+      <div className="max-w-[280px]">
+        <div className="font-medium text-slate-900 truncate">{doc.emitente_nome ?? doc.emitente_cnpj ?? "-"}</div>
+        <div className="text-[10px] text-slate-400 font-mono truncate tracking-tight">{doc.chave_acesso ?? ""}</div>
+      </div>
+    ) },
+    { key: "cnpj", label: "CNPJ Emitente", headClassName: "text-slate-500 font-semibold", className: "font-mono text-xs text-slate-600", render: (doc) => doc.emitente_cnpj ?? "-" },
+    { key: "valor", label: "Valor", sortKey: "valor_num", headClassName: "text-slate-500 font-semibold", className: "font-semibold text-slate-900 text-sm", render: (doc) => Number(doc.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) },
+    { key: "manifestacao", label: "Manifestação", headClassName: "text-slate-500 font-semibold", render: (doc) => {
+      const st = statusStyle(doc.status_manifestacao);
+      const Icon = st.icon;
+      return (
+        <_BadgeAlias variant="secondary" className={`font-medium text-xs px-2 py-0.5 rounded-full ${st.color}`}>
+          <Icon className="mr-1 h-3 w-3 inline" />
+          {st.label}
+        </_BadgeAlias>
+      );
+    } },
+    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "text-right text-slate-500 font-semibold", className: "text-right", render: (doc) => (
+      <div className="flex justify-end gap-1">
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Ver detalhes" asChild>
+          <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
+            <Eye className="h-4 w-4" />
+          </Link>
+        </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML">
+          <Download className="h-4 w-4" />
+        </Button>
+      </div>
+    ) },
+  ], []);
+
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("nfe", columns);
+  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
+  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
 
   return (
     <div className="space-y-6">

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -31,6 +31,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Search, Building2, Loader2, Package, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
+import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
+import { ColumnSettings } from "@/components/common/ColumnSettings";
 
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -189,6 +191,32 @@ function ProductsPage() {
   const allChecked = filtered.length > 0 && filtered.every((p: any) => selectedIds.has(p.id));
   const someChecked = selectedIds.size > 0 && !allChecked;
 
+  type Col = ColumnDef & { className?: string; headClassName?: string; render: (r: any) => ReactNode };
+  const columns: Col[] = useMemo(() => [
+    { key: "codigo_interno", label: "Código Interno", className: "font-mono text-xs", render: (p) => p.codigo_interno },
+    { key: "descricao", label: "Descrição", className: "font-medium", render: (p) => p.descricao },
+    { key: "unidade", label: "Unid.", render: (p) => p.unidade },
+    { key: "ncm", label: "NCM", className: "font-mono text-xs", render: (p) => p.ncm },
+    { key: "cest", label: "CEST", className: "font-mono text-xs", render: (p) => p.cest ?? "—" },
+    { key: "ean", label: "EAN", className: "font-mono text-xs", render: (p) => p.ean ?? "—" },
+    { key: "origem", label: "Origem", className: "text-xs", render: (p) => (p.origem ?? p.origem === 0) ? String(p.origem) : "—" },
+    { key: "familia", label: "Família", className: "text-xs", render: (p) => p.familias ? `${p.familias.codigo} - ${p.familias.descricao}` : "—" },
+    { key: "grupo", label: "Grupo", className: "text-xs", render: (p) => p.grupos ? `${p.grupos.codigo} - ${p.grupos.descricao}` : "—" },
+    { key: "subgrupo", label: "Subgrupo", className: "text-xs", render: (p) => p.subgrupos ? `${p.subgrupos.codigo} - ${p.subgrupos.descricao}` : "—" },
+    { key: "status", label: "Status", render: (p) => (<Badge variant={p.ativo ? "default" : "outline"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>) },
+    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "w-24 text-right", className: "text-right", render: (p) => (
+      <>
+        <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" onClick={() => { if (confirm("Excluir produto?")) delMut.mutate(p.id); }}>
+          <Trash2 className="h-4 w-4 text-red-600" />
+        </Button>
+      </>
+    ) },
+  ], []);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("products", columns);
+  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
+  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
   function openNew() {
     const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : ((companies as any[])[0]?.id ?? null));
     setForm({ ...empty, company_id: defaultCompany });
@@ -310,9 +338,12 @@ function ProductsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="relative w-full md:w-80">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código, descrição, NCM, EAN" className="pl-9" />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="relative flex-1 md:w-80">
+                <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código, descrição, NCM, EAN" className="pl-9" />
+              </div>
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
             </div>
           </div>
         </CardHeader>
@@ -335,22 +366,16 @@ function ProductsPage() {
                     onCheckedChange={() => { if (allChecked) setSelectedIds(new Set()); else setSelectedIds(new Set(filtered.map((p: any) => p.id))); }}
                   />
                 </TableHead>
-                <TableHead>Código Interno</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Unid.</TableHead>
-                <TableHead>NCM</TableHead>
-                <TableHead>Família</TableHead>
-                <TableHead>Grupo</TableHead>
-                <TableHead>Subgrupo</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-24 text-right">Ações</TableHead>
+                {visibleCols.map((c) => (
+                  <TableHead key={c.key} className={c.headClassName}>{c.label}</TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-slate-500">
+                <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8 text-slate-500">
                   <Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.
                 </TableCell></TableRow>
               ) : filtered.map((p: any) => (
@@ -363,22 +388,9 @@ function ProductsPage() {
                       })}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{p.codigo_interno}</TableCell>
-                  <TableCell className="font-medium">{p.descricao}</TableCell>
-                  <TableCell>{p.unidade}</TableCell>
-                  <TableCell className="font-mono text-xs">{p.ncm}</TableCell>
-                  <TableCell className="text-xs">{p.familias ? `${p.familias.codigo} - ${p.familias.descricao}` : "—"}</TableCell>
-                  <TableCell className="text-xs">{p.grupos ? `${p.grupos.codigo} - ${p.grupos.descricao}` : "—"}</TableCell>
-                  <TableCell className="text-xs">{p.subgrupos ? `${p.subgrupos.codigo} - ${p.subgrupos.descricao}` : "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={p.ativo ? "default" : "outline"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={() => { if (confirm("Excluir produto?")) delMut.mutate(p.id); }}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </TableCell>
+                  {visibleCols.map((c) => (
+                    <TableCell key={c.key} className={c.className}>{c.render(p)}</TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>

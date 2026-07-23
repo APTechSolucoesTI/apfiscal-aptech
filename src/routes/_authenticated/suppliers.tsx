@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -30,6 +30,8 @@ import { Plus, Pencil, Trash2, Search, Building2, Loader2, Upload } from "lucide
 import { toast } from "sonner";
 import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
 import { onlyDigits as digitsOnly } from "@/lib/br-format";
+import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
+import { ColumnSettings } from "@/components/common/ColumnSettings";
 
 export const Route = createFileRoute("/_authenticated/suppliers")({
   component: SuppliersPage,
@@ -177,6 +179,45 @@ function SuppliersPage() {
     if (!confirm(`Excluir ${selectedIds.size} fornecedor(es) selecionado(s)?`)) return;
     bulkDelMut.mutate(Array.from(selectedIds));
   }
+
+  type Col = ColumnDef & { className?: string; headClassName?: string; render: (r: any) => ReactNode };
+  const columns: Col[] = useMemo(() => [
+    { key: "cnpj_cpf", label: "CNPJ/CPF", className: "font-mono text-xs", render: (f) => maskCnpjCpf(f.cnpj_cpf ?? "") },
+    { key: "razao_social", label: "Razão Social", render: (f) => (
+      <>
+        <div className="font-medium">{f.razao_social}</div>
+        {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
+      </>
+    ) },
+    { key: "empresa", label: "Empresa", className: "text-xs", render: (f) => f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge> },
+    { key: "email", label: "E-mail", className: "text-xs text-slate-600", render: (f) => f.email ?? "—" },
+    { key: "telefone", label: "Telefone", className: "text-xs text-slate-600", render: (f) => f.telefone ?? "—" },
+    { key: "cidade_uf", label: "Cidade / UF", className: "text-xs text-slate-600", render: (f) => [f.municipio, f.uf].filter(Boolean).join(" / ") || "—" },
+    { key: "erp", label: "ERP", render: (f) => f.erp_system ? (
+      <div className="text-xs">
+        <div className="font-medium">{f.erp_system}</div>
+        <div className="text-slate-500 font-mono">{f.erp_code ?? f.erp_external_id ?? "—"}</div>
+      </div>
+    ) : <Badge variant="outline">Não vinculado</Badge> },
+    { key: "origem", label: "Origem", render: (f) => (
+      <Badge variant={f.origem === "auto_nfe" ? "secondary" : "outline"}>
+        {f.origem === "auto_nfe" ? "Auto (NF-e)" : f.origem === "erp" ? "ERP" : "Manual"}
+      </Badge>
+    ) },
+    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "w-24 text-right", className: "text-right", render: (f) => (
+      <>
+        <Button size="icon" variant="ghost" onClick={() => openEdit(f)}><Pencil className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" onClick={() => { if (confirm("Excluir fornecedor?")) delMut.mutate(f.id); }}>
+          <Trash2 className="h-4 w-4 text-red-600" />
+        </Button>
+      </>
+    ) },
+  ], []);
+
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("suppliers", columns);
+  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
+  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
 
 
   function openNew() {
@@ -353,9 +394,12 @@ function SuppliersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="relative w-full md:w-80">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por CNPJ ou razão social" className="pl-9" />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="relative flex-1 md:w-80">
+                <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por CNPJ ou razão social" className="pl-9" />
+              </div>
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
             </div>
           </div>
         </CardHeader>
@@ -382,19 +426,16 @@ function SuppliersPage() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
-                <TableHead>CNPJ/CPF</TableHead>
-                <TableHead>Razão Social</TableHead>
-                <TableHead>Empresa</TableHead>
-                <TableHead>ERP</TableHead>
-                <TableHead>Origem</TableHead>
-                <TableHead className="w-24 text-right">Ações</TableHead>
+                {visibleCols.map((c) => (
+                  <TableHead key={c.key} className={c.headClassName}>{c.label}</TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
               ) : filtered.map((f: any) => (
                 <TableRow key={f.id} data-state={selectedIds.has(f.id) ? "selected" : undefined}>
                   <TableCell>
@@ -404,31 +445,9 @@ function SuppliersPage() {
                       aria-label={`Selecionar ${f.razao_social}`}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{maskCnpjCpf(f.cnpj_cpf ?? "")}</TableCell>
-                  <TableCell>
-                    <div className="font-medium">{f.razao_social}</div>
-                    {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
-                  </TableCell>
-                  <TableCell className="text-xs">{f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge>}</TableCell>
-                  <TableCell>
-                    {f.erp_system ? (
-                      <div className="text-xs">
-                        <div className="font-medium">{f.erp_system}</div>
-                        <div className="text-slate-500 font-mono">{f.erp_code ?? f.erp_external_id ?? "—"}</div>
-                      </div>
-                    ) : <Badge variant="outline">Não vinculado</Badge>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={f.origem === "auto_nfe" ? "secondary" : "outline"}>
-                      {f.origem === "auto_nfe" ? "Auto (NF-e)" : f.origem === "erp" ? "ERP" : "Manual"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(f)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={() => { if (confirm("Excluir fornecedor?")) delMut.mutate(f.id); }}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </TableCell>
+                  {visibleCols.map((c) => (
+                    <TableCell key={c.key} className={c.className}>{c.render(f)}</TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>

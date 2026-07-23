@@ -67,6 +67,8 @@ type Row = FiscalDoc & {
   valor_num: number;
 };
 
+type Col = ColumnDef & { sortKey?: keyof Row; className?: string; headClassName?: string; render: (r: Row) => ReactNode };
+
 function statusStyle(status: string | null) {
   const s = (status ?? "pendente").toLowerCase();
   if (s.includes("confirm")) return { color: "bg-green-100 text-green-700 hover:bg-green-100", icon: CheckCircle2, label: "Confirmada" };

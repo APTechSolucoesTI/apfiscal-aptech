@@ -29,7 +29,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
 const menuItems = [
@@ -98,6 +98,12 @@ const menuItems = [
 
 export function AppSidebar() {
   const router = useRouter();
+  const currentPath = useRouterState({
+    select: (s) => s.location.pathname,
+  });
+
+  const isActive = (url: string) =>
+    currentPath === url || currentPath.startsWith(url + "/");
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -118,40 +124,57 @@ export function AppSidebar() {
       <SidebarContent className="p-4 gap-2 bg-white">
         <SidebarGroup>
           <SidebarMenu>
-            {menuItems.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                {item.subItems ? (
-                  <>
-                    <SidebarMenuButton className="hover:bg-slate-50 text-slate-600 font-medium">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                      <ChevronRight className="ml-auto h-4 w-4" />
+            {menuItems.map((item) => {
+              const parentActive = isActive(item.url);
+              return (
+                <SidebarMenuItem key={item.title}>
+                  {item.subItems ? (
+                    <>
+                      <SidebarMenuButton
+                        isActive={parentActive}
+                        className="text-slate-600 font-medium hover:bg-slate-50 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                        <ChevronRight className="ml-auto h-4 w-4" />
+                      </SidebarMenuButton>
+                      <SidebarMenuSub>
+                        {item.subItems.map((sub) => {
+                          const subActive = isActive(sub.url);
+                          return (
+                            <SidebarMenuSubItem key={sub.title}>
+                              <SidebarMenuSubButton asChild isActive={subActive}>
+                                <Link
+                                  to={sub.url}
+                                  className="py-2 text-slate-500 hover:text-blue-600 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold"
+                                >
+                                  {sub.title}
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          );
+                        })}
+                      </SidebarMenuSub>
+                    </>
+                  ) : (
+                    <SidebarMenuButton
+                      asChild
+                      isActive={parentActive}
+                      className="text-slate-600 font-medium hover:bg-slate-50 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold data-[active=true]:border-l-2 data-[active=true]:border-blue-600"
+                    >
+                      <Link to={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
                     </SidebarMenuButton>
-                    <SidebarMenuSub>
-                      {item.subItems.map((sub) => (
-                        <SidebarMenuSubItem key={sub.title}>
-                          <SidebarMenuSubButton asChild>
-                            <Link to={sub.url} className="text-slate-500 hover:text-blue-600 py-2">
-                              {sub.title}
-                            </Link>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))}
-                    </SidebarMenuSub>
-                  </>
-                ) : (
-                  <SidebarMenuButton asChild className="hover:bg-slate-50 text-slate-600 font-medium active:bg-blue-50 active:text-blue-700">
-                    <Link to={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-              </SidebarMenuItem>
-            ))}
+                  )}
+                </SidebarMenuItem>
+              );
+            })}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+
 
       <SidebarFooter className="p-4 border-t border-slate-100 bg-white">
         <div className="p-3 mb-4 rounded-xl bg-slate-50 border border-slate-200">

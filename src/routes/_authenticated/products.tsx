@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { TablePagination } from "@/components/common/TablePagination";
 
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -213,9 +214,13 @@ function ProductsPage() {
       </>
     ) },
   ], []);
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("products", columns);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("products", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
   const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, companyId, pageSize, filtered.length]);
+  const pagedFiltered = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
 
   function openNew() {
     const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : ((companies as any[])[0]?.id ?? null));
@@ -343,7 +348,7 @@ function ProductsPage() {
                 <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código, descrição, NCM, EAN" className="pl-9" />
               </div>
-              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
           </div>
         </CardHeader>
@@ -378,7 +383,7 @@ function ProductsPage() {
                 <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8 text-slate-500">
                   <Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.
                 </TableCell></TableRow>
-              ) : filtered.map((p: any) => (
+              ) : pagedFiltered.map((p: any) => (
                 <TableRow key={p.id}>
                   <TableCell>
                     <Checkbox
@@ -395,6 +400,7 @@ function ProductsPage() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
         </CardContent>
       </Card>
 

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { TablePagination } from "@/components/common/TablePagination";
 import {
   Dialog,
   DialogContent,
@@ -145,7 +146,7 @@ function NFSeList() {
     ) },
   ], []);
 
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("nfse", columns);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("nfse", columns);
   const visibleCols = useMemo(
     () => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean),
     [visibleColumns, columns],
@@ -154,6 +155,10 @@ function NFSeList() {
     () => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean),
     [allColumns, columns],
   );
+
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, pageSize, sortedDocs.length]);
+  const pagedDocs = useMemo(() => sortedDocs.slice((page - 1) * pageSize, page * pageSize), [sortedDocs, page, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -179,7 +184,7 @@ function NFSeList() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+            <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
           </div>
         </CardHeader>
         <CardContent>
@@ -222,7 +227,7 @@ function NFSeList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedDocs.map((doc) => (
+                {pagedDocs.map((doc) => (
                   <TableRow key={doc.id} data-state={selectedIds.has(doc.id) ? "selected" : undefined}>
                     <TableCell>
                       <Checkbox
@@ -239,6 +244,7 @@ function NFSeList() {
               </TableBody>
             </Table>
           )}
+          <TablePagination page={page} pageSize={pageSize} total={sortedDocs.length} onPageChange={setPage} />
         </CardContent>
       </Card>
 

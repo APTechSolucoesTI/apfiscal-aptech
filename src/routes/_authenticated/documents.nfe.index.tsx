@@ -38,6 +38,7 @@ import {
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { TablePagination } from "@/components/common/TablePagination";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -242,9 +243,13 @@ function NFeList() {
     ) },
   ], []);
 
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("nfe", columns);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("nfe", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
   const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, pageSize, sortedDocs.length]);
+  const pagedDocs = useMemo(() => sortedDocs.slice((page - 1) * pageSize, page * pageSize), [sortedDocs, page, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -283,7 +288,7 @@ function NFeList() {
               <Button variant="outline" size="sm">
                 <Filter className="mr-2 h-4 w-4" /> Filtros
               </Button>
-              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
             <div className="flex items-center gap-4 text-sm text-slate-500">
               <div className="flex items-center gap-1.5">
@@ -342,7 +347,7 @@ function NFeList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedDocs.map((doc) => (
+                {pagedDocs.map((doc) => (
                   <TableRow key={doc.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors" data-state={selectedIds.has(doc.id) ? "selected" : undefined}>
                     <TableCell>
                       <Checkbox
@@ -359,6 +364,9 @@ function NFeList() {
               </TableBody>
             </Table>
           )}
+          <div className="px-4">
+            <TablePagination page={page} pageSize={pageSize} total={sortedDocs.length} onPageChange={setPage} />
+          </div>
         </CardContent>
       </Card>
 

@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GripVertical, Settings2, RotateCcw } from "lucide-react";
-import type { ColumnDef } from "@/hooks/use-column-preferences";
+import { PAGE_SIZE_OPTIONS, type ColumnDef } from "@/hooks/use-column-preferences";
 
 type Props = {
   columns: ColumnDef[]; // ordered (current order)
@@ -13,9 +14,11 @@ type Props = {
   moveColumn: (fromKey: string, toKey: string) => void;
   reset: () => void;
   label?: string;
+  pageSize?: number;
+  onPageSizeChange?: (n: number) => void;
 };
 
-export function ColumnSettings({ columns, isVisible, toggleVisible, moveColumn, reset, label = "Colunas" }: Props) {
+export function ColumnSettings({ columns, isVisible, toggleVisible, moveColumn, reset, label = "Colunas", pageSize, onPageSizeChange }: Props) {
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
 
@@ -68,6 +71,24 @@ export function ColumnSettings({ columns, isVisible, toggleVisible, moveColumn, 
           })}
         </div>
         <Separator />
+        {onPageSizeChange && (
+          <>
+            <div className="px-3 py-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-slate-700">Registros por página</span>
+              <Select value={String(pageSize ?? 20)} onValueChange={(v) => onPageSizeChange(Number(v))}>
+                <SelectTrigger className="h-7 w-24 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Separator />
+          </>
+        )}
         <div className="px-3 py-2 text-[11px] text-slate-500">Arraste para reordenar. Preferências salvas neste navegador.</div>
       </PopoverContent>
     </Popover>

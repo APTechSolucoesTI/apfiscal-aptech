@@ -6,7 +6,10 @@ export type ColumnDef = {
   alwaysVisible?: boolean;
 };
 
-type Prefs = { order: string[]; hidden: string[] };
+type Prefs = { order: string[]; hidden: string[]; pageSize?: number };
+
+export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 500, 1000] as const;
+export const DEFAULT_PAGE_SIZE = 20;
 
 const STORAGE_PREFIX = "apfiscal:cols:";
 
@@ -42,7 +45,7 @@ export function useColumnPreferences(tableKey: string, baseColumns: ColumnDef[])
 
   const [prefs, setPrefs] = useState<Prefs>(() => {
     const loaded = loadPrefs(tableKey);
-    return loaded ?? { order: defaultOrder, hidden: [] };
+    return loaded ?? { order: defaultOrder, hidden: [], pageSize: DEFAULT_PAGE_SIZE };
   });
 
   useEffect(() => {
@@ -64,7 +67,7 @@ export function useColumnPreferences(tableKey: string, baseColumns: ColumnDef[])
       ) {
         return prev;
       }
-      return { order: nextOrder, hidden: nextHidden };
+      return { ...prev, order: nextOrder, hidden: nextHidden };
     });
   }, [defaultOrder]);
 
@@ -114,8 +117,13 @@ export function useColumnPreferences(tableKey: string, baseColumns: ColumnDef[])
   }, []);
 
   const reset = useCallback(() => {
-    setPrefs({ order: defaultOrder, hidden: [] });
+    setPrefs({ order: defaultOrder, hidden: [], pageSize: DEFAULT_PAGE_SIZE });
   }, [defaultOrder]);
 
-  return { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset };
+  const pageSize = prefs.pageSize ?? DEFAULT_PAGE_SIZE;
+  const setPageSize = useCallback((n: number) => {
+    setPrefs((prev) => ({ ...prev, pageSize: n }));
+  }, []);
+
+  return { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize };
 }

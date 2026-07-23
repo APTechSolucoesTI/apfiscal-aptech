@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Table,
   TableBody,
@@ -61,6 +61,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useSortableData } from "@/hooks/use-sortable-data";
+import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
+import { ColumnSettings } from "@/components/common/ColumnSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 

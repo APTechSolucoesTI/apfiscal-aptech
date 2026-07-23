@@ -63,8 +63,23 @@ function walkAsn1ForIcpCnpj(node: forge.asn1.Asn1 | undefined): string | null {
   return null;
 }
 
+function isValidCnpj(cnpj: string): boolean {
+  if (!/^\d{14}$/.test(cnpj)) return false;
+  if (/^(\d)\1{13}$/.test(cnpj)) return false;
+  const calc = (base: string, weights: number[]) => {
+    const sum = base.split("").reduce((acc, d, i) => acc + Number(d) * weights[i], 0);
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const d1 = calc(cnpj.slice(0, 12), w1);
+  const d2 = calc(cnpj.slice(0, 12) + String(d1), w2);
+  return d1 === Number(cnpj[12]) && d2 === Number(cnpj[13]);
+}
+
 function extractCnpjFromCert(cert: forge.pki.Certificate): string | null {
-  // 1) subjectAltName: parse DER manualmente para localizar otherName ICP-Brasil
+  // 1) subjectAltName: otherName ICP-Brasil (OID 2.16.76.1.3.3) — fonte canônica
   try {
     const sanExt = (
       cert.extensions as Array<{ id?: string; name?: string; value?: string }> | undefined
@@ -72,34 +87,25 @@ function extractCnpjFromCert(cert: forge.pki.Certificate): string | null {
     if (sanExt?.value) {
       const asn1 = forge.asn1.fromDer(sanExt.value);
       const found = walkAsn1ForIcpCnpj(asn1);
-      if (found) return found;
-      // fallback: procura 14 dígitos consecutivos no DER bruto da extensão
-      const digits = sanExt.value.replace(/[^0-9]/g, "");
-      const m = digits.match(/\d{14}/);
-      if (m) return m[0];
+      if (found && isValidCnpj(found)) return found;
     }
   } catch {
     // ignore
   }
 
-  // 2) CN costuma vir como "NOME EMPRESA:CNPJ"
+  // 2) Fallback controlado: CN "NOME:CNPJ" — aceita apenas se for CNPJ válido
   const cn = cert.subject.attributes.find((a) => a.shortName === "CN")?.value as string | undefined;
   if (cn) {
-    const m = cn.replace(/\D/g, "").match(/\d{14}/);
-    if (m) return m[0];
+    const digits = cn.replace(/\D/g, "");
+    for (let i = 0; i + 14 <= digits.length; i++) {
+      const candidate = digits.slice(i, i + 14);
+      if (isValidCnpj(candidate)) return candidate;
+    }
   }
 
-  // 3) Último recurso: procura 14 dígitos no DER completo do certificado
-  try {
-    const der = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes();
-    const digits = der.replace(/[^0-9]/g, "");
-    const m = digits.match(/\d{14}/);
-    if (m) return m[0];
-  } catch {
-    // ignore
-  }
   return null;
 }
+
 
 function parsePfx(base64: string, password: string) {
   const der = forge.util.decode64(base64);

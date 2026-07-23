@@ -181,7 +181,7 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: item, error: iErr } = await context.supabase
       .from("fiscal_document_items")
-      .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, companies(organization_id))")
+      .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, emitente_nome, companies(organization_id))")
       .eq("id", data.itemId)
       .maybeSingle();
     if (iErr || !item) throw new Error("Item não encontrado");
@@ -189,10 +189,12 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
     const orgId: string | null = doc?.companies?.organization_id ?? null;
     const companyId: string | null = doc?.company_id ?? null;
     const emitCnpj: string | null = doc?.emitente_cnpj ?? null;
+    const emitNome: string | null = doc?.emitente_nome ?? null;
     const codigo: string | null = (item as any).codigo ?? null;
 
     if (orgId && emitCnpj && codigo) {
       const digits = emitCnpj.replace(/\D/g, "");
+      let supplierId: string | null = null;
       const { data: sup, error: sErr } = await context.supabase
         .from("suppliers").select("id")
         .eq("organization_id", orgId)
@@ -200,7 +202,20 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
         .limit(1).maybeSingle();
       if (sErr) throw new Error(`Falha ao localizar fornecedor: ${sErr.message}`);
       if (sup) {
-        const supplierId = (sup as any).id as string;
+        supplierId = (sup as any).id as string;
+      } else {
+        // Cria automaticamente o fornecedor a partir dos dados do emitente da NF-e
+        const { data: newSupId, error: upsertErr } = await context.supabase.rpc("upsert_supplier_from_nfe", {
+          _organization_id: orgId,
+          _company_id: (companyId ?? undefined) as any,
+          _cnpj: digits,
+          _razao_social: emitNome ?? `Fornecedor ${digits}`,
+        });
+        if (upsertErr) throw new Error(`Falha ao cadastrar fornecedor da nota: ${upsertErr.message}`);
+        supplierId = (newSupId as string | null) ?? null;
+      }
+
+      if (supplierId) {
         // Verifica manualmente antes de inserir: os índices UNIQUE são parciais
         // (empresa_id NULL vs NOT NULL), e ON CONFLICT falha silenciosamente
         // quando o índice esperado não cobre a linha.

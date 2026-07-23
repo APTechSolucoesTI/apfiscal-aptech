@@ -28,7 +28,8 @@ export const listClassifications = createServerFn({ method: "GET" })
   .inputValidator((data: { tabela: ClassificationTable; companyId?: string }) => data)
   .handler(async ({ data, context }) => {
     let q = context.supabase.from(data.tabela).select("*").order("codigo");
-    if (data.companyId) q = q.eq("company_id", data.companyId);
+    // Quando uma empresa é informada, inclui também classificações globais (company_id IS NULL)
+    if (data.companyId) q = q.or(`company_id.eq.${data.companyId},company_id.is.null`);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];

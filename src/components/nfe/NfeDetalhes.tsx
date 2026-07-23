@@ -305,6 +305,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                           <th className="px-4 py-3">#</th>
                           <th className="px-4 py-3">Código</th>
                           <th className="px-4 py-3">Descrição</th>
+                          <th className="px-4 py-3">Vínculo</th>
                           <th className="px-4 py-3">NCM</th>
                           <th className="px-4 py-3">CFOP</th>
                           <th className="px-4 py-3">UN</th>
@@ -316,13 +317,18 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                       </thead>
                       <tbody>
                         {items.length === 0 && (
-                          <tr><td colSpan={10} className="text-center py-8 text-muted-foreground">Nenhum item cadastrado.</td></tr>
+                          <tr><td colSpan={11} className="text-center py-8 text-muted-foreground">Nenhum item cadastrado.</td></tr>
                         )}
                         {items.map((item) => (
                           <tr key={item.id} className="border-b hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setSelectedItem(item)}>
                             <td className="px-4 py-4 text-xs text-muted-foreground">{item.numero_item}</td>
                             <td className="px-4 py-4 font-mono text-xs">{item.codigo}</td>
                             <td className="px-4 py-4 font-medium">{item.descricao}</td>
+                            <td className="px-4 py-4">
+                              {item.status_vinculo === "vinculado"
+                                ? <Badge variant="default">Vinculado</Badge>
+                                : <Badge variant="destructive">Pendente</Badge>}
+                            </td>
                             <td className="px-4 py-4">{item.ncm ?? "-"}</td>
                             <td className="px-4 py-4">{item.cfop ?? "-"}</td>
                             <td className="px-4 py-4">{item.unidade_comercial ?? "-"}</td>

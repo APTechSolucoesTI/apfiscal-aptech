@@ -22,6 +22,7 @@ import { Route as AuthenticatedMonitoringRouteImport } from './routes/_authentic
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCompaniesRouteImport } from './routes/_authenticated/companies'
+import { Route as AuthenticatedClassificationsRouteImport } from './routes/_authenticated/classifications'
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings.members'
 import { Route as AuthenticatedSettingsCertificatesRouteImport } from './routes/_authenticated/settings.certificates'
 import { Route as AuthenticatedSettingsCatalogRouteImport } from './routes/_authenticated/settings.catalog'
@@ -96,6 +97,12 @@ const AuthenticatedCompaniesRoute = AuthenticatedCompaniesRouteImport.update({
   path: '/companies',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedClassificationsRoute =
+  AuthenticatedClassificationsRouteImport.update({
+    id: '/classifications',
+    path: '/classifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsMembersRoute =
   AuthenticatedSettingsMembersRouteImport.update({
     id: '/members',
@@ -149,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/classifications': typeof AuthenticatedClassificationsRoute
   '/companies': typeof AuthenticatedCompaniesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/documents': typeof AuthenticatedDocumentsRouteWithChildren
@@ -171,6 +179,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/classifications': typeof AuthenticatedClassificationsRoute
   '/companies': typeof AuthenticatedCompaniesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/documents': typeof AuthenticatedDocumentsRouteWithChildren
@@ -195,6 +204,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/_authenticated/classifications': typeof AuthenticatedClassificationsRoute
   '/_authenticated/companies': typeof AuthenticatedCompaniesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/documents': typeof AuthenticatedDocumentsRouteWithChildren
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/classifications'
     | '/companies'
     | '/dashboard'
     | '/documents'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/classifications'
     | '/companies'
     | '/dashboard'
     | '/documents'
@@ -264,6 +276,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/register'
+    | '/_authenticated/classifications'
     | '/_authenticated/companies'
     | '/_authenticated/dashboard'
     | '/_authenticated/documents'
@@ -383,6 +396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCompaniesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/classifications': {
+      id: '/_authenticated/classifications'
+      path: '/classifications'
+      fullPath: '/classifications'
+      preLoaderRoute: typeof AuthenticatedClassificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/members': {
       id: '/_authenticated/settings/members'
       path: '/members'
@@ -483,6 +503,7 @@ const AuthenticatedSettingsRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedClassificationsRoute: typeof AuthenticatedClassificationsRoute
   AuthenticatedCompaniesRoute: typeof AuthenticatedCompaniesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRouteWithChildren
@@ -495,6 +516,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedClassificationsRoute: AuthenticatedClassificationsRoute,
   AuthenticatedCompaniesRoute: AuthenticatedCompaniesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRouteWithChildren,
@@ -519,13 +541,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

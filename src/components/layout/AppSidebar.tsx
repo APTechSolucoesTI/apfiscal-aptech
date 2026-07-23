@@ -11,7 +11,8 @@ import {
   Key,
   Activity,
   Users,
-  Package
+  Package,
+  Layers,
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -51,6 +52,11 @@ const menuItems = [
     title: "Produtos",
     icon: Package,
     url: "/products",
+  },
+  {
+    title: "Classificações",
+    icon: Layers,
+    url: "/classifications",
   },
   {
     title: "Documentos Fiscais",

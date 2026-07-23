@@ -231,6 +231,51 @@ export type Database = {
           },
         ]
       }
+      familias: {
+        Row: {
+          codigo: string
+          company_id: string | null
+          created_at: string
+          descricao: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          company_id?: string | null
+          created_at?: string
+          descricao: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          company_id?: string | null
+          created_at?: string
+          descricao?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "familias_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "familias_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fiscal_document_events: {
         Row: {
           codigo_evento: string | null
@@ -297,6 +342,7 @@ export type Database = {
           produto: Json | null
           quantidade_comercial: number | null
           quantidade_tributavel: number | null
+          status_vinculo: string
           unidade_comercial: string | null
           unidade_tributavel: string | null
           valor_bruto: number | null
@@ -326,6 +372,7 @@ export type Database = {
           produto?: Json | null
           quantidade_comercial?: number | null
           quantidade_tributavel?: number | null
+          status_vinculo?: string
           unidade_comercial?: string | null
           unidade_tributavel?: string | null
           valor_bruto?: number | null
@@ -355,6 +402,7 @@ export type Database = {
           produto?: Json | null
           quantidade_comercial?: number | null
           quantidade_tributavel?: number | null
+          status_vinculo?: string
           unidade_comercial?: string | null
           unidade_tributavel?: string | null
           valor_bruto?: number | null
@@ -378,7 +426,7 @@ export type Database = {
             foreignKeyName: "fiscal_document_items_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
-            referencedRelation: "products"
+            referencedRelation: "produtos"
             referencedColumns: ["id"]
           },
         ]
@@ -516,6 +564,51 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grupos: {
+        Row: {
+          codigo: string
+          company_id: string | null
+          created_at: string
+          descricao: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          company_id?: string | null
+          created_at?: string
+          descricao: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          company_id?: string | null
+          created_at?: string
+          descricao?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grupos_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grupos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -698,108 +791,202 @@ export type Database = {
         }
         Relationships: []
       }
-      products: {
+      produtos: {
         Row: {
-          aliquota_icms: number | null
-          aliquota_ipi: number | null
           ativo: boolean
           cest: string | null
-          cfop_padrao: string | null
-          codigo: string
-          codigo_fornecedor: string | null
+          codigo_interno: string
           company_id: string | null
           created_at: string
           descricao: string
-          ean: string | null
-          erp_code: string | null
-          erp_external_id: string | null
-          erp_metadata: Json
-          erp_synced_at: string | null
-          erp_system: string | null
+          ean_gtin: string | null
+          familia_id: string | null
+          grupo_id: string | null
           id: string
-          ncm: string | null
+          ncm: string
           organization_id: string
-          origem: string
-          origem_mercadoria: string | null
-          supplier_id: string | null
-          unidade: string | null
+          origem_mercadoria: number
+          subgrupo_id: string | null
+          unidade: string
           updated_at: string
-          valor_unitario: number | null
         }
         Insert: {
-          aliquota_icms?: number | null
-          aliquota_ipi?: number | null
           ativo?: boolean
           cest?: string | null
-          cfop_padrao?: string | null
-          codigo: string
-          codigo_fornecedor?: string | null
+          codigo_interno: string
           company_id?: string | null
           created_at?: string
           descricao: string
-          ean?: string | null
-          erp_code?: string | null
-          erp_external_id?: string | null
-          erp_metadata?: Json
-          erp_synced_at?: string | null
-          erp_system?: string | null
+          ean_gtin?: string | null
+          familia_id?: string | null
+          grupo_id?: string | null
           id?: string
-          ncm?: string | null
+          ncm: string
           organization_id: string
-          origem?: string
-          origem_mercadoria?: string | null
-          supplier_id?: string | null
-          unidade?: string | null
+          origem_mercadoria?: number
+          subgrupo_id?: string | null
+          unidade: string
           updated_at?: string
-          valor_unitario?: number | null
         }
         Update: {
-          aliquota_icms?: number | null
-          aliquota_ipi?: number | null
           ativo?: boolean
           cest?: string | null
-          cfop_padrao?: string | null
-          codigo?: string
-          codigo_fornecedor?: string | null
+          codigo_interno?: string
           company_id?: string | null
           created_at?: string
           descricao?: string
-          ean?: string | null
-          erp_code?: string | null
-          erp_external_id?: string | null
-          erp_metadata?: Json
-          erp_synced_at?: string | null
-          erp_system?: string | null
+          ean_gtin?: string | null
+          familia_id?: string | null
+          grupo_id?: string | null
           id?: string
-          ncm?: string | null
+          ncm?: string
           organization_id?: string
-          origem?: string
-          origem_mercadoria?: string | null
-          supplier_id?: string | null
-          unidade?: string | null
+          origem_mercadoria?: number
+          subgrupo_id?: string | null
+          unidade?: string
           updated_at?: string
-          valor_unitario?: number | null
         }
         Relationships: [
           {
-            foreignKeyName: "products_company_id_fkey"
+            foreignKeyName: "produtos_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "products_organization_id_fkey"
+            foreignKeyName: "produtos_familia_id_fkey"
+            columns: ["familia_id"]
+            isOneToOne: false
+            referencedRelation: "familias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_grupo_id_fkey"
+            columns: ["grupo_id"]
+            isOneToOne: false
+            referencedRelation: "grupos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "products_supplier_id_fkey"
-            columns: ["supplier_id"]
+            foreignKeyName: "produtos_subgrupo_id_fkey"
+            columns: ["subgrupo_id"]
+            isOneToOne: false
+            referencedRelation: "subgrupos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      produtos_fornecedores: {
+        Row: {
+          codigo_item_nota: string
+          created_at: string
+          empresa_id: string | null
+          fornecedor_id: string
+          id: string
+          organization_id: string
+          produto_id: string
+          updated_at: string
+        }
+        Insert: {
+          codigo_item_nota: string
+          created_at?: string
+          empresa_id?: string | null
+          fornecedor_id: string
+          id?: string
+          organization_id: string
+          produto_id: string
+          updated_at?: string
+        }
+        Update: {
+          codigo_item_nota?: string
+          created_at?: string
+          empresa_id?: string | null
+          fornecedor_id?: string
+          id?: string
+          organization_id?: string
+          produto_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "produtos_fornecedores_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_fornecedores_fornecedor_id_fkey"
+            columns: ["fornecedor_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_fornecedores_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "produtos_fornecedores_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subgrupos: {
+        Row: {
+          codigo: string
+          company_id: string | null
+          created_at: string
+          descricao: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          company_id?: string | null
+          created_at?: string
+          descricao: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          company_id?: string | null
+          created_at?: string
+          descricao?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subgrupos_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subgrupos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -920,21 +1107,6 @@ export type Database = {
         Returns: boolean
       }
       is_org_member: { Args: { _org_id: string }; Returns: boolean }
-      upsert_product_from_nfe: {
-        Args: {
-          _cfop?: string
-          _codigo: string
-          _company_id: string
-          _descricao: string
-          _ean?: string
-          _ncm?: string
-          _organization_id: string
-          _supplier_id?: string
-          _unidade?: string
-          _valor_unitario?: number
-        }
-        Returns: string
-      }
       upsert_supplier_from_nfe: {
         Args: {
           _cnpj: string

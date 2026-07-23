@@ -1,36 +1,41 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-export type ProductInput = {
+export type ProdutoInput = {
   id?: string;
   company_id: string | null;
-  codigo: string;
-  codigo_fornecedor?: string | null;
+  codigo_interno: string;
   descricao: string;
-  ncm?: string | null;
+  unidade: string;
+  ean_gtin?: string | null;
+  ncm: string;
   cest?: string | null;
-  cfop_padrao?: string | null;
-  unidade?: string | null;
-  ean?: string | null;
-  origem_mercadoria?: string | null;
-  valor_unitario?: number | null;
-  aliquota_icms?: number | null;
-  aliquota_ipi?: number | null;
-  supplier_id?: string | null;
+  origem_mercadoria: number;
+  familia_id?: string | null;
+  grupo_id?: string | null;
+  subgrupo_id?: string | null;
   ativo?: boolean;
-  erp_system?: string | null;
-  erp_code?: string | null;
-  erp_external_id?: string | null;
-  erp_metadata?: Record<string, unknown>;
 };
+
+async function resolveOrganizationId(context: { supabase: any }, companyId: string | null): Promise<string> {
+  if (companyId) {
+    const { data: company, error } = await context.supabase
+      .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
+    if (error || !company) throw new Error("Empresa não encontrada");
+    return company.organization_id as string;
+  }
+  const { data: orgId, error } = await context.supabase.rpc("ensure_user_organization");
+  if (error || !orgId) throw new Error("Organização não encontrada");
+  return orgId as string;
+}
 
 export const listProducts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { companyId?: string }) => data)
   .handler(async ({ data, context }) => {
     let q = context.supabase
-      .from("products")
-      .select("*, companies(razao_social, cnpj), suppliers(razao_social, cnpj_cpf)")
+      .from("produtos")
+      .select("*, companies(razao_social, cnpj), familias(codigo, descricao), grupos(codigo, descricao), subgrupos(codigo, descricao)")
       .order("descricao");
     if (data.companyId) q = q.eq("company_id", data.companyId);
     const { data: rows, error } = await q;
@@ -38,38 +43,61 @@ export const listProducts = createServerFn({ method: "GET" })
     return rows ?? [];
   });
 
+export const getProduct = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => data)
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("produtos")
+      .select("*")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
 export const saveProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: ProductInput) => data)
+  .inputValidator((data: ProdutoInput) => {
+    if (!data.codigo_interno?.trim()) throw new Error("Código interno é obrigatório");
+    if (!data.descricao?.trim()) throw new Error("Descrição é obrigatória");
+    if (!data.unidade?.trim()) throw new Error("Unidade é obrigatória");
+    if (!/^\d{8}$/.test(data.ncm ?? "")) throw new Error("NCM deve ter 8 dígitos numéricos");
+    if (data.origem_mercadoria < 0 || data.origem_mercadoria > 8) throw new Error("Origem inválida (0 a 8)");
+    return data;
+  })
   .handler(async ({ data, context }) => {
-    let organization_id: string;
-    if (data.company_id) {
-      const { data: company, error: cErr } = await context.supabase
-        .from("companies").select("organization_id").eq("id", data.company_id).maybeSingle();
-      if (cErr || !company) throw new Error("Empresa não encontrada");
-      organization_id = company.organization_id as string;
-    } else {
-      const { data: orgId, error: oErr } = await context.supabase.rpc("ensure_user_organization");
-      if (oErr || !orgId) throw new Error("Organização não encontrada");
-      organization_id = orgId as string;
-    }
-    const payload = { ...data, company_id: data.company_id ?? null, organization_id };
-    const { id, ...rest } = payload;
-    if (id) {
-      const { error } = await context.supabase.from("products").update(rest as never).eq("id", id);
+    const organization_id = await resolveOrganizationId(context, data.company_id);
+    const payload: any = {
+      organization_id,
+      company_id: data.company_id ?? null,
+      codigo_interno: data.codigo_interno.trim(),
+      descricao: data.descricao.trim(),
+      unidade: data.unidade.trim(),
+      ean_gtin: data.ean_gtin || null,
+      ncm: data.ncm,
+      cest: data.cest || null,
+      origem_mercadoria: data.origem_mercadoria,
+      familia_id: data.familia_id || null,
+      grupo_id: data.grupo_id || null,
+      subgrupo_id: data.subgrupo_id || null,
+      ativo: data.ativo ?? true,
+    };
+    if (data.id) {
+      const { error } = await context.supabase.from("produtos").update(payload).eq("id", data.id);
       if (error) throw new Error(error.message);
-      return { id };
+      return { id: data.id };
     }
-    const { data: inserted, error } = await context.supabase.from("products").insert(rest as never).select("id").single();
+    const { data: inserted, error } = await context.supabase.from("produtos").insert(payload).select("id").single();
     if (error) throw new Error(error.message);
-    return { id: inserted.id };
+    return { id: (inserted as any).id as string };
   });
 
 export const deleteProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { id: string }) => data)
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("products").delete().eq("id", data.id);
+    const { error } = await context.supabase.from("produtos").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -80,72 +108,112 @@ export const deleteProducts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!data.ids?.length) return { ok: true, count: 0 };
     const { error, count } = await context.supabase
-      .from("products").delete({ count: "exact" }).in("id", data.ids);
+      .from("produtos").delete({ count: "exact" }).in("id", data.ids);
     if (error) throw new Error(error.message);
     return { ok: true, count: count ?? data.ids.length };
   });
 
-
-/**
- * Ingest NF-e emitente + itens and auto-create supplier/products if missing.
- * Called by the NF-e ingestion pipeline.
- */
-export type NfeIngestPayload = {
-  companyId: string;
-  emitente: {
-    cnpj: string;
-    razao_social: string;
-    nome_fantasia?: string;
-    inscricao_estadual?: string;
-    endereco?: Record<string, string>;
-  };
-  itens: Array<{
-    codigo: string;
-    descricao: string;
-    ncm?: string;
-    cfop?: string;
-    unidade?: string;
-    ean?: string;
-    valor_unitario?: number;
-  }>;
+// ----------- Produto x Fornecedor -----------
+export type ProdutoFornecedorInput = {
+  id?: string;
+  produto_id: string;
+  fornecedor_id: string;
+  codigo_item_nota: string;
+  empresa_id?: string | null;
 };
 
-export const ingestNfeCatalog = createServerFn({ method: "POST" })
+export const listProductSuppliers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: NfeIngestPayload) => data)
+  .inputValidator((data: { produtoId: string }) => data)
   .handler(async ({ data, context }) => {
-    const { data: company, error: cErr } = await context.supabase
-      .from("companies").select("organization_id").eq("id", data.companyId).maybeSingle();
-    if (cErr || !company) throw new Error("Empresa não encontrada");
+    const { data: rows, error } = await context.supabase
+      .from("produtos_fornecedores")
+      .select("*, suppliers(id, razao_social, nome_fantasia, cnpj_cpf, codigo_interno)")
+      .eq("produto_id", data.produtoId)
+      .order("created_at");
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
 
-    const { data: supplierId, error: sErr } = await context.supabase.rpc("upsert_supplier_from_nfe", {
-      _organization_id: company.organization_id,
-      _company_id: data.companyId,
-      _cnpj: data.emitente.cnpj,
-      _razao_social: data.emitente.razao_social,
-      _nome_fantasia: data.emitente.nome_fantasia ?? undefined,
-      _ie: data.emitente.inscricao_estadual ?? undefined,
-      _endereco: data.emitente.endereco ?? {},
-    } as never);
-    if (sErr) throw new Error(sErr.message);
+export const saveProductSupplier = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: ProdutoFornecedorInput) => {
+    if (!data.produto_id) throw new Error("Produto obrigatório");
+    if (!data.fornecedor_id) throw new Error("Fornecedor obrigatório");
+    if (!data.codigo_item_nota?.trim()) throw new Error("Código do item na nota é obrigatório");
+    return data;
+  })
+  .handler(async ({ data, context }) => {
+    const { data: produto, error: pErr } = await context.supabase
+      .from("produtos").select("organization_id, company_id").eq("id", data.produto_id).maybeSingle();
+    if (pErr || !produto) throw new Error("Produto não encontrado");
+    const payload: any = {
+      organization_id: (produto as any).organization_id,
+      empresa_id: data.empresa_id ?? (produto as any).company_id ?? null,
+      produto_id: data.produto_id,
+      fornecedor_id: data.fornecedor_id,
+      codigo_item_nota: data.codigo_item_nota.trim(),
+    };
+    if (data.id) {
+      const { error } = await context.supabase.from("produtos_fornecedores").update(payload).eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+    const { data: inserted, error } = await context.supabase
+      .from("produtos_fornecedores").insert(payload).select("id").single();
+    if (error) throw new Error(error.message);
+    return { id: (inserted as any).id as string };
+  });
 
-    const productIds: string[] = [];
-    for (const item of data.itens) {
-      const { data: pid, error: pErr } = await context.supabase.rpc("upsert_product_from_nfe", {
-        _organization_id: company.organization_id,
-        _company_id: data.companyId,
-        _codigo: item.codigo,
-        _descricao: item.descricao,
-        _ncm: item.ncm ?? undefined,
-        _cfop: item.cfop ?? undefined,
-        _unidade: item.unidade ?? undefined,
-        _ean: item.ean ?? undefined,
-        _valor_unitario: item.valor_unitario ?? undefined,
-        _supplier_id: supplierId as string,
-      } as never);
-      if (pErr) throw new Error(pErr.message);
-      productIds.push(pid as string);
+export const deleteProductSupplier = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => data)
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("produtos_fornecedores").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ----------- Item da NF-e: vincular a produto existente / criar novo -----------
+export const linkNfeItemToProduct = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { itemId: string; produtoId: string }) => data)
+  .handler(async ({ data, context }) => {
+    const { data: item, error: iErr } = await context.supabase
+      .from("fiscal_document_items")
+      .select("id, codigo, document_id, fiscal_documents(company_id, companies(organization_id))")
+      .eq("id", data.itemId)
+      .maybeSingle();
+    if (iErr || !item) throw new Error("Item não encontrado");
+    const doc = (item as any).fiscal_documents;
+    const orgId = doc?.companies?.organization_id;
+    const companyId = doc?.company_id;
+
+    const { data: docRow } = await context.supabase
+      .from("fiscal_documents").select("emitente_cnpj").eq("id", (item as any).document_id).maybeSingle();
+    const emitCnpj: string | null = (docRow as any)?.emitente_cnpj ?? null;
+
+    if (emitCnpj) {
+      const { data: sup } = await context.supabase
+        .from("suppliers").select("id")
+        .eq("organization_id", orgId)
+        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${emitCnpj.replace(/\D/g, "")}`)
+        .limit(1).maybeSingle();
+      if (sup && (item as any).codigo) {
+        await context.supabase.from("produtos_fornecedores").upsert({
+          organization_id: orgId,
+          empresa_id: companyId,
+          produto_id: data.produtoId,
+          fornecedor_id: (sup as any).id,
+          codigo_item_nota: (item as any).codigo,
+        }, { onConflict: "empresa_id,fornecedor_id,codigo_item_nota", ignoreDuplicates: true } as any);
+      }
     }
 
-    return { supplierId: supplierId as string, productIds };
+    const { error } = await context.supabase
+      .from("fiscal_document_items")
+      .update({ product_id: data.produtoId, status_vinculo: "vinculado" })
+      .eq("id", data.itemId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });

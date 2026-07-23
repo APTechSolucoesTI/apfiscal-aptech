@@ -289,33 +289,37 @@ export const importNfeXml = createServerFn({ method: "POST" })
 
     // Insert items
     if (nfe.itens.length > 0) {
-      const itemRows = nfe.itens.map((it) => ({
-        document_id: documentId,
-        product_id: it.codigo ? productIdByCodigo.get(it.codigo) ?? null : null,
-        numero_item: it.numero,
-        codigo: it.codigo || null,
-        descricao: it.descricao || null,
-        ncm: it.ncm,
-        cest: it.cest,
-        cfop: it.cfop,
-        unidade_comercial: it.unidade,
-        quantidade_comercial: it.quantidade,
-        valor_unitario_comercial: it.valorUnitario,
-        valor_bruto: it.valorBruto,
-        unidade_tributavel: it.unidadeTrib,
-        quantidade_tributavel: it.quantidadeTrib,
-        valor_unitario_tributavel: it.valorUnitarioTrib,
-        ean: it.ean,
-        ean_tributavel: it.eanTrib,
-        valor_frete: it.vFrete,
-        valor_seguro: it.vSeg,
-        valor_desconto: it.vDesc,
-        valor_outros: it.vOutro,
-        valor_total: it.valorBruto,
-        produto: it.produto,
-        impostos: it.impostos,
-        inf_adicional: it.infAdProd,
-      }));
+      const itemRows = nfe.itens.map((it) => {
+        const pid = it.codigo ? productIdByCodigo.get(it.codigo) ?? null : null;
+        return {
+          document_id: documentId,
+          product_id: pid,
+          status_vinculo: pid ? "vinculado" : "pendente",
+          numero_item: it.numero,
+          codigo: it.codigo || null,
+          descricao: it.descricao || null,
+          ncm: it.ncm,
+          cest: it.cest,
+          cfop: it.cfop,
+          unidade_comercial: it.unidade,
+          quantidade_comercial: it.quantidade,
+          valor_unitario_comercial: it.valorUnitario,
+          valor_bruto: it.valorBruto,
+          unidade_tributavel: it.unidadeTrib,
+          quantidade_tributavel: it.quantidadeTrib,
+          valor_unitario_tributavel: it.valorUnitarioTrib,
+          ean: it.ean,
+          ean_tributavel: it.eanTrib,
+          valor_frete: it.vFrete,
+          valor_seguro: it.vSeg,
+          valor_desconto: it.vDesc,
+          valor_outros: it.vOutro,
+          valor_total: it.valorBruto,
+          produto: it.produto,
+          impostos: it.impostos,
+          inf_adicional: it.infAdProd,
+        };
+      });
       const { error: itemsErr } = await supabase.from("fiscal_document_items").insert(itemRows as never);
       if (itemsErr) throw new Error(`Erro ao registrar itens: ${itemsErr.message}`);
     }

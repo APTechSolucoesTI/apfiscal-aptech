@@ -214,42 +214,29 @@ export const importNfeXml = createServerFn({ method: "POST" })
       }
     }
 
-    // Products (upsert + map codigo->id for item linkage)
-    let productsCreated = 0;
-    let productsExisted = 0;
+    // Vincula item -> produto SOMENTE se já existir vínculo produtos_fornecedores (fornecedor + código do item na nota).
+    let itemsLinked = 0;
+    let itemsPending = 0;
     const productIdByCodigo = new Map<string, string>();
-    for (const item of nfe.itens) {
-      if (!item.codigo || !item.descricao) continue;
-
-      let prodQuery = supabase
-        .from("products")
-        .select("id")
-        .eq("organization_id", orgId)
-        .eq("codigo", item.codigo);
-      if (!isGlobal) prodQuery = prodQuery.eq("company_id", companyId);
-
-      const { data: existingProduct } = await prodQuery.limit(1).maybeSingle();
-      if (existingProduct) {
-        productsExisted++;
-        productIdByCodigo.set(item.codigo, (existingProduct as any).id as string);
-        continue;
+    if (supplierId) {
+      const codigos = Array.from(new Set(nfe.itens.map((i) => i.codigo).filter(Boolean)));
+      if (codigos.length) {
+        let linkQuery = supabase
+          .from("produtos_fornecedores")
+          .select("produto_id, codigo_item_nota, empresa_id")
+          .eq("organization_id", orgId)
+          .eq("fornecedor_id", supplierId)
+          .in("codigo_item_nota", codigos);
+        if (!isGlobal) linkQuery = linkQuery.eq("empresa_id", companyId);
+        const { data: links } = await linkQuery;
+        for (const l of (links ?? []) as any[]) {
+          productIdByCodigo.set(l.codigo_item_nota, l.produto_id);
+        }
       }
-
-      const { data: newId, error: prodErr } = await supabase.rpc("upsert_product_from_nfe", {
-        _organization_id: orgId,
-        _company_id: companyId,
-        _codigo: item.codigo,
-        _descricao: item.descricao,
-        _ncm: item.ncm ?? undefined,
-        _cfop: item.cfop ?? undefined,
-        _unidade: item.unidade ?? undefined,
-        _ean: item.ean ?? undefined,
-        _valor_unitario: item.valorUnitario ?? undefined,
-        _supplier_id: supplierId ?? undefined,
-      });
-      if (prodErr) throw new Error(`Erro ao cadastrar produto ${item.codigo}: ${prodErr.message}`);
-      productsCreated++;
-      if (newId) productIdByCodigo.set(item.codigo, newId as string);
+    }
+    for (const item of nfe.itens) {
+      if (item.codigo && productIdByCodigo.has(item.codigo)) itemsLinked++;
+      else itemsPending++;
     }
 
     // Insert fiscal document with full payload

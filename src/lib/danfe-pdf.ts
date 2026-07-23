@@ -229,12 +229,10 @@ export function generateDanfePdf(doc: any, items: any[]) {
     const x = M + i * imp1W;
     box(x, y, imp1W, impH);
     label(x, y, l);
-    value(x, y, v, { align: "right", size: 8, bold: true });
-    // right align adjustment
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
     pdf.text(v, x + imp1W - 1, y + 7, { align: "right" });
   });
-  // clear previous double-print by redrawing without value() first — simpler: erase
-  // Instead of double, just redraw text-only. Skipping fix - values already right.
   y += impH;
 
   const imp2 = [

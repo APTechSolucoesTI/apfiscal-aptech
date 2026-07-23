@@ -12,6 +12,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
 import { generateDanfePdfBlobUrl } from "@/lib/danfe-pdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { maskCnpjCpf, maskCep } from "@/lib/br-format";
+
+const doc_ = (v: unknown) => {
+  const s = String(v ?? "").trim();
+  return s ? maskCnpjCpf(s) : "-";
+};
+const cep_ = (v: unknown) => {
+  const s = String(v ?? "").trim();
+  return s ? maskCep(s) : "";
+};
 
 const fmt = (v: unknown) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -89,8 +99,10 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const enderEmit = emit.enderEmit ?? emit.endereco ?? {};
   const enderDest = dest.enderDest ?? {};
 
-  const emitEndereco = [enderEmit.xLgr ?? enderEmit.logradouro, enderEmit.nro ?? enderEmit.numero, enderEmit.xBairro ?? enderEmit.bairro, enderEmit.xMun ?? enderEmit.municipio, enderEmit.UF ?? enderEmit.uf].filter(Boolean).join(", ");
-  const destEndereco = [enderDest.xLgr, enderDest.nro, enderDest.xBairro, enderDest.xMun, enderDest.UF].filter(Boolean).join(", ");
+  const emitCep = cep_(enderEmit.CEP ?? enderEmit.cep);
+  const destCep = cep_(enderDest.CEP ?? enderDest.cep);
+  const emitEndereco = [enderEmit.xLgr ?? enderEmit.logradouro, enderEmit.nro ?? enderEmit.numero, enderEmit.xBairro ?? enderEmit.bairro, enderEmit.xMun ?? enderEmit.municipio, enderEmit.UF ?? enderEmit.uf, emitCep ? `CEP ${emitCep}` : null].filter(Boolean).join(", ");
+  const destEndereco = [enderDest.xLgr, enderDest.nro, enderDest.xBairro, enderDest.xMun, enderDest.UF, destCep ? `CEP ${destCep}` : null].filter(Boolean).join(", ");
 
   const vol = asArr<any>(transp.vol)[0] ?? {};
   const dupl = asArr<any>(cobr?.dup);
@@ -253,7 +265,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                   <CardContent className="space-y-3 text-sm">
                     <div className="flex justify-between font-bold gap-4">
                       <span>{emit.nome ?? emit.xNome ?? doc.emitente_nome ?? "-"}</span>
-                      <span>{emit.cnpj ?? doc.emitente_cnpj ?? "-"}</span>
+                      <span>{doc_(emit.cnpj ?? emit.CNPJ ?? doc.emitente_cnpj)}</span>
                     </div>
                     <p className="text-muted-foreground">{emitEndereco || "-"}</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -271,7 +283,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                   <CardContent className="space-y-3 text-sm">
                     <div className="flex justify-between font-bold gap-4">
                       <span>{dest.xNome ?? doc.destinatario_nome ?? doc.companies?.razao_social ?? "-"}</span>
-                      <span>{dest.CNPJ ?? dest.CPF ?? doc.destinatario_cnpj ?? "-"}</span>
+                      <span>{doc_(dest.CNPJ ?? dest.CPF ?? doc.destinatario_cnpj)}</span>
                     </div>
                     <p className="text-muted-foreground">{destEndereco || "-"}</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -374,7 +386,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                       <div className="space-y-2 text-sm">
                         <p><span className="text-muted-foreground">Frete:</span> {transp.modFrete ?? "-"}</p>
                         <p className="font-bold">{transp.transporta?.xNome ?? "-"}</p>
-                        <p>{transp.transporta?.CNPJ ?? transp.transporta?.CPF ?? "-"} | IE: {transp.transporta?.IE ?? "-"}</p>
+                        <p>{doc_(transp.transporta?.CNPJ ?? transp.transporta?.CPF)} | IE: {transp.transporta?.IE ?? "-"}</p>
                         <p className="text-muted-foreground text-xs">{transp.transporta?.xEnder ?? ""} {transp.transporta?.xMun ?? ""} {transp.transporta?.UF ?? ""}</p>
                       </div>
                     </div>

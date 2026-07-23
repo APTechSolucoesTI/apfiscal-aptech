@@ -222,10 +222,10 @@ function NFeList() {
       const st = statusStyle(doc.status_manifestacao);
       const Icon = st.icon;
       return (
-        <_BadgeAlias variant="secondary" className={`font-medium text-xs px-2 py-0.5 rounded-full ${st.color}`}>
+        <Badge variant="secondary" className={`font-medium text-xs px-2 py-0.5 rounded-full ${st.color}`}>
           <Icon className="mr-1 h-3 w-3 inline" />
           {st.label}
-        </_BadgeAlias>
+        </Badge>
       );
     } },
     { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "text-right text-slate-500 font-semibold", className: "text-right", render: (doc) => (

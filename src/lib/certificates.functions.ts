@@ -9,6 +9,35 @@ type ParseInput = {
   password: string;
 };
 
+// OID ICP-Brasil para e-CNPJ no otherName do SubjectAltName
+const OID_ICPBR_CNPJ = "2.16.76.1.3.3";
+
+function extractCnpjFromCert(cert: forge.pki.Certificate): string | null {
+  // 1) Tenta extrair via extensão subjectAltName (otherName com OID ICP-Brasil e-CNPJ)
+  try {
+    const ext = cert.getExtension({ name: "subjectAltName" }) as
+      | { altNames?: Array<{ type: number; value?: string; oid?: string }>; value?: string }
+      | undefined;
+    if (ext) {
+      // Procura sequência de 14 dígitos no valor bruto DER da extensão (cobre otherName ICP-Brasil)
+      const raw = (ext.value as string | undefined) ?? "";
+      const digits = raw.replace(/\D/g, "");
+      const m = digits.match(/\d{14}/);
+      if (m) return m[0];
+    }
+  } catch {
+    // ignore
+  }
+
+  // 2) Fallback: CN costuma vir como "NOME EMPRESA:CNPJ"
+  const cn = cert.subject.attributes.find((a) => a.shortName === "CN")?.value as string | undefined;
+  if (cn) {
+    const m = cn.replace(/\D/g, "").match(/\d{14}/);
+    if (m) return m[0];
+  }
+  return null;
+}
+
 function parsePfx(base64: string, password: string) {
   const der = forge.util.decode64(base64);
   const asn1 = forge.asn1.fromDer(der);
@@ -32,12 +61,15 @@ function parsePfx(base64: string, password: string) {
     .map((a) => `${a.shortName || a.name}=${a.value}`)
     .join(", ");
 
+  const cnpj = extractCnpjFromCert(leaf);
+
   return {
     subject,
     issuer,
     notBefore: leaf.validity.notBefore.toISOString(),
     notAfter: leaf.validity.notAfter.toISOString(),
     serialNumber: leaf.serialNumber,
+    cnpj,
   };
 }
 

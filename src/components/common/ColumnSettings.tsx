@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GripVertical, Settings2, RotateCcw } from "lucide-react";
-import type { ColumnDef } from "@/hooks/use-column-preferences";
+import { PAGE_SIZE_OPTIONS, type ColumnDef } from "@/hooks/use-column-preferences";
 
 type Props = {
   columns: ColumnDef[]; // ordered (current order)
@@ -13,9 +14,11 @@ type Props = {
   moveColumn: (fromKey: string, toKey: string) => void;
   reset: () => void;
   label?: string;
+  pageSize?: number;
+  onPageSizeChange?: (n: number) => void;
 };
 
-export function ColumnSettings({ columns, isVisible, toggleVisible, moveColumn, reset, label = "Colunas" }: Props) {
+export function ColumnSettings({ columns, isVisible, toggleVisible, moveColumn, reset, label = "Colunas", pageSize, onPageSizeChange }: Props) {
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
 

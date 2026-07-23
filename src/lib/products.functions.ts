@@ -217,3 +217,191 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// Contexto completo para o modal de vínculo manual
+export const getNfeItemLinkContext = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { itemId: string }) => data)
+  .handler(async ({ data, context }) => {
+    const { data: item, error: iErr } = await context.supabase
+      .from("fiscal_document_items")
+      .select("id, codigo, descricao, ncm, unidade_comercial, quantidade_comercial, valor_unitario_comercial, cest, ean, document_id, product_id, status_vinculo, impostos")
+      .eq("id", data.itemId)
+      .maybeSingle();
+    if (iErr || !item) throw new Error("Item não encontrado");
+
+    const { data: doc } = await context.supabase
+      .from("fiscal_documents")
+      .select("id, company_id, emitente_cnpj, emitente_nome, numero, serie, companies(id, razao_social, organization_id)")
+      .eq("id", (item as any).document_id)
+      .maybeSingle();
+
+    const orgId = (doc as any)?.companies?.organization_id ?? null;
+    const companyId = (doc as any)?.company_id ?? null;
+    const emitCnpj: string | null = (doc as any)?.emitente_cnpj ?? null;
+
+    let supplier: { id: string; razao_social: string; cnpj_cpf: string } | null = null;
+    if (emitCnpj && orgId) {
+      const { data: sup } = await context.supabase
+        .from("suppliers")
+        .select("id, razao_social, cnpj_cpf")
+        .eq("organization_id", orgId)
+        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${emitCnpj.replace(/\D/g, "")}`)
+        .limit(1)
+        .maybeSingle();
+      if (sup) supplier = sup as any;
+    }
+
+    // Já existe vínculo (fornecedor + código) apontando para outro produto?
+    let conflictingLink: { produto_id: string; codigo_interno: string; descricao: string } | null = null;
+    if (supplier && (item as any).codigo) {
+      const { data: existing } = await context.supabase
+        .from("produtos_fornecedores")
+        .select("produto_id, produtos(codigo_interno, descricao)")
+        .eq("fornecedor_id", supplier.id)
+        .eq("codigo_item_nota", (item as any).codigo)
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        conflictingLink = {
+          produto_id: (existing as any).produto_id,
+          codigo_interno: (existing as any).produtos?.codigo_interno ?? "",
+          descricao: (existing as any).produtos?.descricao ?? "",
+        };
+      }
+    }
+
+    return {
+      item,
+      document: {
+        id: (doc as any)?.id,
+        numero: (doc as any)?.numero,
+        serie: (doc as any)?.serie,
+        company_id: companyId,
+        emitente_cnpj: emitCnpj,
+        emitente_nome: (doc as any)?.emitente_nome ?? (doc as any)?.companies?.razao_social ?? null,
+      },
+      supplier,
+      conflictingLink,
+    };
+  });
+
+// Buscar produtos por texto (para o modal), restrito ao escopo da empresa da NF-e
+export const searchProductsForLink = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { companyId: string | null; query: string }) => data)
+  .handler(async ({ data, context }) => {
+    const q = (data.query ?? "").trim();
+    // organização do usuário para incluir globais
+    const { data: orgId } = await context.supabase.rpc("ensure_user_organization");
+
+    let query = context.supabase
+      .from("produtos")
+      .select("id, codigo_interno, descricao, unidade, ncm, company_id, familias(codigo, descricao), grupos(codigo, descricao), subgrupos(codigo, descricao)")
+      .eq("ativo", true)
+      .limit(50);
+
+    if (data.companyId) {
+      query = query.or(`company_id.eq.${data.companyId},company_id.is.null`);
+    } else {
+      query = query.eq("organization_id", orgId as any);
+    }
+    if (q) {
+      const safe = q.replace(/[%,]/g, " ");
+      query = query.or(`descricao.ilike.%${safe}%,codigo_interno.ilike.%${safe}%,ncm.ilike.%${safe}%,ean_gtin.ilike.%${safe}%`);
+    }
+    const { data: rows, error } = await query.order("descricao").limit(50);
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
+// Criar produto novo + vincular ao item da NF-e em uma única operação
+export const createProductAndLinkItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { itemId: string; produto: ProdutoInput }) => {
+    const p = data.produto;
+    if (!p.codigo_interno?.trim()) throw new Error("Código interno é obrigatório");
+    if (!p.descricao?.trim()) throw new Error("Descrição é obrigatória");
+    if (!p.unidade?.trim()) throw new Error("Unidade é obrigatória");
+    if (!/^\d{8}$/.test(p.ncm ?? "")) throw new Error("NCM deve ter 8 dígitos numéricos");
+    if (p.origem_mercadoria < 0 || p.origem_mercadoria > 8) throw new Error("Origem inválida (0 a 8)");
+    return data;
+  })
+  .handler(async ({ data, context }) => {
+    const { data: item, error: iErr } = await context.supabase
+      .from("fiscal_document_items")
+      .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, companies(organization_id))")
+      .eq("id", data.itemId)
+      .maybeSingle();
+    if (iErr || !item) throw new Error("Item da NF-e não encontrado");
+
+    const doc: any = (item as any).fiscal_documents;
+    const orgId: string | null = doc?.companies?.organization_id ?? null;
+    const companyIdDoc: string | null = doc?.company_id ?? null;
+    const emitCnpj: string | null = doc?.emitente_cnpj ?? null;
+    if (!orgId) throw new Error("Organização não encontrada");
+
+    // Localiza fornecedor
+    let supplierId: string | null = null;
+    if (emitCnpj) {
+      const { data: sup } = await context.supabase
+        .from("suppliers").select("id")
+        .eq("organization_id", orgId)
+        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${emitCnpj.replace(/\D/g, "")}`)
+        .limit(1).maybeSingle();
+      supplierId = (sup as any)?.id ?? null;
+    }
+    if (!supplierId) throw new Error("Fornecedor da NF-e não localizado no cadastro. Cadastre o fornecedor antes de vincular.");
+
+    // 1) Criar produto
+    const p = data.produto;
+    const productPayload: any = {
+      organization_id: orgId,
+      company_id: p.company_id ?? companyIdDoc ?? null,
+      codigo_interno: p.codigo_interno.trim(),
+      descricao: p.descricao.trim(),
+      unidade: p.unidade.trim(),
+      ean_gtin: p.ean_gtin || null,
+      ncm: p.ncm,
+      cest: p.cest || null,
+      origem_mercadoria: p.origem_mercadoria,
+      familia_id: p.familia_id || null,
+      grupo_id: p.grupo_id || null,
+      subgrupo_id: p.subgrupo_id || null,
+      ativo: p.ativo ?? true,
+    };
+    const { data: created, error: cErr } = await context.supabase
+      .from("produtos").insert(productPayload).select("id").single();
+    if (cErr) throw new Error(`Falha ao criar produto: ${cErr.message}`);
+    const produtoId = (created as any).id as string;
+
+    // 2) Criar vínculo produto x fornecedor
+    if ((item as any).codigo) {
+      const { error: pfErr } = await context.supabase.from("produtos_fornecedores").upsert({
+        organization_id: orgId,
+        empresa_id: companyIdDoc,
+        produto_id: produtoId,
+        fornecedor_id: supplierId,
+        codigo_item_nota: (item as any).codigo,
+      }, { onConflict: "empresa_id,fornecedor_id,codigo_item_nota" } as any);
+      if (pfErr) {
+        // reverter produto criado
+        await context.supabase.from("produtos").delete().eq("id", produtoId);
+        throw new Error(`Falha ao vincular fornecedor: ${pfErr.message}`);
+      }
+    }
+
+    // 3) Atualizar item da nota
+    const { error: upErr } = await context.supabase
+      .from("fiscal_document_items")
+      .update({ product_id: produtoId, status_vinculo: "vinculado" })
+      .eq("id", data.itemId);
+    if (upErr) {
+      await context.supabase.from("produtos_fornecedores").delete()
+        .eq("produto_id", produtoId).eq("fornecedor_id", supplierId);
+      await context.supabase.from("produtos").delete().eq("id", produtoId);
+      throw new Error(`Falha ao atualizar item da NF-e: ${upErr.message}`);
+    }
+
+    return { ok: true, produtoId, codigo_interno: p.codigo_interno.trim(), descricao: p.descricao.trim() };
+  });

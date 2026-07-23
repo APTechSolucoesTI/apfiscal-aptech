@@ -721,96 +721,48 @@ function Companies() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button variant="outline" size="sm">
-              <Filter className="mr-2 h-4 w-4" /> Filtros
-            </Button>
+            <div className="flex gap-2 items-center">
+              <Button variant="outline" size="sm">
+                <Filter className="mr-2 h-4 w-4" /> Filtros
+              </Button>
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-slate-100">
-                <TableHead className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600" onClick={() => requestSort("nome_fantasia")}>
-                  <div className="flex items-center gap-1">Empresa <ArrowUpDown className="h-3 w-3" /></div>
-                </TableHead>
-                <TableHead className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600" onClick={() => requestSort("cnpj")}>
-                  <div className="flex items-center gap-1">CNPJ <ArrowUpDown className="h-3 w-3" /></div>
-                </TableHead>
-                <TableHead className="text-slate-500 font-semibold cursor-pointer hover:text-blue-600" onClick={() => requestSort("uf")}>
-                  <div className="flex items-center gap-1">UF <ArrowUpDown className="h-3 w-3" /></div>
-                </TableHead>
-                <TableHead className="text-slate-500 font-semibold">Município</TableHead>
-                <TableHead className="text-slate-500 font-semibold">Certificado Digital</TableHead>
-                <TableHead className="text-right text-slate-500 font-semibold">Ações</TableHead>
+                {visibleCols.map((c) => (
+                  <TableHead
+                    key={c.key}
+                    className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer hover:text-blue-600" : ""}`}
+                    onClick={c.sortKey ? () => requestSort(c.sortKey as keyof CompanyRow) : undefined}
+                  >
+                    <div className="flex items-center gap-1">{c.label}{c.sortKey && <ArrowUpDown className="h-3 w-3" />}</div>
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                  <TableCell colSpan={visibleCols.length} className="text-center py-10 text-slate-500">
                     <Loader2 className="h-5 w-5 animate-spin inline-block mr-2" /> Carregando empresas...
                   </TableCell>
                 </TableRow>
               ) : sortedCompanies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                  <TableCell colSpan={visibleCols.length} className="text-center py-10 text-slate-500">
                     Nenhuma empresa cadastrada. Clique em <b>Nova Empresa</b> para começar.
                   </TableCell>
                 </TableRow>
               ) : (
                 sortedCompanies.map((company) => (
                   <TableRow key={company.id} className="border-slate-100 hover:bg-slate-50">
-                    <TableCell>
-                      <div>
-                        <div className="font-medium text-slate-900">{company.nome_fantasia || company.razao_social}</div>
-                        <div className="text-xs text-slate-500 truncate max-w-[240px]">{company.razao_social}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-slate-600 font-mono text-xs">{company.cnpj}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="font-semibold text-slate-600 border-slate-200">
-                        {company.uf || "-"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-slate-600 text-sm">{company.municipio || "-"}</TableCell>
-                    <TableCell>
-                      {(() => {
-                        const s = getCertStatus(company.id);
-                        const Icon = s.tone === "green" ? ShieldCheck : s.tone === "red" ? ShieldX : ShieldAlert;
-                        const color =
-                          s.tone === "green" ? "text-green-600" : s.tone === "red" ? "text-red-600" : "text-amber-500";
-                        const textColor =
-                          s.tone === "green" ? "text-green-700" : s.tone === "red" ? "text-red-700" : "text-amber-700";
-                        return (
-                          <div className="flex items-center gap-2">
-                            <Icon className={`h-4 w-4 ${color}`} />
-                            <span className={`text-sm font-medium ${textColor}`}>{s.label}</span>
-                          </div>
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Editar empresa"
-                          className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                          onClick={() => openEdit(company)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Excluir empresa"
-                          className="h-8 w-8 text-red-600 hover:bg-red-50"
-                          onClick={() => requestDelete(company)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {visibleCols.map((c) => (
+                      <TableCell key={c.key} className={c.className}>{c.render(company)}</TableCell>
+                    ))}
                   </TableRow>
                 ))
               )}

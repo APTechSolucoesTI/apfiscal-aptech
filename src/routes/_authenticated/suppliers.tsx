@@ -180,6 +180,45 @@ function SuppliersPage() {
     bulkDelMut.mutate(Array.from(selectedIds));
   }
 
+  type Col = ColumnDef & { className?: string; headClassName?: string; render: (r: any) => ReactNode };
+  const columns: Col[] = useMemo(() => [
+    { key: "cnpj_cpf", label: "CNPJ/CPF", className: "font-mono text-xs", render: (f) => maskCnpjCpf(f.cnpj_cpf ?? "") },
+    { key: "razao_social", label: "Razão Social", render: (f) => (
+      <>
+        <div className="font-medium">{f.razao_social}</div>
+        {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
+      </>
+    ) },
+    { key: "empresa", label: "Empresa", className: "text-xs", render: (f) => f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge> },
+    { key: "email", label: "E-mail", className: "text-xs text-slate-600", render: (f) => f.email ?? "—" },
+    { key: "telefone", label: "Telefone", className: "text-xs text-slate-600", render: (f) => f.telefone ?? "—" },
+    { key: "cidade_uf", label: "Cidade / UF", className: "text-xs text-slate-600", render: (f) => [f.municipio, f.uf].filter(Boolean).join(" / ") || "—" },
+    { key: "erp", label: "ERP", render: (f) => f.erp_system ? (
+      <div className="text-xs">
+        <div className="font-medium">{f.erp_system}</div>
+        <div className="text-slate-500 font-mono">{f.erp_code ?? f.erp_external_id ?? "—"}</div>
+      </div>
+    ) : <Badge variant="outline">Não vinculado</Badge> },
+    { key: "origem", label: "Origem", render: (f) => (
+      <Badge variant={f.origem === "auto_nfe" ? "secondary" : "outline"}>
+        {f.origem === "auto_nfe" ? "Auto (NF-e)" : f.origem === "erp" ? "ERP" : "Manual"}
+      </Badge>
+    ) },
+    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "w-24 text-right", className: "text-right", render: (f) => (
+      <>
+        <Button size="icon" variant="ghost" onClick={() => openEdit(f)}><Pencil className="h-4 w-4" /></Button>
+        <Button size="icon" variant="ghost" onClick={() => { if (confirm("Excluir fornecedor?")) delMut.mutate(f.id); }}>
+          <Trash2 className="h-4 w-4 text-red-600" />
+        </Button>
+      </>
+    ) },
+  ], []);
+
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("suppliers", columns);
+  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
+  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
+
 
   function openNew() {
     const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : (companies[0]?.id ?? null));

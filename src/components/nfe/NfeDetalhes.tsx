@@ -572,6 +572,13 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
         </ScrollArea>
       </Tabs>
       <NfeItemDrawer item={selectedItem} open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)} />
+      <NfeItemLinkDialog
+        itemId={linkItemId}
+        open={!!linkItemId}
+        onOpenChange={(open) => !open && setLinkItemId(null)}
+        onLinked={() => setLinkItemId(null)}
+      />
+
     </div>
   );
 };

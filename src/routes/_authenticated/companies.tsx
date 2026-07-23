@@ -441,6 +441,53 @@ function Companies() {
     },
   });
 
+  type Col = ColumnDef & { sortKey?: keyof CompanyRow; className?: string; headClassName?: string; render: (r: CompanyRow) => ReactNode };
+  const columns: Col[] = useMemo(() => [
+    { key: "empresa", label: "Empresa", sortKey: "nome_fantasia", headClassName: "text-slate-500 font-semibold", render: (company) => (
+      <div>
+        <div className="font-medium text-slate-900">{company.nome_fantasia || company.razao_social}</div>
+        <div className="text-xs text-slate-500 truncate max-w-[240px]">{company.razao_social}</div>
+      </div>
+    ) },
+    { key: "cnpj", label: "CNPJ", sortKey: "cnpj", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 font-mono text-xs", render: (c) => c.cnpj },
+    { key: "uf", label: "UF", sortKey: "uf", headClassName: "text-slate-500 font-semibold", render: (c) => (
+      <span className="inline-flex items-center rounded-md border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">{c.uf || "-"}</span>
+    ) },
+    { key: "municipio", label: "Município", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-sm", render: (c) => c.municipio || "-" },
+    { key: "ie", label: "Insc. Estadual", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-xs", render: (c) => c.inscricao_estadual || "-" },
+    { key: "regime", label: "Regime", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-xs capitalize", render: (c) => c.regime_tributario || "-" },
+    { key: "responsavel", label: "Responsável", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-xs", render: (c) => c.responsavel || "-" },
+    { key: "certificado", label: "Certificado Digital", headClassName: "text-slate-500 font-semibold", render: (company) => {
+      const s = getCertStatus(company.id);
+      const Icon = s.tone === "green" ? ShieldCheck : s.tone === "red" ? ShieldX : ShieldAlert;
+      const color = s.tone === "green" ? "text-green-600" : s.tone === "red" ? "text-red-600" : "text-amber-500";
+      const textColor = s.tone === "green" ? "text-green-700" : s.tone === "red" ? "text-red-700" : "text-amber-700";
+      return (
+        <div className="flex items-center gap-2">
+          <Icon className={`h-4 w-4 ${color}`} />
+          <span className={`text-sm font-medium ${textColor}`}>{s.label}</span>
+        </div>
+      );
+    } },
+    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "text-right text-slate-500 font-semibold", className: "text-right", render: (company) => (
+      <div className="flex justify-end gap-1">
+        <Button variant="ghost" size="icon" title="Editar empresa" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => openEdit(company)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" title="Detalhes" className="h-8 w-8 text-slate-500 hover:bg-slate-100" onClick={() => { setSelectedCompany(company); setIsDetailsOpen(true); }}>
+          <Info className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" title="Excluir empresa" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => requestDelete(company)}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    ) },
+  ], [certByCompany]);
+
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("companies", columns);
+  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
+  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

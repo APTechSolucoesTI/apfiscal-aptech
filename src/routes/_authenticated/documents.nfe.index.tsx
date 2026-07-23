@@ -285,6 +285,7 @@ function NFeList() {
               <Button variant="outline" size="sm">
                 <Filter className="mr-2 h-4 w-4" /> Filtros
               </Button>
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
             </div>
             <div className="flex items-center gap-4 text-sm text-slate-500">
               <div className="flex items-center gap-1.5">
@@ -331,74 +332,32 @@ function NFeList() {
                       aria-label="Selecionar todas"
                     />
                   </TableHead>
-                  <TableHead className="w-[120px] text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("numero")}>
-                    <div className="flex items-center gap-1">Número <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("data_num")}>
-                    <div className="flex items-center gap-1">Emissão <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("emitente_nome")}>
-                    <div className="flex items-center gap-1">Fornecedor <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="text-slate-500 font-semibold cursor-pointer" onClick={() => requestSort("valor_num")}>
-                    <div className="flex items-center gap-1">Valor <ArrowUpDown className="h-3 w-3" /></div>
-                  </TableHead>
-                  <TableHead className="text-slate-500 font-semibold">Manifestação</TableHead>
-                  <TableHead className="text-right text-slate-500 font-semibold">Ações</TableHead>
+                  {visibleCols.map((c) => (
+                    <TableHead
+                      key={c.key}
+                      className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer" : ""}`}
+                      onClick={c.sortKey ? () => requestSort(c.sortKey as keyof Row) : undefined}
+                    >
+                      <div className="flex items-center gap-1">{c.label}{c.sortKey && <ArrowUpDown className="h-3 w-3" />}</div>
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedDocs.map((doc) => {
-                  const st = statusStyle(doc.status_manifestacao);
-                  const Icon = st.icon;
-                  return (
-                    <TableRow key={doc.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors" data-state={selectedIds.has(doc.id) ? "selected" : undefined}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIds.has(doc.id)}
-                          onCheckedChange={() => toggleRow(doc.id)}
-                          aria-label={`Selecionar NF-e ${doc.numero ?? doc.id}`}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-900">
-                        <div className="flex flex-col">
-                          <span>{doc.numero ?? "-"}</span>
-                          <span className="text-[10px] text-slate-400">Série {doc.serie ?? "-"}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-slate-600 text-sm whitespace-nowrap">
-                        {doc.data_emissao ? new Date(doc.data_emissao).toLocaleDateString("pt-BR") : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-[280px]">
-                          <div className="font-medium text-slate-900 truncate">{doc.emitente_nome ?? doc.emitente_cnpj ?? "-"}</div>
-                          <div className="text-[10px] text-slate-400 font-mono truncate tracking-tight">{doc.chave_acesso ?? ""}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-semibold text-slate-900 text-sm">
-                        {Number(doc.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className={`font-medium text-xs px-2 py-0.5 rounded-full ${st.color}`}>
-                          <Icon className="mr-1 h-3 w-3 inline" />
-                          {st.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Ver detalhes" asChild>
-                            <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
-                              <Eye className="h-4 w-4" />
-                            </Link>
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {sortedDocs.map((doc) => (
+                  <TableRow key={doc.id} className="border-slate-100 hover:bg-slate-50/80 transition-colors" data-state={selectedIds.has(doc.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={() => toggleRow(doc.id)}
+                        aria-label={`Selecionar NF-e ${doc.numero ?? doc.id}`}
+                      />
+                    </TableCell>
+                    {visibleCols.map((c) => (
+                      <TableCell key={c.key} className={c.className}>{c.render(doc)}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           )}

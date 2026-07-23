@@ -117,8 +117,13 @@ export function useColumnPreferences(tableKey: string, baseColumns: ColumnDef[])
   }, []);
 
   const reset = useCallback(() => {
-    setPrefs({ order: defaultOrder, hidden: [] });
+    setPrefs({ order: defaultOrder, hidden: [], pageSize: DEFAULT_PAGE_SIZE });
   }, [defaultOrder]);
 
-  return { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset };
+  const pageSize = prefs.pageSize ?? DEFAULT_PAGE_SIZE;
+  const setPageSize = useCallback((n: number) => {
+    setPrefs((prev) => ({ ...prev, pageSize: n }));
+  }, []);
+
+  return { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize };
 }

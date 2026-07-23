@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Table,
@@ -14,6 +14,7 @@ import { UserPlus, ArrowUpDown, Eye, Loader2, Info } from "lucide-react";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { TablePagination } from "@/components/common/TablePagination";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -96,9 +97,13 @@ function Members() {
     ) },
   ], []);
 
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("members", columns);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("members", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
   const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [pageSize, sortedMembers.length]);
+  const pagedMembers = useMemo(() => sortedMembers.slice((page - 1) * pageSize, page * pageSize), [sortedMembers, page, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -108,7 +113,7 @@ function Members() {
           <p className="text-slate-500">Gerencie quem tem acesso à sua organização.</p>
         </div>
         <div className="flex items-center gap-2">
-          <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+          <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
           <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
@@ -180,7 +185,7 @@ function Members() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedMembers.map((member) => (
+                {pagedMembers.map((member) => (
                   <TableRow key={member.id} className="border-slate-100 hover:bg-slate-50">
                     {visibleCols.map((c) => (
                       <TableCell key={c.key} className={c.className}>{c.render(member)}</TableCell>
@@ -190,6 +195,9 @@ function Members() {
               </TableBody>
             </Table>
           )}
+          <div className="px-4">
+            <TablePagination page={page} pageSize={pageSize} total={sortedMembers.length} onPageChange={setPage} />
+          </div>
         </CardContent>
       </Card>
 

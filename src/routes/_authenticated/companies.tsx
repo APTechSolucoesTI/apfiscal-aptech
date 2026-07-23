@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import {
   Table,
   TableBody,
@@ -63,6 +63,7 @@ import {
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { TablePagination } from "@/components/common/TablePagination";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -484,9 +485,13 @@ function Companies() {
     ) },
   ], [certByCompany]);
 
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("companies", columns);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("companies", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
   const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, pageSize, sortedCompanies.length]);
+  const pagedCompanies = useMemo(() => sortedCompanies.slice((page - 1) * pageSize, page * pageSize), [sortedCompanies, page, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -725,7 +730,7 @@ function Companies() {
               <Button variant="outline" size="sm">
                 <Filter className="mr-2 h-4 w-4" /> Filtros
               </Button>
-              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
           </div>
         </CardHeader>
@@ -758,7 +763,7 @@ function Companies() {
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedCompanies.map((company) => (
+                pagedCompanies.map((company) => (
                   <TableRow key={company.id} className="border-slate-100 hover:bg-slate-50">
                     {visibleCols.map((c) => (
                       <TableCell key={c.key} className={c.className}>{c.render(company)}</TableCell>
@@ -768,6 +773,7 @@ function Companies() {
               )}
             </TableBody>
           </Table>
+          <TablePagination page={page} pageSize={pageSize} total={sortedCompanies.length} onPageChange={setPage} />
         </CardContent>
       </Card>
 

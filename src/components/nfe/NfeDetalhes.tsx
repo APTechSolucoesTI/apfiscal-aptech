@@ -321,15 +321,19 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                         {items.length === 0 && (
                           <tr><td colSpan={11} className="text-center py-8 text-muted-foreground">Nenhum item cadastrado.</td></tr>
                         )}
-                        {items.map((item) => (
-                          <tr key={item.id} className="border-b hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => setSelectedItem(item)}>
+                        {items.map((item) => {
+                          const pendente = item.status_vinculo !== "vinculado";
+                          return (
+                          <tr key={item.id} className={`border-b hover:bg-muted/50 cursor-pointer transition-colors ${pendente ? "bg-amber-50/40" : ""}`} onClick={() => setSelectedItem(item)}>
                             <td className="px-4 py-4 text-xs text-muted-foreground">{item.numero_item}</td>
                             <td className="px-4 py-4 font-mono text-xs">{item.codigo}</td>
                             <td className="px-4 py-4 font-medium">{item.descricao}</td>
                             <td className="px-4 py-4">
-                              {item.status_vinculo === "vinculado"
-                                ? <Badge variant="default">Vinculado</Badge>
-                                : <Badge variant="destructive">Pendente</Badge>}
+                              {pendente ? (
+                                <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200">Pendente de Vínculo</Badge>
+                              ) : (
+                                <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Vinculado</Badge>
+                              )}
                             </td>
                             <td className="px-4 py-4">{item.ncm ?? "-"}</td>
                             <td className="px-4 py-4">{item.cfop ?? "-"}</td>
@@ -337,9 +341,19 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                             <td className="px-4 py-4 text-right">{Number(item.quantidade_comercial ?? 0).toLocaleString("pt-BR")}</td>
                             <td className="px-4 py-4 text-right">{fmt(item.valor_unitario_comercial)}</td>
                             <td className="px-4 py-4 text-right font-bold">{fmt(item.valor_bruto)}</td>
-                            <td className="px-4 py-4"><ChevronRight className="h-4 w-4 text-muted-foreground" /></td>
+                            <td className="px-4 py-4 text-right">
+                              {pendente ? (
+                                <Button size="sm" variant="outline" className="h-8"
+                                  onClick={(e) => { e.stopPropagation(); setLinkItemId(item.id); }}>
+                                  <Link2 className="h-3.5 w-3.5 mr-1" /> Vincular
+                                </Button>
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground inline" />
+                              )}
+                            </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

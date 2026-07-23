@@ -204,6 +204,7 @@ function ProductsPage() {
     { key: "familia", label: "Família", className: "text-xs", render: (p) => p.familias ? `${p.familias.codigo} - ${p.familias.descricao}` : "—" },
     { key: "grupo", label: "Grupo", className: "text-xs", render: (p) => p.grupos ? `${p.grupos.codigo} - ${p.grupos.descricao}` : "—" },
     { key: "subgrupo", label: "Subgrupo", className: "text-xs", render: (p) => p.subgrupos ? `${p.subgrupos.codigo} - ${p.subgrupos.descricao}` : "—" },
+    { key: "empresa", label: "Empresa", className: "text-xs", render: (p) => p.company_id ? (p.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge> },
     { key: "status", label: "Status", render: (p) => (<Badge variant={p.ativo ? "default" : "outline"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>) },
     { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "w-24 text-right", className: "text-right", render: (p) => (
       <>

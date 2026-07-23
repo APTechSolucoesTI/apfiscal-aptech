@@ -67,7 +67,7 @@ export function useColumnPreferences(tableKey: string, baseColumns: ColumnDef[])
       ) {
         return prev;
       }
-      return { order: nextOrder, hidden: nextHidden };
+      return { ...prev, order: nextOrder, hidden: nextHidden };
     });
   }, [defaultOrder]);
 

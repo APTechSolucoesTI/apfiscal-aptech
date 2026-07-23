@@ -48,7 +48,7 @@ function buildCert(opts: {
     ]);
     const sanDer = forge.asn1.toDer(san).getBytes();
     cert.setExtensions([
-      { id: "2.5.29.17", name: "subjectAltName", value: sanDer } as unknown as forge.pki.CertificateExtension,
+      { id: "2.5.29.17", name: "subjectAltName", value: sanDer },
     ]);
   }
   cert.sign(keys.privateKey);
@@ -88,7 +88,7 @@ describe("extractCnpjFromCert", () => {
   it("não retorna sequência de 14 dígitos que não seja CNPJ válido", () => {
     // Payload contém apenas os 14 dígitos inválidos + prefixo de nascimento
     const cert = buildCert({ sanCnpj: INVALID_14, cn: "SEM CNPJ" });
-    expect(extractCnpjFms(cert)).toBeNull();
+    expect(extractCnpjFromCert(cert)).toBeNull();
   });
 
   it("cai no CN quando o SAN está ausente, mas só com CNPJ válido", () => {
@@ -143,7 +143,7 @@ describe("extractCnpjFromCert", () => {
         id: "2.5.29.17",
         name: "subjectAltName",
         value: forge.asn1.toDer(san).getBytes(),
-      } as unknown as forge.pki.CertificateExtension,
+      },
     ]);
     cert.sign(keys.privateKey);
     expect(extractCnpjFromCert(cert)).toBeNull();

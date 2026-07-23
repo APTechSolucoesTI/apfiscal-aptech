@@ -3,14 +3,17 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { listProducts, saveProduct, deleteProduct, deleteProducts, type ProductInput } from "@/lib/products.functions";
+import {
+  listProducts, saveProduct, deleteProduct, deleteProducts,
+  listProductSuppliers, saveProductSupplier, deleteProductSupplier,
+  type ProdutoInput,
+} from "@/lib/products.functions";
+import { listClassifications } from "@/lib/classifications.functions";
 import { getOrgSettings } from "@/lib/organization.functions";
 import { listSuppliers } from "@/lib/suppliers.functions";
 import { Checkbox } from "@/components/ui/checkbox";
 
-import {
-  Card, CardContent, CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,62 +28,60 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Building2, Loader2, Package, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Building2, Loader2, Package } from "lucide-react";
 import { toast } from "sonner";
-import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
 
 export const Route = createFileRoute("/_authenticated/products")({
   component: ProductsPage,
   head: () => ({
     meta: [
       { title: "Produtos | APFiscal" },
-      { name: "description", content: "Cadastro e listagem de produtos por empresa com vínculo a ERPs." },
+      { name: "description", content: "Cadastro de produtos com classificação (família, grupo, subgrupo) e vínculo N:N com fornecedores." },
       { property: "og:title", content: "Produtos | APFiscal" },
-      { property: "og:description", content: "Gerencie o catálogo de produtos por empresa e integre com o seu ERP." },
+      { property: "og:description", content: "Gerencie o catálogo de produtos por empresa ou global e vincule códigos dos fornecedores." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
 });
 
-const empty: ProductInput = {
+const ORIGENS: Array<{ v: number; label: string }> = [
+  { v: 0, label: "0 - Nacional" },
+  { v: 1, label: "1 - Estrangeira (importação direta)" },
+  { v: 2, label: "2 - Estrangeira (mercado interno)" },
+  { v: 3, label: "3 - Nacional (mais de 40% conteúdo importado)" },
+  { v: 4, label: "4 - Nacional (produção conforme processos básicos)" },
+  { v: 5, label: "5 - Nacional (até 40% conteúdo importado)" },
+  { v: 6, label: "6 - Estrangeira (importação direta, sem similar nacional)" },
+  { v: 7, label: "7 - Estrangeira (mercado interno, sem similar nacional)" },
+  { v: 8, label: "8 - Nacional (mais de 70% conteúdo importado)" },
+];
+
+const empty: ProdutoInput = {
   company_id: null,
-  codigo: "",
+  codigo_interno: "",
   descricao: "",
+  unidade: "UN",
+  ncm: "",
+  origem_mercadoria: 0,
   ativo: true,
 };
-
-const productImportFields: ImportField[] = [
-  { key: "codigo", label: "Código", required: true, aliases: ["cod", "codigo", "sku", "codigointerno"] },
-  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "produto", "nome"] },
-  { key: "codigo_fornecedor", label: "Código Fornecedor", aliases: ["codfornecedor", "codigofornecedor"] },
-  { key: "ncm", label: "NCM" },
-  { key: "cest", label: "CEST" },
-  { key: "cfop_padrao", label: "CFOP", aliases: ["cfop", "cfoppadrao"] },
-  { key: "unidade", label: "Unidade", aliases: ["un", "unid", "unidade"] },
-  { key: "ean", label: "EAN/GTIN", aliases: ["ean", "gtin", "codigobarras"] },
-  { key: "valor_unitario", label: "Valor Unitário", aliases: ["valor", "preco", "precounit", "valorunit"], transform: (v) => Number(String(v).replace(",", ".")) },
-  { key: "aliquota_icms", label: "Alíquota ICMS (%)", aliases: ["icms", "aliqicms"], transform: (v) => Number(String(v).replace(",", ".")) },
-  { key: "aliquota_ipi", label: "Alíquota IPI (%)", aliases: ["ipi", "aliqipi"], transform: (v) => Number(String(v).replace(",", ".")) },
-  { key: "origem_mercadoria", label: "Origem Mercadoria", aliases: ["origem"] },
-  { key: "erp_system", label: "Sistema ERP", aliases: ["erp"] },
-  { key: "erp_code", label: "Código no ERP", aliases: ["codigoerp", "erpcode"] },
-];
 
 function ProductsPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [form, setForm] = useState<ProductInput>(empty);
+  const [form, setForm] = useState<ProdutoInput>(empty);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("id, razao_social, nome_fantasia, cnpj").order("razao_social");
+      const { data, error } = await supabase.from("companies")
+        .select("id, razao_social, nome_fantasia, cnpj").order("razao_social");
       if (error) throw error;
-      return data;
+      return data ?? [];
     },
   });
 
@@ -92,27 +93,36 @@ function ProductsPage() {
   const save = useServerFn(saveProduct);
   const remove = useServerFn(deleteProduct);
   const removeMany = useServerFn(deleteProducts);
-  const suppliersFn = useServerFn(listSuppliers);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const listClass = useServerFn(listClassifications);
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products", companyId],
+    queryKey: ["produtos", companyId],
     queryFn: () => list({ data: { companyId: companyId === "all" ? undefined : companyId } }),
   });
 
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers-for-product", form.company_id],
-    queryFn: () => suppliersFn({ data: { companyId: form.company_id || undefined } }),
-    enabled: !!form.company_id,
+  const classScope = form.company_id ?? undefined;
+  const { data: familias = [] } = useQuery({
+    queryKey: ["classif", "familias", classScope],
+    queryFn: () => listClass({ data: { tabela: "familias", companyId: classScope } }),
+    enabled: open,
+  });
+  const { data: grupos = [] } = useQuery({
+    queryKey: ["classif", "grupos", classScope],
+    queryFn: () => listClass({ data: { tabela: "grupos", companyId: classScope } }),
+    enabled: open,
+  });
+  const { data: subgrupos = [] } = useQuery({
+    queryKey: ["classif", "subgrupos", classScope],
+    queryFn: () => listClass({ data: { tabela: "subgrupos", companyId: classScope } }),
+    enabled: open,
   });
 
   const saveMut = useMutation({
-    mutationFn: (payload: ProductInput) => save({ data: payload }),
-    onSuccess: () => {
-      toast.success("Produto salvo com sucesso");
-      qc.invalidateQueries({ queryKey: ["products"] });
-      setOpen(false);
-      setForm(empty);
+    mutationFn: (payload: ProdutoInput) => save({ data: payload }),
+    onSuccess: (r) => {
+      toast.success("Produto salvo");
+      qc.invalidateQueries({ queryKey: ["produtos"] });
+      setForm((f) => ({ ...f, id: r.id }));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -121,7 +131,7 @@ function ProductsPage() {
     mutationFn: (id: string) => remove({ data: { id } }),
     onSuccess: () => {
       toast.success("Produto excluído");
-      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["produtos"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -131,19 +141,19 @@ function ProductsPage() {
     onSuccess: (r) => {
       toast.success(`${r.count} produto(s) excluído(s)`);
       setSelectedIds(new Set());
-      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["produtos"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
-    return products.filter((p: any) =>
+    return (products as any[]).filter((p) =>
       !s ||
       p.descricao?.toLowerCase().includes(s) ||
-      p.codigo?.toLowerCase().includes(s) ||
+      p.codigo_interno?.toLowerCase().includes(s) ||
       p.ncm?.includes(s) ||
-      p.ean?.includes(s),
+      p.ean_gtin?.includes(s),
     );
   }, [products, search]);
 
@@ -153,58 +163,33 @@ function ProductsPage() {
       const visible = new Set(filtered.map((p: any) => p.id));
       const next = new Set<string>();
       prev.forEach((id) => { if (visible.has(id)) next.add(id); });
-      if (next.size === prev.size) return prev;
-      return next;
+      return next.size === prev.size ? prev : next;
     });
   }, [filtered]);
 
   const allChecked = filtered.length > 0 && filtered.every((p: any) => selectedIds.has(p.id));
   const someChecked = selectedIds.size > 0 && !allChecked;
-  function toggleAll() {
-    if (allChecked) setSelectedIds(new Set());
-    else setSelectedIds(new Set(filtered.map((p: any) => p.id)));
-  }
-  function toggleRow(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }
-  function handleBulkDelete() {
-    if (selectedIds.size === 0) return;
-    if (!confirm(`Excluir ${selectedIds.size} produto(s) selecionado(s)?`)) return;
-    bulkDelMut.mutate(Array.from(selectedIds));
-  }
-
 
   function openNew() {
-    const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : (companies[0]?.id ?? null));
+    const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : ((companies as any[])[0]?.id ?? null));
     setForm({ ...empty, company_id: defaultCompany });
     setOpen(true);
   }
-
   function openEdit(p: any) {
     setForm({
       id: p.id,
       company_id: p.company_id,
-      codigo: p.codigo,
-      codigo_fornecedor: p.codigo_fornecedor,
+      codigo_interno: p.codigo_interno,
       descricao: p.descricao,
+      unidade: p.unidade,
+      ean_gtin: p.ean_gtin,
       ncm: p.ncm,
       cest: p.cest,
-      cfop_padrao: p.cfop_padrao,
-      unidade: p.unidade,
-      ean: p.ean,
       origem_mercadoria: p.origem_mercadoria,
-      valor_unitario: p.valor_unitario,
-      aliquota_icms: p.aliquota_icms,
-      aliquota_ipi: p.aliquota_ipi,
-      supplier_id: p.supplier_id,
+      familia_id: p.familia_id,
+      grupo_id: p.grupo_id,
+      subgrupo_id: p.subgrupo_id,
       ativo: p.ativo,
-      erp_system: p.erp_system,
-      erp_code: p.erp_code,
-      erp_external_id: p.erp_external_id,
     });
     setOpen(true);
   }
@@ -214,61 +199,9 @@ function ProductsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Produtos</h1>
-          <p className="text-sm text-slate-500">Catálogo de produtos por empresa com vínculo a ERPs.</p>
+          <p className="text-sm text-slate-500">Catálogo com classificação hierárquica e vínculo N:N com fornecedores.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && companies.length === 0}>
-            <Upload className="h-4 w-4 mr-1" /> Importar XLSX
-          </Button>
-          <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
-        </div>
-
-        <ImportXlsxDialog
-          open={importOpen}
-          onOpenChange={setImportOpen}
-          title="Importar Produtos via Excel"
-          description={isGlobal
-            ? "Selecione se os produtos serão compartilhados por todas as empresas (Global) ou vinculados a uma empresa específica."
-            : "Selecione a empresa em que os produtos serão cadastrados."}
-          fields={productImportFields}
-          companies={companies.map((c: any) => ({ id: c.id, label: `${c.razao_social}${c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}` }))}
-          allowGlobal={isGlobal}
-          requireCompanySelection={!isGlobal}
-          buildRow={(m, ctx) => {
-            const cid = ctx.companyId;
-            if (!isGlobal && !cid) throw new Error("Selecione uma empresa antes de importar");
-            if (!m.codigo) throw new Error("Código obrigatório");
-            if (!m.descricao) throw new Error("Descrição obrigatória");
-            const num = (v: unknown) => v == null || v === "" ? null : (Number.isFinite(Number(v)) ? Number(v) : null);
-            return {
-              company_id: cid,
-              codigo: String(m.codigo),
-              descricao: String(m.descricao),
-              codigo_fornecedor: m.codigo_fornecedor ? String(m.codigo_fornecedor) : null,
-              ncm: m.ncm ? String(m.ncm) : null,
-              cest: m.cest ? String(m.cest) : null,
-              cfop_padrao: m.cfop_padrao ? String(m.cfop_padrao) : null,
-              unidade: m.unidade ? String(m.unidade) : null,
-              ean: m.ean ? String(m.ean) : null,
-              valor_unitario: num(m.valor_unitario),
-              aliquota_icms: num(m.aliquota_icms),
-              aliquota_ipi: num(m.aliquota_ipi),
-              origem_mercadoria: m.origem_mercadoria ? String(m.origem_mercadoria) : null,
-              erp_system: m.erp_system ? String(m.erp_system) : null,
-              erp_code: m.erp_code ? String(m.erp_code) : null,
-              ativo: true,
-            } as ProductInput;
-          }}
-          checkDuplicate={async (row) => {
-            const q = supabase.from("products").select("id", { count: "exact", head: true }).eq("codigo", row.codigo);
-            const scoped = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
-            const { count, error } = await scoped;
-            if (error) return false;
-            return (count ?? 0) > 0;
-          }}
-          onImportRow={async (row) => { await save({ data: row }); }}
-          onDone={() => qc.invalidateQueries({ queryKey: ["products"] })}
-        />
+        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
       </div>
 
       <Card>
@@ -280,8 +213,8 @@ function ProductsPage() {
                 <SelectTrigger className="w-[280px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as empresas</SelectItem>
-                  {companies.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>{c.razao_social}{c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}</SelectItem>
+                  {(companies as any[]).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -294,15 +227,12 @@ function ProductsPage() {
         </CardHeader>
         <CardContent>
           {selectedIds.size > 0 && (
-            <div className="flex items-center justify-between px-3 py-2 mb-3 rounded border bg-amber-50 dark:bg-amber-950/30">
+            <div className="flex items-center justify-between px-3 py-2 mb-3 rounded border bg-amber-50">
               <span className="text-sm font-medium">{selectedIds.size} selecionado(s)</span>
-              <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Limpar</Button>
-                <Button size="sm" variant="destructive" onClick={handleBulkDelete} disabled={bulkDelMut.isPending}>
-                  {bulkDelMut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
-                  Excluir selecionados
-                </Button>
-              </div>
+              <Button size="sm" variant="destructive"
+                onClick={() => { if (confirm(`Excluir ${selectedIds.size} produto(s)?`)) bulkDelMut.mutate(Array.from(selectedIds)); }}>
+                <Trash2 className="h-4 w-4 mr-1" /> Excluir selecionados
+              </Button>
             </div>
           )}
           <Table>
@@ -311,51 +241,46 @@ function ProductsPage() {
                 <TableHead className="w-10">
                   <Checkbox
                     checked={allChecked ? true : someChecked ? "indeterminate" : false}
-                    onCheckedChange={toggleAll}
-                    aria-label="Selecionar todos"
+                    onCheckedChange={() => { if (allChecked) setSelectedIds(new Set()); else setSelectedIds(new Set(filtered.map((p: any) => p.id))); }}
                   />
                 </TableHead>
-                <TableHead>Código</TableHead>
+                <TableHead>Código Interno</TableHead>
                 <TableHead>Descrição</TableHead>
-                <TableHead>NCM</TableHead>
                 <TableHead>Unid.</TableHead>
-                <TableHead>Fornecedor</TableHead>
-                <TableHead>ERP</TableHead>
-                <TableHead>Origem</TableHead>
+                <TableHead>NCM</TableHead>
+                <TableHead>Família</TableHead>
+                <TableHead>Grupo</TableHead>
+                <TableHead>Subgrupo</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="w-24 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-slate-500"><Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} className="text-center py-8 text-slate-500">
+                  <Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.
+                </TableCell></TableRow>
               ) : filtered.map((p: any) => (
-                <TableRow key={p.id} data-state={selectedIds.has(p.id) ? "selected" : undefined}>
+                <TableRow key={p.id}>
                   <TableCell>
                     <Checkbox
                       checked={selectedIds.has(p.id)}
-                      onCheckedChange={() => toggleRow(p.id)}
-                      aria-label={`Selecionar ${p.descricao}`}
+                      onCheckedChange={() => setSelectedIds((prev) => {
+                        const next = new Set(prev); if (next.has(p.id)) next.delete(p.id); else next.add(p.id); return next;
+                      })}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{p.codigo}</TableCell>
-                  <TableCell><div className="font-medium">{p.descricao}</div></TableCell>
-                  <TableCell className="font-mono text-xs">{p.ncm ?? "—"}</TableCell>
-                  <TableCell>{p.unidade ?? "—"}</TableCell>
-                  <TableCell className="text-xs">{p.suppliers?.razao_social ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{p.codigo_interno}</TableCell>
+                  <TableCell className="font-medium">{p.descricao}</TableCell>
+                  <TableCell>{p.unidade}</TableCell>
+                  <TableCell className="font-mono text-xs">{p.ncm}</TableCell>
+                  <TableCell className="text-xs">{p.familias ? `${p.familias.codigo} - ${p.familias.descricao}` : "—"}</TableCell>
+                  <TableCell className="text-xs">{p.grupos ? `${p.grupos.codigo} - ${p.grupos.descricao}` : "—"}</TableCell>
+                  <TableCell className="text-xs">{p.subgrupos ? `${p.subgrupos.codigo} - ${p.subgrupos.descricao}` : "—"}</TableCell>
                   <TableCell>
-                    {p.erp_system ? (
-                      <div className="text-xs">
-                        <div className="font-medium">{p.erp_system}</div>
-                        <div className="text-slate-500 font-mono">{p.erp_code ?? p.erp_external_id ?? "—"}</div>
-                      </div>
-                    ) : <Badge variant="outline">Não vinculado</Badge>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={p.origem === "auto_nfe" ? "secondary" : "outline"}>
-                      {p.origem === "auto_nfe" ? "Auto (NF-e)" : p.origem === "erp" ? "ERP" : "Manual"}
-                    </Badge>
+                    <Badge variant={p.ativo ? "default" : "outline"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
@@ -368,20 +293,21 @@ function ProductsPage() {
             </TableBody>
           </Table>
         </CardContent>
-
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar" : "Novo"} Produto</DialogTitle>
-            <DialogDescription>Cadastre o produto no catálogo da empresa e opcionalmente vincule ao ERP.</DialogDescription>
+            <DialogDescription>
+              Preencha os dados do produto, sua classificação e os fornecedores que o fornecem.
+            </DialogDescription>
           </DialogHeader>
           <Tabs defaultValue="dados">
             <TabsList>
-              <TabsTrigger value="dados">Dados</TabsTrigger>
-              <TabsTrigger value="fiscal">Fiscal</TabsTrigger>
-              <TabsTrigger value="erp">Integração ERP</TabsTrigger>
+              <TabsTrigger value="dados">Dados do Produto</TabsTrigger>
+              <TabsTrigger value="classif">Classificação</TabsTrigger>
+              <TabsTrigger value="forn" disabled={!form.id}>Fornecedores {form.id ? "" : "(salvar primeiro)"}</TabsTrigger>
             </TabsList>
             <TabsContent value="dados" className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -394,89 +320,184 @@ function ProductsPage() {
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {isGlobal && <SelectItem value="__global__">🌐 Global — Todas as empresas</SelectItem>}
-                      {companies.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.razao_social}{c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}</SelectItem>)}
+                      {(companies as any[]).map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.razao_social}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Fornecedor</Label>
-                  <Select value={form.supplier_id ?? "none"} onValueChange={(v) => setForm({ ...form, supplier_id: v === "none" ? null : v })}>
-                    <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {suppliers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.razao_social}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Código interno *</Label>
-                  <Input value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.target.value })} />
-                </div>
-                <div>
-                  <Label>Código do fornecedor</Label>
-                  <Input value={form.codigo_fornecedor ?? ""} onChange={(e) => setForm({ ...form, codigo_fornecedor: e.target.value })} />
+                  <Label>Código Interno *</Label>
+                  <Input value={form.codigo_interno} onChange={(e) => setForm({ ...form, codigo_interno: e.target.value })} />
                 </div>
                 <div className="col-span-2">
                   <Label>Descrição *</Label>
                   <Input value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
                 </div>
                 <div>
-                  <Label>Unidade</Label>
-                  <Input value={form.unidade ?? ""} onChange={(e) => setForm({ ...form, unidade: e.target.value })} placeholder="UN, PC, KG..." />
+                  <Label>Unidade *</Label>
+                  <Input value={form.unidade} onChange={(e) => setForm({ ...form, unidade: e.target.value })} placeholder="UN, KG, CX, LT..." />
                 </div>
                 <div>
                   <Label>EAN / GTIN</Label>
-                  <Input value={form.ean ?? ""} onChange={(e) => setForm({ ...form, ean: e.target.value })} />
+                  <Input value={form.ean_gtin ?? ""} onChange={(e) => setForm({ ...form, ean_gtin: e.target.value })} />
                 </div>
                 <div>
-                  <Label>Valor unitário</Label>
-                  <Input type="number" step="0.0001" value={form.valor_unitario ?? ""} onChange={(e) => setForm({ ...form, valor_unitario: e.target.value ? Number(e.target.value) : null })} />
+                  <Label>NCM * (8 dígitos)</Label>
+                  <Input value={form.ncm} maxLength={8}
+                    onChange={(e) => setForm({ ...form, ncm: e.target.value.replace(/\D/g, "").slice(0, 8) })} />
                 </div>
-              </div>
-            </TabsContent>
-            <TabsContent value="fiscal" className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div><Label>NCM</Label><Input value={form.ncm ?? ""} onChange={(e) => setForm({ ...form, ncm: e.target.value })} /></div>
-                <div><Label>CEST</Label><Input value={form.cest ?? ""} onChange={(e) => setForm({ ...form, cest: e.target.value })} /></div>
-                <div><Label>CFOP padrão</Label><Input value={form.cfop_padrao ?? ""} onChange={(e) => setForm({ ...form, cfop_padrao: e.target.value })} /></div>
-                <div><Label>Origem mercadoria</Label><Input value={form.origem_mercadoria ?? ""} onChange={(e) => setForm({ ...form, origem_mercadoria: e.target.value })} /></div>
-                <div><Label>Alíquota ICMS (%)</Label><Input type="number" step="0.01" value={form.aliquota_icms ?? ""} onChange={(e) => setForm({ ...form, aliquota_icms: e.target.value ? Number(e.target.value) : null })} /></div>
-                <div><Label>Alíquota IPI (%)</Label><Input type="number" step="0.01" value={form.aliquota_ipi ?? ""} onChange={(e) => setForm({ ...form, aliquota_ipi: e.target.value ? Number(e.target.value) : null })} /></div>
-              </div>
-            </TabsContent>
-            <TabsContent value="erp" className="space-y-4">
-              <p className="text-sm text-slate-500">Vincule este produto ao seu ERP para sincronização posterior.</p>
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Sistema ERP</Label>
-                  <Select value={form.erp_system ?? "none"} onValueChange={(v) => setForm({ ...form, erp_system: v === "none" ? null : v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <Label>CEST</Label>
+                  <Input value={form.cest ?? ""} onChange={(e) => setForm({ ...form, cest: e.target.value })} />
+                </div>
+                <div className="col-span-2">
+                  <Label>Origem da Mercadoria *</Label>
+                  <Select value={String(form.origem_mercadoria)} onValueChange={(v) => setForm({ ...form, origem_mercadoria: Number(v) })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      <SelectItem value="sap">SAP</SelectItem>
-                      <SelectItem value="totvs">TOTVS Protheus</SelectItem>
-                      <SelectItem value="omie">Omie</SelectItem>
-                      <SelectItem value="conta_azul">Conta Azul</SelectItem>
-                      <SelectItem value="bling">Bling</SelectItem>
-                      <SelectItem value="sankhya">Sankhya</SelectItem>
-                      <SelectItem value="oracle">Oracle</SelectItem>
-                      <SelectItem value="outro">Outro</SelectItem>
+                      {ORIGENS.map((o) => <SelectItem key={o.v} value={String(o.v)}>{o.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Código no ERP</Label><Input value={form.erp_code ?? ""} onChange={(e) => setForm({ ...form, erp_code: e.target.value })} /></div>
-                <div className="col-span-2"><Label>ID externo (UUID/PK do ERP)</Label><Input value={form.erp_external_id ?? ""} onChange={(e) => setForm({ ...form, erp_external_id: e.target.value })} /></div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="classif" className="space-y-4">
+              <div className="grid grid-cols-1 gap-3">
+                <ClassifSelect label="Família" value={form.familia_id ?? null} options={familias as any[]}
+                  onChange={(v) => setForm({ ...form, familia_id: v })} />
+                <ClassifSelect label="Grupo" value={form.grupo_id ?? null} options={grupos as any[]}
+                  onChange={(v) => setForm({ ...form, grupo_id: v })} />
+                <ClassifSelect label="Sub Grupo" value={form.subgrupo_id ?? null} options={subgrupos as any[]}
+                  onChange={(v) => setForm({ ...form, subgrupo_id: v })} />
+              </div>
+              <p className="text-xs text-slate-500">
+                Cadastre as opções em <a className="underline" href="/classifications">Classificações</a>.
+              </p>
+            </TabsContent>
+
+            <TabsContent value="forn" className="space-y-4">
+              {form.id ? <FornecedoresBlock produtoId={form.id} empresaId={form.company_id ?? null} /> : null}
             </TabsContent>
           </Tabs>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !form.codigo || !form.descricao}>
+            <Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button>
+            <Button onClick={() => saveMut.mutate(form)} disabled={saveMut.isPending}>
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function ClassifSelect({ label, value, options, onChange }: {
+  label: string; value: string | null; options: any[]; onChange: (v: string | null) => void;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)}>
+        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">— Nenhum —</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>{o.codigo} - {o.descricao}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function FornecedoresBlock({ produtoId, empresaId }: { produtoId: string; empresaId: string | null }) {
+  const qc = useQueryClient();
+  const listPs = useServerFn(listProductSuppliers);
+  const savePs = useServerFn(saveProductSupplier);
+  const delPs = useServerFn(deleteProductSupplier);
+  const suppliersFn = useServerFn(listSuppliers);
+
+  const { data: vinculos = [], isLoading } = useQuery({
+    queryKey: ["produtos_fornecedores", produtoId],
+    queryFn: () => listPs({ data: { produtoId } }),
+  });
+
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["suppliers-all"],
+    queryFn: () => suppliersFn({ data: {} }),
+  });
+
+  const [newForn, setNewForn] = useState<string>("");
+  const [newCodigo, setNewCodigo] = useState<string>("");
+
+  const saveMut = useMutation({
+    mutationFn: () => savePs({ data: { produto_id: produtoId, fornecedor_id: newForn, codigo_item_nota: newCodigo, empresa_id: empresaId } }),
+    onSuccess: () => {
+      toast.success("Vínculo adicionado");
+      setNewForn(""); setNewCodigo("");
+      qc.invalidateQueries({ queryKey: ["produtos_fornecedores", produtoId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: (id: string) => delPs({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["produtos_fornecedores", produtoId] }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <Label>Fornecedor</Label>
+          <Select value={newForn} onValueChange={setNewForn}>
+            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <SelectContent>
+              {(suppliers as any[]).map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.razao_social} — {s.cnpj_cpf}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-56">
+          <Label>Código do Item na Nota</Label>
+          <Input value={newCodigo} onChange={(e) => setNewCodigo(e.target.value)} />
+        </div>
+        <Button onClick={() => saveMut.mutate()} disabled={!newForn || !newCodigo || saveMut.isPending}>
+          {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Adicionar
+        </Button>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Fornecedor</TableHead>
+            <TableHead>Cód. Fornecedor</TableHead>
+            <TableHead>Cód. Item Nota</TableHead>
+            <TableHead className="w-16"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            <TableRow><TableCell colSpan={4} className="text-center py-4"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+          ) : (vinculos as any[]).length === 0 ? (
+            <TableRow><TableCell colSpan={4} className="text-center py-4 text-slate-500">Nenhum fornecedor vinculado.</TableCell></TableRow>
+          ) : (vinculos as any[]).map((v) => (
+            <TableRow key={v.id}>
+              <TableCell>{v.suppliers?.razao_social ?? "—"}</TableCell>
+              <TableCell className="font-mono text-xs">{v.suppliers?.codigo_interno ?? "—"}</TableCell>
+              <TableCell className="font-mono text-xs">{v.codigo_item_nota}</TableCell>
+              <TableCell className="text-right">
+                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remover vínculo?")) removeMut.mutate(v.id); }}>
+                  <Trash2 className="h-4 w-4 text-red-600" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

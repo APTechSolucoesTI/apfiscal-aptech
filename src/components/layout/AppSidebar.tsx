@@ -11,7 +11,8 @@ import {
   Key,
   Activity,
   Users,
-  Package
+  Package,
+  Layers,
 } from "lucide-react";
 import { 
   Sidebar, 

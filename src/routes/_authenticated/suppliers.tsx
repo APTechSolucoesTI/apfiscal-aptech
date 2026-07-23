@@ -394,9 +394,12 @@ function SuppliersPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="relative w-full md:w-80">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por CNPJ ou razão social" className="pl-9" />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="relative flex-1 md:w-80">
+                <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por CNPJ ou razão social" className="pl-9" />
+              </div>
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
             </div>
           </div>
         </CardHeader>
@@ -423,19 +426,16 @@ function SuppliersPage() {
                     aria-label="Selecionar todos"
                   />
                 </TableHead>
-                <TableHead>CNPJ/CPF</TableHead>
-                <TableHead>Razão Social</TableHead>
-                <TableHead>Empresa</TableHead>
-                <TableHead>ERP</TableHead>
-                <TableHead>Origem</TableHead>
-                <TableHead className="w-24 text-right">Ações</TableHead>
+                {visibleCols.map((c) => (
+                  <TableHead key={c.key} className={c.headClassName}>{c.label}</TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8 text-slate-500">Nenhum fornecedor cadastrado.</TableCell></TableRow>
               ) : filtered.map((f: any) => (
                 <TableRow key={f.id} data-state={selectedIds.has(f.id) ? "selected" : undefined}>
                   <TableCell>
@@ -445,31 +445,9 @@ function SuppliersPage() {
                       aria-label={`Selecionar ${f.razao_social}`}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{maskCnpjCpf(f.cnpj_cpf ?? "")}</TableCell>
-                  <TableCell>
-                    <div className="font-medium">{f.razao_social}</div>
-                    {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
-                  </TableCell>
-                  <TableCell className="text-xs">{f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge>}</TableCell>
-                  <TableCell>
-                    {f.erp_system ? (
-                      <div className="text-xs">
-                        <div className="font-medium">{f.erp_system}</div>
-                        <div className="text-slate-500 font-mono">{f.erp_code ?? f.erp_external_id ?? "—"}</div>
-                      </div>
-                    ) : <Badge variant="outline">Não vinculado</Badge>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={f.origem === "auto_nfe" ? "secondary" : "outline"}>
-                      {f.origem === "auto_nfe" ? "Auto (NF-e)" : f.origem === "erp" ? "ERP" : "Manual"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(f)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={() => { if (confirm("Excluir fornecedor?")) delMut.mutate(f.id); }}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </TableCell>
+                  {visibleCols.map((c) => (
+                    <TableCell key={c.key} className={c.className}>{c.render(f)}</TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>

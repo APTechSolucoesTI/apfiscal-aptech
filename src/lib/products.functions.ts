@@ -128,7 +128,7 @@ export const listProductSuppliers = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("produtos_fornecedores")
-      .select("*, suppliers(id, razao_social, nome_fantasia, cnpj_cpf, codigo_interno)")
+      .select("*, suppliers(id, razao_social, nome_fantasia, cnpj_cpf, erp_code)")
       .eq("produto_id", data.produtoId)
       .order("created_at");
     if (error) throw new Error(error.message);

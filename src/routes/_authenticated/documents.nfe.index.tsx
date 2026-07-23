@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Table,
@@ -36,12 +36,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useSortableData } from "@/hooks/use-sortable-data";
+import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
+import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { Badge as _BadgeAlias } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
 import { importNfeXml } from "@/lib/nfe-import.functions";
 import { toast } from "sonner";
+void _BadgeAlias;
+
+type Col = ColumnDef & { sortKey?: string; className?: string; headClassName?: string; render: (r: Row) => ReactNode };
 
 
 export const Route = createFileRoute("/_authenticated/documents/nfe/")({

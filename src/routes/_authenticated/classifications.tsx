@@ -78,9 +78,15 @@ function ClassificationCrud({ tabela }: { tabela: ClassificationTable }) {
   const [companyId, setCompanyId] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState<ClassificationInput>({
     tabela, company_id: null, codigo: "", descricao: "",
   });
+
+  const importFields: ImportField[] = [
+    { key: "codigo", label: "Código", required: true, aliases: ["cod", "codigo", "code"] },
+    { key: "descricao", label: "Descrição", required: true, aliases: ["desc", "descricao", "nome", "name"] },
+  ];
 
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],

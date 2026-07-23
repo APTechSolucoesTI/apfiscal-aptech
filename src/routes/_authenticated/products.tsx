@@ -28,8 +28,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Building2, Loader2, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Building2, Loader2, Package, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
+
 
 export const Route = createFileRoute("/_authenticated/products")({
   component: ProductsPage,
@@ -67,13 +69,30 @@ const empty: ProdutoInput = {
   ativo: true,
 };
 
+const productImportFields: ImportField[] = [
+  { key: "codigo_interno", label: "Código Interno", required: true, aliases: ["codigo", "codigointerno", "sku", "cod"] },
+  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "nome", "produto"] },
+  { key: "unidade", label: "Unidade", required: true, aliases: ["un", "unid", "unidade"] },
+  { key: "ncm", label: "NCM", required: true, aliases: ["ncm"] },
+  { key: "ean_gtin", label: "EAN/GTIN", aliases: ["ean", "gtin", "codigobarras"] },
+  { key: "cest", label: "CEST", aliases: ["cest"] },
+  { key: "origem_mercadoria", label: "Origem Mercadoria", aliases: ["origem", "origemmercadoria"] },
+  { key: "familia_codigo", label: "Código Família", aliases: ["familia", "codfamilia", "familiacodigo"] },
+  { key: "grupo_codigo", label: "Código Grupo", aliases: ["grupo", "codgrupo", "grupocodigo"] },
+  { key: "subgrupo_codigo", label: "Código Subgrupo", aliases: ["subgrupo", "codsubgrupo", "subgrupocodigo"] },
+  { key: "ativo", label: "Ativo", aliases: ["status", "ativo"] },
+];
+
+
 function ProductsPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState<ProdutoInput>(empty);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
 
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],
@@ -201,8 +220,80 @@ function ProductsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Produtos</h1>
           <p className="text-sm text-slate-500">Catálogo com classificação hierárquica e vínculo N:N com fornecedores.</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && (companies as any[]).length === 0}>
+            <Upload className="h-4 w-4 mr-1" /> Importar XLSX
+          </Button>
+          <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
+        </div>
       </div>
+
+      <ImportXlsxDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Produtos via Excel"
+        description={isGlobal
+          ? "Selecione se os produtos serão compartilhados por todas as empresas (Global) ou vinculados a uma empresa específica."
+          : "Selecione a empresa em que os produtos serão cadastrados."}
+        fields={productImportFields}
+        companies={(companies as any[]).map((c) => ({ id: c.id, label: `${c.razao_social}${c.nome_fantasia ? ` (${c.nome_fantasia})` : ""}` }))}
+        allowGlobal={isGlobal}
+        requireCompanySelection={!isGlobal}
+        buildRow={(m, ctx) => {
+          const cid = ctx.companyId;
+          if (!isGlobal && !cid) throw new Error("Selecione uma empresa antes de importar");
+          const codigo = String(m.codigo_interno ?? "").trim();
+          if (!codigo) throw new Error("Código interno obrigatório");
+          const descricao = String(m.descricao ?? "").trim();
+          if (!descricao) throw new Error("Descrição obrigatória");
+          const unidade = String(m.unidade ?? "UN").trim() || "UN";
+          const ncm = String(m.ncm ?? "").replace(/\D/g, "").slice(0, 8);
+          if (!/^\d{8}$/.test(ncm)) throw new Error("NCM deve ter 8 dígitos");
+          const origemRaw = m.origem_mercadoria != null ? Number(String(m.origem_mercadoria).replace(/\D/g, "")) : 0;
+          const origem = Number.isFinite(origemRaw) && origemRaw >= 0 && origemRaw <= 8 ? origemRaw : 0;
+          const ativoRaw = m.ativo == null ? true : String(m.ativo).toLowerCase();
+          const ativo = ativoRaw === true || ["1", "true", "sim", "ativo", "s", "y", "yes"].includes(String(ativoRaw));
+          return {
+            company_id: cid,
+            codigo_interno: codigo,
+            descricao,
+            unidade,
+            ean_gtin: m.ean_gtin ? String(m.ean_gtin) : null,
+            ncm,
+            cest: m.cest ? String(m.cest) : null,
+            origem_mercadoria: origem,
+            ativo,
+            _familia_codigo: m.familia_codigo ? String(m.familia_codigo).trim() : null,
+            _grupo_codigo: m.grupo_codigo ? String(m.grupo_codigo).trim() : null,
+            _subgrupo_codigo: m.subgrupo_codigo ? String(m.subgrupo_codigo).trim() : null,
+          } as ProdutoInput & { _familia_codigo: string | null; _grupo_codigo: string | null; _subgrupo_codigo: string | null };
+        }}
+        checkDuplicate={async (row) => {
+          const q = supabase.from("produtos").select("id", { count: "exact", head: true }).eq("codigo_interno", row.codigo_interno);
+          const scoped = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
+          const { count, error } = await scoped;
+          if (error) return false;
+          return (count ?? 0) > 0;
+        }}
+        onImportRow={async (row: any) => {
+          const scope = row.company_id ?? undefined;
+          async function resolveClass(tabela: "familias" | "grupos" | "subgrupos", codigo: string | null) {
+            if (!codigo) return null;
+            const rows = await listClass({ data: { tabela, companyId: scope } });
+            const match = (rows as any[]).find((r) => String(r.codigo).trim() === codigo);
+            return match?.id ?? null;
+          }
+          const [familia_id, grupo_id, subgrupo_id] = await Promise.all([
+            resolveClass("familias", row._familia_codigo),
+            resolveClass("grupos", row._grupo_codigo),
+            resolveClass("subgrupos", row._subgrupo_codigo),
+          ]);
+          const { _familia_codigo, _grupo_codigo, _subgrupo_codigo, ...clean } = row;
+          await save({ data: { ...clean, familia_id, grupo_id, subgrupo_id } as ProdutoInput });
+        }}
+        onDone={() => qc.invalidateQueries({ queryKey: ["produtos"] })}
+      />
+
 
       <Card>
         <CardHeader>

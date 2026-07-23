@@ -348,7 +348,7 @@ function ProductsPage() {
                 <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código, descrição, NCM, EAN" className="pl-9" />
               </div>
-              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} />
+              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
           </div>
         </CardHeader>
@@ -383,7 +383,7 @@ function ProductsPage() {
                 <TableRow><TableCell colSpan={visibleCols.length + 1} className="text-center py-8 text-slate-500">
                   <Package className="h-6 w-6 mx-auto mb-2 opacity-40" />Nenhum produto cadastrado.
                 </TableCell></TableRow>
-              ) : filtered.map((p: any) => (
+              ) : pagedFiltered.map((p: any) => (
                 <TableRow key={p.id}>
                   <TableCell>
                     <Checkbox
@@ -400,6 +400,7 @@ function ProductsPage() {
               ))}
             </TableBody>
           </Table>
+          <TablePagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
         </CardContent>
       </Card>
 

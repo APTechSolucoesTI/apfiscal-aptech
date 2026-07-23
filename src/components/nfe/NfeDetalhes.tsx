@@ -52,6 +52,7 @@ const finLabel = (v: unknown) => {
 
 export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
   const fetchFn = useServerFn(getNfeDetails);
 

@@ -330,22 +330,43 @@ export function generateDanfePdf(doc: any, items: any[]) {
   pdf.text("DADOS DOS PRODUTOS / SERVIÇOS", M, y + 3);
   y += 4;
 
-  const body = (items ?? []).map((it) => [
-    String(it.codigo ?? "-"),
-    String(it.descricao ?? "-"),
-    String(it.ncm ?? "-"),
-    String(it.cst ?? it.csosn ?? "-"),
-    String(it.cfop ?? "-"),
-    String(it.unidade_comercial ?? "-"),
-    fmtNum(it.quantidade_comercial),
-    fmtBRL(it.valor_unitario_comercial),
-    fmtBRL(it.valor_bruto),
-    fmtBRL(it.valor_bc_icms),
-    fmtBRL(it.valor_icms),
-    fmtBRL(it.valor_ipi),
-    it.aliquota_icms != null ? Number(it.aliquota_icms).toFixed(2) : "-",
-    it.aliquota_ipi != null ? Number(it.aliquota_ipi).toFixed(2) : "-",
-  ]);
+  const pickIcms = (imp: any) => {
+    const icms = imp?.ICMS ?? {};
+    const key = Object.keys(icms)[0];
+    return key ? icms[key] ?? {} : {};
+  };
+  const pickIpi = (imp: any) => {
+    const ipi = imp?.IPI ?? {};
+    return ipi.IPITrib ?? ipi.IPINT ?? ipi;
+  };
+
+  const body = (items ?? []).map((it) => {
+    const imp = (it.impostos ?? {}) as any;
+    const icms = pickIcms(imp);
+    const ipi = pickIpi(imp);
+    const cst = icms.CST ?? icms.CSOSN ?? "-";
+    const vBC = icms.vBC ?? 0;
+    const vICMS = icms.vICMS ?? 0;
+    const pICMS = icms.pICMS;
+    const vIPI = ipi?.vIPI ?? 0;
+    const pIPI = ipi?.pIPI;
+    return [
+      String(it.codigo ?? "-"),
+      String(it.descricao ?? "-"),
+      String(it.ncm ?? "-"),
+      String(cst),
+      String(it.cfop ?? "-"),
+      String(it.unidade_comercial ?? "-"),
+      fmtNum(it.quantidade_comercial),
+      fmtBRL(it.valor_unitario_comercial),
+      fmtBRL(it.valor_bruto),
+      fmtBRL(vBC),
+      fmtBRL(vICMS),
+      fmtBRL(vIPI),
+      pICMS != null ? Number(pICMS).toFixed(2) : "-",
+      pIPI != null ? Number(pIPI).toFixed(2) : "-",
+    ];
+  });
 
   autoTable(pdf, {
     startY: y,

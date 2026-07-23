@@ -212,7 +212,7 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
           _razao_social: emitNome ?? `Fornecedor ${digits}`,
         });
         if (upsertErr) throw new Error(`Falha ao cadastrar fornecedor da nota: ${upsertErr.message}`);
-        supplierId = newSupId as string;
+        supplierId = (newSupId as string | null) ?? null;
       }
 
       if (supplierId) {

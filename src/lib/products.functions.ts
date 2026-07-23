@@ -400,19 +400,37 @@ export const createProductAndLinkItem = createServerFn({ method: "POST" })
     if (cErr) throw new Error(`Falha ao criar produto: ${cErr.message}`);
     const produtoId = (created as any).id as string;
 
-    // 2) Criar vínculo produto x fornecedor
+    // 2) Criar vínculo produto x fornecedor (verifica antes; índices UNIQUE são parciais)
     if ((item as any).codigo) {
-      const { error: pfErr } = await context.supabase.from("produtos_fornecedores").upsert({
-        organization_id: orgId,
-        empresa_id: companyIdDoc,
-        produto_id: produtoId,
-        fornecedor_id: supplierId,
-        codigo_item_nota: (item as any).codigo,
-      }, { onConflict: "empresa_id,fornecedor_id,codigo_item_nota" } as any);
-      if (pfErr) {
-        // reverter produto criado
-        await context.supabase.from("produtos").delete().eq("id", produtoId);
-        throw new Error(`Falha ao vincular fornecedor: ${pfErr.message}`);
+      let existQ = context.supabase
+        .from("produtos_fornecedores")
+        .select("id")
+        .eq("fornecedor_id", supplierId)
+        .eq("codigo_item_nota", (item as any).codigo)
+        .limit(1);
+      existQ = companyIdDoc ? existQ.eq("empresa_id", companyIdDoc) : existQ.is("empresa_id", null);
+      const { data: existingPf } = await existQ.maybeSingle();
+      if (existingPf) {
+        const { error: updErr } = await context.supabase
+          .from("produtos_fornecedores")
+          .update({ produto_id: produtoId })
+          .eq("id", (existingPf as any).id);
+        if (updErr) {
+          await context.supabase.from("produtos").delete().eq("id", produtoId);
+          throw new Error(`Falha ao vincular fornecedor: ${updErr.message}`);
+        }
+      } else {
+        const { error: pfErr } = await context.supabase.from("produtos_fornecedores").insert({
+          organization_id: orgId,
+          empresa_id: companyIdDoc,
+          produto_id: produtoId,
+          fornecedor_id: supplierId,
+          codigo_item_nota: (item as any).codigo,
+        });
+        if (pfErr) {
+          await context.supabase.from("produtos").delete().eq("id", produtoId);
+          throw new Error(`Falha ao vincular fornecedor: ${pfErr.message}`);
+        }
       }
     }
 

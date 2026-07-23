@@ -343,8 +343,8 @@ export const importNfeXml = createServerFn({ method: "POST" })
       documentId,
       companyName: (company as any).razao_social as string,
       itemCount: nfe.itens.length,
-      productsCreated,
-      productsExisted,
+      itemsLinked,
+      itemsPending,
       supplierCreated,
       supplierExisted,
     };

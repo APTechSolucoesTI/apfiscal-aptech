@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { TablePagination } from "@/components/common/TablePagination";
 
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -213,9 +214,13 @@ function ProductsPage() {
       </>
     ) },
   ], []);
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset } = useColumnPreferences("products", columns);
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("products", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
   const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, companyId, pageSize, filtered.length]);
+  const pagedFiltered = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
 
   function openNew() {
     const defaultCompany = isGlobal ? null : (companyId !== "all" ? companyId : ((companies as any[])[0]?.id ?? null));

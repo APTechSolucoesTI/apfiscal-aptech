@@ -313,8 +313,17 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
               <TabsContent value="new" className="flex-1 overflow-auto mt-3 mx-6">
                 <div className="grid grid-cols-2 gap-3 pb-4">
                   <div>
-                    <Label>Código Interno *</Label>
-                    <Input value={newForm.codigo_interno} onChange={(e) => setNewForm({ ...newForm, codigo_interno: e.target.value })} />
+                    <Label>Código Interno *{autoCode ? " (auto)" : ""}</Label>
+                    <div className="relative">
+                      <Input
+                        value={newForm.codigo_interno}
+                        readOnly={autoCode}
+                        disabled={autoCode && loadingCode}
+                        onChange={(e) => setNewForm({ ...newForm, codigo_interno: e.target.value })}
+                        placeholder={autoCode ? "Gerando..." : "Selecione Família, Grupo e Subgrupo"}
+                      />
+                      {loadingCode && <Loader2 className="h-4 w-4 animate-spin absolute right-2 top-3 text-muted-foreground" />}
+                    </div>
                   </div>
                   <div>
                     <Label>Unidade *</Label>
@@ -346,12 +355,30 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
                       </SelectContent>
                     </Select>
                   </div>
-                  <ClassifSelect label="Família" value={newForm.familia_id ?? null} options={familias as any[]}
-                    onChange={(v) => setNewForm({ ...newForm, familia_id: v })} />
-                  <ClassifSelect label="Grupo" value={newForm.grupo_id ?? null} options={grupos as any[]}
-                    onChange={(v) => setNewForm({ ...newForm, grupo_id: v })} />
-                  <ClassifSelect label="Sub Grupo" value={newForm.subgrupo_id ?? null} options={subgrupos as any[]}
-                    onChange={(v) => setNewForm({ ...newForm, subgrupo_id: v })} />
+                  <ClassifSelect
+                    label="Família"
+                    value={newForm.familia_id ?? null}
+                    options={familias as any[]}
+                    onChange={(v) => setNewForm({ ...newForm, familia_id: v, grupo_id: null, subgrupo_id: null })}
+                  />
+                  <ClassifSelect
+                    label="Grupo"
+                    value={newForm.grupo_id ?? null}
+                    options={gruposFiltrados}
+                    disabled={!newForm.familia_id}
+                    placeholder={!newForm.familia_id ? "Selecione a Família primeiro" : undefined}
+                    emptyMessage="Nenhum grupo cadastrado para esta família"
+                    onChange={(v) => setNewForm({ ...newForm, grupo_id: v, subgrupo_id: null })}
+                  />
+                  <ClassifSelect
+                    label="Sub Grupo"
+                    value={newForm.subgrupo_id ?? null}
+                    options={subgruposFiltrados}
+                    disabled={!newForm.grupo_id}
+                    placeholder={!newForm.grupo_id ? "Selecione o Grupo primeiro" : undefined}
+                    emptyMessage="Nenhum subgrupo cadastrado para este grupo"
+                    onChange={(v) => setNewForm({ ...newForm, subgrupo_id: v })}
+                  />
                 </div>
                 {!supplier && (
                   <div className="rounded border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive flex items-start gap-2">

@@ -56,6 +56,16 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
   const fetchFn = useServerFn(getNfeDetails);
+  const unlinkFn = useServerFn(unlinkNfeItem);
+  const qc = useQueryClient();
+  const unlinkMut = useMutation({
+    mutationFn: (itemId: string) => unlinkFn({ data: { itemId } }),
+    onSuccess: () => {
+      toast.success("Vínculo removido");
+      qc.invalidateQueries({ queryKey: ["nfe-details", nfeId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   useEffect(() => {
     return () => {

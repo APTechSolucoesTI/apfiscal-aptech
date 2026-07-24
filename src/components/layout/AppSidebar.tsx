@@ -85,6 +85,15 @@ const menuItems = [
     url: "/notifications",
   },
   {
+    title: "Cadastros Financeiros",
+    icon: Wallet,
+    url: "/settings/centros-custo",
+    subItems: [
+      { title: "Centros de Custo", url: "/settings/centros-custo" },
+      { title: "Plano de Contas", url: "/settings/plano-contas" },
+    ]
+  },
+  {
     title: "Configurações",
     icon: Settings,
     url: "/settings",

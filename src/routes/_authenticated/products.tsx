@@ -141,7 +141,33 @@ function ProductsPage() {
     enabled: open,
   });
 
-  const saveMut = useMutation({
+  const familiaCodigo = useMemo(() => (familias as any[]).find((f) => f.id === form.familia_id)?.codigo ?? null, [familias, form.familia_id]);
+  const grupoCodigo = useMemo(() => (grupos as any[]).find((g) => g.id === form.grupo_id)?.codigo ?? null, [grupos, form.grupo_id]);
+  const subgrupoCodigo = useMemo(() => (subgrupos as any[]).find((s) => s.id === form.subgrupo_id)?.codigo ?? null, [subgrupos, form.subgrupo_id]);
+
+  const gruposFiltrados = useMemo(() => {
+    if (!familiaCodigo) return [] as any[];
+    return (grupos as any[]).filter((g) => String(g.codigo).startsWith(familiaCodigo));
+  }, [grupos, familiaCodigo]);
+  const subgruposFiltrados = useMemo(() => {
+    if (!grupoCodigo) return [] as any[];
+    return (subgrupos as any[]).filter((s) => String(s.codigo).startsWith(grupoCodigo));
+  }, [subgrupos, grupoCodigo]);
+
+  const [loadingCode, setLoadingCode] = useState(false);
+  const autoCode = !form.id && !!subgrupoCodigo;
+  useEffect(() => {
+    if (form.id) return;
+    if (!subgrupoCodigo) return;
+    let cancelled = false;
+    setLoadingCode(true);
+    nextCodeFn({ data: { subgrupoCodigo, companyId: form.company_id ?? null } })
+      .then((r) => { if (!cancelled) setForm((f) => ({ ...f, codigo_interno: r.codigo })); })
+      .catch(() => { /* mantém código atual */ })
+      .finally(() => { if (!cancelled) setLoadingCode(false); });
+    return () => { cancelled = true; };
+  }, [subgrupoCodigo, form.id, form.company_id]);
+
     mutationFn: (payload: ProdutoInput) => save({ data: payload }),
     onSuccess: (r) => {
       toast.success("Produto salvo");

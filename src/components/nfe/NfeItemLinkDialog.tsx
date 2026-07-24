@@ -61,6 +61,7 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
   const linkFn = useServerFn(linkNfeItemToProduct);
   const createLinkFn = useServerFn(createProductAndLinkItem);
   const listClass = useServerFn(listClassifications);
+  const nextCodeFn = useServerFn(getNextProductCode);
 
   const { data: ctx, isLoading: loadingCtx } = useQuery({
     queryKey: ["nfe-item-link-context", itemId],

@@ -3,14 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2, Eye, Link2 } from "lucide-react";
+import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2, Eye, Link2, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 import { NfeItemLinkDialog } from "./NfeItemLinkDialog";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
+import { unlinkNfeItem } from "@/lib/products.functions";
 import { generateDanfePdfBlobUrl } from "@/lib/danfe-pdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";
@@ -55,6 +56,16 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
   const fetchFn = useServerFn(getNfeDetails);
+  const unlinkFn = useServerFn(unlinkNfeItem);
+  const qc = useQueryClient();
+  const unlinkMut = useMutation({
+    mutationFn: (itemId: string) => unlinkFn({ data: { itemId } }),
+    onSuccess: () => {
+      toast.success("Vínculo removido");
+      qc.invalidateQueries({ queryKey: ["nfe-details", nfeId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   useEffect(() => {
     return () => {
@@ -348,7 +359,19 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                   <Link2 className="h-3.5 w-3.5 mr-1" /> Vincular
                                 </Button>
                               ) : (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground inline" />
+                                <div className="inline-flex items-center gap-1">
+                                  <Button size="sm" variant="ghost" className="h-8 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                                    disabled={unlinkMut.isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (confirm("Desvincular este item do produto? O item voltará para o status pendente.")) {
+                                        unlinkMut.mutate(item.id);
+                                      }
+                                    }}>
+                                    <Unlink className="h-3.5 w-3.5 mr-1" /> Desvincular
+                                  </Button>
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                </div>
                               )}
                             </td>
                           </tr>

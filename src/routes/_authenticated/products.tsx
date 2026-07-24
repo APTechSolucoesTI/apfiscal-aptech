@@ -466,8 +466,20 @@ function ProductsPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Código Interno *</Label>
-                  <Input value={form.codigo_interno} onChange={(e) => setForm({ ...form, codigo_interno: e.target.value })} />
+                  <Label>Código Interno *{autoCode ? " (gerado automaticamente)" : ""}</Label>
+                  <div className="relative">
+                    <Input
+                      value={form.codigo_interno}
+                      readOnly={autoCode}
+                      disabled={autoCode && loadingCode}
+                      onChange={(e) => setForm({ ...form, codigo_interno: e.target.value })}
+                      placeholder={autoCode ? "Gerando..." : (form.id ? "" : "Selecione Família, Grupo e Subgrupo")}
+                    />
+                    {loadingCode && <Loader2 className="h-4 w-4 animate-spin absolute right-2 top-3 text-muted-foreground" />}
+                  </div>
+                  {!form.id && !autoCode && (
+                    <p className="text-xs text-slate-500 mt-1">Selecione Família, Grupo e Subgrupo para gerar o código automaticamente.</p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <Label>Descrição *</Label>

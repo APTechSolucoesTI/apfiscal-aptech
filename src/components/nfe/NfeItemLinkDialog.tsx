@@ -416,14 +416,21 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
   );
 }
 
-function ClassifSelect({ label, value, options, onChange }: {
-  label: string; value: string | null; options: any[]; onChange: (v: string | null) => void;
+function ClassifSelect({ label, value, options, onChange, disabled, placeholder, emptyMessage }: {
+  label: string;
+  value: string | null;
+  options: any[];
+  onChange: (v: string | null) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  emptyMessage?: string;
 }) {
+  const isEmpty = !disabled && options.length === 0;
   return (
     <div>
       <Label>{label}</Label>
-      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)}>
-        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)} disabled={disabled}>
+        <SelectTrigger><SelectValue placeholder={placeholder ?? "Selecione"} /></SelectTrigger>
         <SelectContent>
           <SelectItem value="__none__">— Nenhum —</SelectItem>
           {options.map((o) => (
@@ -431,6 +438,7 @@ function ClassifSelect({ label, value, options, onChange }: {
           ))}
         </SelectContent>
       </Select>
+      {isEmpty && emptyMessage && <p className="text-xs text-amber-600 mt-1">{emptyMessage}</p>}
     </div>
   );
 }

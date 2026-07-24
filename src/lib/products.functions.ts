@@ -289,6 +289,19 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ----------- Desvincular item da NF-e -----------
+export const unlinkNfeItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { itemId: string }) => data)
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("fiscal_document_items")
+      .update({ product_id: null, status_vinculo: "pendente" })
+      .eq("id", data.itemId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // Contexto completo para o modal de vínculo manual
 export const getNfeItemLinkContext = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

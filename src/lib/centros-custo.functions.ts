@@ -1,0 +1,86 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+export type CentroCustoInput = {
+  id?: string;
+  company_id: string;
+  codigo: string;
+  descricao: string;
+  ativo?: boolean;
+};
+
+const CODIGO_RE = /^\d{2}\.\d{4}$/;
+
+async function orgIdOfCompany(context: any, companyId: string): Promise<string> {
+  const { data, error } = await context.supabase
+    .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
+  if (error || !data) throw new Error("Empresa não encontrada");
+  return data.organization_id as string;
+}
+
+export const listCentrosCusto = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { companyId?: string; apenasAtivos?: boolean }) => data)
+  .handler(async ({ data, context }) => {
+    let q = (context.supabase as any).from("centros_custo").select("*").order("codigo");
+    if (data.companyId) q = q.eq("company_id", data.companyId);
+    if (data.apenasAtivos) q = q.eq("ativo", true);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as any[];
+  });
+
+export const saveCentroCusto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: CentroCustoInput) => {
+    if (!data.company_id) throw new Error("Empresa é obrigatória");
+    if (!CODIGO_RE.test(data.codigo)) throw new Error("Código deve estar no formato 99.9999");
+    if (!data.descricao?.trim()) throw new Error("Descrição é obrigatória");
+    return data;
+  })
+  .handler(async ({ data, context }) => {
+    const organization_id = await orgIdOfCompany(context, data.company_id);
+    const payload = {
+      organization_id,
+      company_id: data.company_id,
+      codigo: data.codigo.trim(),
+      descricao: data.descricao.trim(),
+      ativo: data.ativo ?? true,
+    };
+    if (data.id) {
+      const { error } = await (context.supabase as any).from("centros_custo").update(payload).eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+    const { data: inserted, error } = await (context.supabase as any)
+      .from("centros_custo").insert(payload).select("id").single();
+    if (error) throw new Error(error.message);
+    return { id: inserted.id as string };
+  });
+
+export const toggleCentroCustoAtivo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string; ativo: boolean }) => data)
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as any)
+      .from("centros_custo").update({ ativo: data.ativo }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteCentroCusto = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => data)
+  .handler(async ({ data, context }) => {
+    // Bloqueia se houver vínculo em NF-e (cabeçalho ou item)
+    const [{ count: c1 }, { count: c2 }] = await Promise.all([
+      (context.supabase as any).from("nfe_centro_custo").select("id", { count: "exact", head: true }).eq("centro_custo_id", data.id),
+      (context.supabase as any).from("nfe_item_centro_custo").select("id", { count: "exact", head: true }).eq("centro_custo_id", data.id),
+    ]);
+    if ((c1 ?? 0) + (c2 ?? 0) > 0) {
+      throw new Error("Este Centro de Custo possui vínculos em NF-e. Inative-o em vez de excluir.");
+    }
+    const { error } = await (context.supabase as any).from("centros_custo").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

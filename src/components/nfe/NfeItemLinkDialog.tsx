@@ -21,6 +21,7 @@ import {
   searchProductsForLink,
   linkNfeItemToProduct,
   createProductAndLinkItem,
+  getNextProductCode,
   type ProdutoInput,
 } from "@/lib/products.functions";
 import { listClassifications } from "@/lib/classifications.functions";
@@ -60,6 +61,7 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
   const linkFn = useServerFn(linkNfeItemToProduct);
   const createLinkFn = useServerFn(createProductAndLinkItem);
   const listClass = useServerFn(listClassifications);
+  const nextCodeFn = useServerFn(getNextProductCode);
 
   const { data: ctx, isLoading: loadingCtx } = useQuery({
     queryKey: ["nfe-item-link-context", itemId],
@@ -119,6 +121,25 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
     queryFn: () => listClass({ data: { tabela: "subgrupos", companyId: classScope } }),
     enabled: open && tab === "new",
   });
+
+  const familiaCodigo = useMemo(() => (familias as any[]).find((f) => f.id === newForm.familia_id)?.codigo ?? null, [familias, newForm.familia_id]);
+  const grupoCodigo = useMemo(() => (grupos as any[]).find((g) => g.id === newForm.grupo_id)?.codigo ?? null, [grupos, newForm.grupo_id]);
+  const subgrupoCodigo = useMemo(() => (subgrupos as any[]).find((s) => s.id === newForm.subgrupo_id)?.codigo ?? null, [subgrupos, newForm.subgrupo_id]);
+  const gruposFiltrados = useMemo(() => familiaCodigo ? (grupos as any[]).filter((g) => String(g.codigo).startsWith(familiaCodigo)) : [], [grupos, familiaCodigo]);
+  const subgruposFiltrados = useMemo(() => grupoCodigo ? (subgrupos as any[]).filter((s) => String(s.codigo).startsWith(grupoCodigo)) : [], [subgrupos, grupoCodigo]);
+
+  const [loadingCode, setLoadingCode] = useState(false);
+  const autoCode = !!subgrupoCodigo;
+  useEffect(() => {
+    if (!subgrupoCodigo) return;
+    let cancelled = false;
+    setLoadingCode(true);
+    nextCodeFn({ data: { subgrupoCodigo, companyId: companyId ?? null } })
+      .then((r) => { if (!cancelled) setNewForm((f) => ({ ...f, codigo_interno: r.codigo })); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingCode(false); });
+    return () => { cancelled = true; };
+  }, [subgrupoCodigo, companyId]);
 
   const linkMut = useMutation({
     mutationFn: () => linkFn({ data: { itemId: itemId!, produtoId: selectedProductId! } }),
@@ -292,8 +313,17 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
               <TabsContent value="new" className="flex-1 overflow-auto mt-3 mx-6">
                 <div className="grid grid-cols-2 gap-3 pb-4">
                   <div>
-                    <Label>Código Interno *</Label>
-                    <Input value={newForm.codigo_interno} onChange={(e) => setNewForm({ ...newForm, codigo_interno: e.target.value })} />
+                    <Label>Código Interno *{autoCode ? " (auto)" : ""}</Label>
+                    <div className="relative">
+                      <Input
+                        value={newForm.codigo_interno}
+                        readOnly={autoCode}
+                        disabled={autoCode && loadingCode}
+                        onChange={(e) => setNewForm({ ...newForm, codigo_interno: e.target.value })}
+                        placeholder={autoCode ? "Gerando..." : "Selecione Família, Grupo e Subgrupo"}
+                      />
+                      {loadingCode && <Loader2 className="h-4 w-4 animate-spin absolute right-2 top-3 text-muted-foreground" />}
+                    </div>
                   </div>
                   <div>
                     <Label>Unidade *</Label>
@@ -325,12 +355,30 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
                       </SelectContent>
                     </Select>
                   </div>
-                  <ClassifSelect label="Família" value={newForm.familia_id ?? null} options={familias as any[]}
-                    onChange={(v) => setNewForm({ ...newForm, familia_id: v })} />
-                  <ClassifSelect label="Grupo" value={newForm.grupo_id ?? null} options={grupos as any[]}
-                    onChange={(v) => setNewForm({ ...newForm, grupo_id: v })} />
-                  <ClassifSelect label="Sub Grupo" value={newForm.subgrupo_id ?? null} options={subgrupos as any[]}
-                    onChange={(v) => setNewForm({ ...newForm, subgrupo_id: v })} />
+                  <ClassifSelect
+                    label="Família"
+                    value={newForm.familia_id ?? null}
+                    options={familias as any[]}
+                    onChange={(v) => setNewForm({ ...newForm, familia_id: v, grupo_id: null, subgrupo_id: null })}
+                  />
+                  <ClassifSelect
+                    label="Grupo"
+                    value={newForm.grupo_id ?? null}
+                    options={gruposFiltrados}
+                    disabled={!newForm.familia_id}
+                    placeholder={!newForm.familia_id ? "Selecione a Família primeiro" : undefined}
+                    emptyMessage="Nenhum grupo cadastrado para esta família"
+                    onChange={(v) => setNewForm({ ...newForm, grupo_id: v, subgrupo_id: null })}
+                  />
+                  <ClassifSelect
+                    label="Sub Grupo"
+                    value={newForm.subgrupo_id ?? null}
+                    options={subgruposFiltrados}
+                    disabled={!newForm.grupo_id}
+                    placeholder={!newForm.grupo_id ? "Selecione o Grupo primeiro" : undefined}
+                    emptyMessage="Nenhum subgrupo cadastrado para este grupo"
+                    onChange={(v) => setNewForm({ ...newForm, subgrupo_id: v })}
+                  />
                 </div>
                 {!supplier && (
                   <div className="rounded border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive flex items-start gap-2">
@@ -368,14 +416,21 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
   );
 }
 
-function ClassifSelect({ label, value, options, onChange }: {
-  label: string; value: string | null; options: any[]; onChange: (v: string | null) => void;
+function ClassifSelect({ label, value, options, onChange, disabled, placeholder, emptyMessage }: {
+  label: string;
+  value: string | null;
+  options: any[];
+  onChange: (v: string | null) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  emptyMessage?: string;
 }) {
+  const isEmpty = !disabled && options.length === 0;
   return (
     <div>
       <Label>{label}</Label>
-      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)}>
-        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)} disabled={disabled}>
+        <SelectTrigger><SelectValue placeholder={placeholder ?? "Selecione"} /></SelectTrigger>
         <SelectContent>
           <SelectItem value="__none__">— Nenhum —</SelectItem>
           {options.map((o) => (
@@ -383,6 +438,7 @@ function ClassifSelect({ label, value, options, onChange }: {
           ))}
         </SelectContent>
       </Select>
+      {isEmpty && emptyMessage && <p className="text-xs text-amber-600 mt-1">{emptyMessage}</p>}
     </div>
   );
 }

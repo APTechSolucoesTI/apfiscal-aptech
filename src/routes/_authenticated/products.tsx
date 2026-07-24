@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   listProducts, saveProduct, deleteProduct, deleteProducts,
   listProductSuppliers, saveProductSupplier, deleteProductSupplier,
+  getNextProductCode,
   type ProdutoInput,
 } from "@/lib/products.functions";
 import { listClassifications } from "@/lib/classifications.functions";
@@ -116,6 +117,7 @@ function ProductsPage() {
   const remove = useServerFn(deleteProduct);
   const removeMany = useServerFn(deleteProducts);
   const listClass = useServerFn(listClassifications);
+  const nextCodeFn = useServerFn(getNextProductCode);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["produtos", companyId],
@@ -138,6 +140,33 @@ function ProductsPage() {
     queryFn: () => listClass({ data: { tabela: "subgrupos", companyId: classScope } }),
     enabled: open,
   });
+
+  const familiaCodigo = useMemo(() => (familias as any[]).find((f) => f.id === form.familia_id)?.codigo ?? null, [familias, form.familia_id]);
+  const grupoCodigo = useMemo(() => (grupos as any[]).find((g) => g.id === form.grupo_id)?.codigo ?? null, [grupos, form.grupo_id]);
+  const subgrupoCodigo = useMemo(() => (subgrupos as any[]).find((s) => s.id === form.subgrupo_id)?.codigo ?? null, [subgrupos, form.subgrupo_id]);
+
+  const gruposFiltrados = useMemo(() => {
+    if (!familiaCodigo) return [] as any[];
+    return (grupos as any[]).filter((g) => String(g.codigo).startsWith(familiaCodigo));
+  }, [grupos, familiaCodigo]);
+  const subgruposFiltrados = useMemo(() => {
+    if (!grupoCodigo) return [] as any[];
+    return (subgrupos as any[]).filter((s) => String(s.codigo).startsWith(grupoCodigo));
+  }, [subgrupos, grupoCodigo]);
+
+  const [loadingCode, setLoadingCode] = useState(false);
+  const autoCode = !form.id && !!subgrupoCodigo;
+  useEffect(() => {
+    if (form.id) return;
+    if (!subgrupoCodigo) return;
+    let cancelled = false;
+    setLoadingCode(true);
+    nextCodeFn({ data: { subgrupoCodigo, companyId: form.company_id ?? null } })
+      .then((r) => { if (!cancelled) setForm((f) => ({ ...f, codigo_interno: r.codigo })); })
+      .catch(() => { /* mantém código atual */ })
+      .finally(() => { if (!cancelled) setLoadingCode(false); });
+    return () => { cancelled = true; };
+  }, [subgrupoCodigo, form.id, form.company_id]);
 
   const saveMut = useMutation({
     mutationFn: (payload: ProdutoInput) => save({ data: payload }),
@@ -437,8 +466,20 @@ function ProductsPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Código Interno *</Label>
-                  <Input value={form.codigo_interno} onChange={(e) => setForm({ ...form, codigo_interno: e.target.value })} />
+                  <Label>Código Interno *{autoCode ? " (gerado automaticamente)" : ""}</Label>
+                  <div className="relative">
+                    <Input
+                      value={form.codigo_interno}
+                      readOnly={autoCode}
+                      disabled={autoCode && loadingCode}
+                      onChange={(e) => setForm({ ...form, codigo_interno: e.target.value })}
+                      placeholder={autoCode ? "Gerando..." : (form.id ? "" : "Selecione Família, Grupo e Subgrupo")}
+                    />
+                    {loadingCode && <Loader2 className="h-4 w-4 animate-spin absolute right-2 top-3 text-muted-foreground" />}
+                  </div>
+                  {!form.id && !autoCode && (
+                    <p className="text-xs text-slate-500 mt-1">Selecione Família, Grupo e Subgrupo para gerar o código automaticamente.</p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <Label>Descrição *</Label>
@@ -475,12 +516,30 @@ function ProductsPage() {
 
             <TabsContent value="classif" className="space-y-4">
               <div className="grid grid-cols-1 gap-3">
-                <ClassifSelect label="Família" value={form.familia_id ?? null} options={familias as any[]}
-                  onChange={(v) => setForm({ ...form, familia_id: v })} />
-                <ClassifSelect label="Grupo" value={form.grupo_id ?? null} options={grupos as any[]}
-                  onChange={(v) => setForm({ ...form, grupo_id: v })} />
-                <ClassifSelect label="Sub Grupo" value={form.subgrupo_id ?? null} options={subgrupos as any[]}
-                  onChange={(v) => setForm({ ...form, subgrupo_id: v })} />
+                <ClassifSelect
+                  label="Família"
+                  value={form.familia_id ?? null}
+                  options={familias as any[]}
+                  onChange={(v) => setForm({ ...form, familia_id: v, grupo_id: null, subgrupo_id: null })}
+                />
+                <ClassifSelect
+                  label="Grupo"
+                  value={form.grupo_id ?? null}
+                  options={gruposFiltrados}
+                  disabled={!form.familia_id}
+                  placeholder={!form.familia_id ? "Selecione a Família primeiro" : undefined}
+                  emptyMessage="Nenhum grupo cadastrado para esta família"
+                  onChange={(v) => setForm({ ...form, grupo_id: v, subgrupo_id: null })}
+                />
+                <ClassifSelect
+                  label="Sub Grupo"
+                  value={form.subgrupo_id ?? null}
+                  options={subgruposFiltrados}
+                  disabled={!form.grupo_id}
+                  placeholder={!form.grupo_id ? "Selecione o Grupo primeiro" : undefined}
+                  emptyMessage="Nenhum subgrupo cadastrado para este grupo"
+                  onChange={(v) => setForm({ ...form, subgrupo_id: v })}
+                />
               </div>
               <p className="text-xs text-slate-500">
                 Cadastre as opções em <a className="underline" href="/classifications">Classificações</a>.
@@ -503,14 +562,21 @@ function ProductsPage() {
   );
 }
 
-function ClassifSelect({ label, value, options, onChange }: {
-  label: string; value: string | null; options: any[]; onChange: (v: string | null) => void;
+function ClassifSelect({ label, value, options, onChange, disabled, placeholder, emptyMessage }: {
+  label: string;
+  value: string | null;
+  options: any[];
+  onChange: (v: string | null) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  emptyMessage?: string;
 }) {
+  const isEmpty = !disabled && options.length === 0;
   return (
     <div>
       <Label>{label}</Label>
-      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)}>
-        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+      <Select value={value ?? "__none__"} onValueChange={(v) => onChange(v === "__none__" ? null : v)} disabled={disabled}>
+        <SelectTrigger><SelectValue placeholder={placeholder ?? "Selecione"} /></SelectTrigger>
         <SelectContent>
           <SelectItem value="__none__">— Nenhum —</SelectItem>
           {options.map((o) => (
@@ -518,6 +584,9 @@ function ClassifSelect({ label, value, options, onChange }: {
           ))}
         </SelectContent>
       </Select>
+      {isEmpty && emptyMessage && (
+        <p className="text-xs text-amber-600 mt-1">{emptyMessage}</p>
+      )}
     </div>
   );
 }

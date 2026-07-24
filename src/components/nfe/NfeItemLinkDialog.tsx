@@ -21,6 +21,7 @@ import {
   searchProductsForLink,
   linkNfeItemToProduct,
   createProductAndLinkItem,
+  getNextProductCode,
   type ProdutoInput,
 } from "@/lib/products.functions";
 import { listClassifications } from "@/lib/classifications.functions";

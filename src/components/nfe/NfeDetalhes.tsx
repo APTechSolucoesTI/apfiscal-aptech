@@ -386,7 +386,12 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
               </Card>
             </TabsContent>
 
+            <TabsContent value="financeiro" className="m-0">
+              <NfeFinanceiro doc={doc} items={items} />
+            </TabsContent>
+
             <TabsContent value="impostos" className="m-0 space-y-4">
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">ICMS</CardTitle></CardHeader>

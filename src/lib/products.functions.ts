@@ -113,6 +113,37 @@ export const deleteProducts = createServerFn({ method: "POST" })
     return { ok: true, count: count ?? data.ids.length };
   });
 
+// ----------- Próximo código interno por subgrupo -----------
+const CODE_SEQ_PAD = 6;
+
+export const getNextProductCode = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { subgrupoCodigo: string; companyId?: string | null }) => {
+    if (!data.subgrupoCodigo?.trim()) throw new Error("Código do subgrupo é obrigatório");
+    return data;
+  })
+  .handler(async ({ data, context }) => {
+    const prefix = data.subgrupoCodigo.trim();
+    const like = `${prefix}.%`;
+    let q = context.supabase
+      .from("produtos")
+      .select("codigo_interno")
+      .like("codigo_interno", like);
+    if (data.companyId) {
+      q = q.or(`company_id.eq.${data.companyId},company_id.is.null`);
+    }
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    let max = 0;
+    for (const r of (rows ?? []) as Array<{ codigo_interno: string }>) {
+      const suf = r.codigo_interno.slice(prefix.length + 1);
+      const n = parseInt(suf.replace(/\D/g, ""), 10);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    const next = String(max + 1).padStart(CODE_SEQ_PAD, "0");
+    return { codigo: `${prefix}.${next}` };
+  });
+
 // ----------- Produto x Fornecedor -----------
 export type ProdutoFornecedorInput = {
   id?: string;

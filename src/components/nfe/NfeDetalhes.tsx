@@ -359,7 +359,19 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                   <Link2 className="h-3.5 w-3.5 mr-1" /> Vincular
                                 </Button>
                               ) : (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground inline" />
+                                <div className="inline-flex items-center gap-1">
+                                  <Button size="sm" variant="ghost" className="h-8 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                                    disabled={unlinkMut.isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (confirm("Desvincular este item do produto? O item voltará para o status pendente.")) {
+                                        unlinkMut.mutate(item.id);
+                                      }
+                                    }}>
+                                    <Unlink className="h-3.5 w-3.5 mr-1" /> Desvincular
+                                  </Button>
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                </div>
                               )}
                             </td>
                           </tr>

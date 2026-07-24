@@ -122,6 +122,25 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
     enabled: open && tab === "new",
   });
 
+  const familiaCodigo = useMemo(() => (familias as any[]).find((f) => f.id === newForm.familia_id)?.codigo ?? null, [familias, newForm.familia_id]);
+  const grupoCodigo = useMemo(() => (grupos as any[]).find((g) => g.id === newForm.grupo_id)?.codigo ?? null, [grupos, newForm.grupo_id]);
+  const subgrupoCodigo = useMemo(() => (subgrupos as any[]).find((s) => s.id === newForm.subgrupo_id)?.codigo ?? null, [subgrupos, newForm.subgrupo_id]);
+  const gruposFiltrados = useMemo(() => familiaCodigo ? (grupos as any[]).filter((g) => String(g.codigo).startsWith(familiaCodigo)) : [], [grupos, familiaCodigo]);
+  const subgruposFiltrados = useMemo(() => grupoCodigo ? (subgrupos as any[]).filter((s) => String(s.codigo).startsWith(grupoCodigo)) : [], [subgrupos, grupoCodigo]);
+
+  const [loadingCode, setLoadingCode] = useState(false);
+  const autoCode = !!subgrupoCodigo;
+  useEffect(() => {
+    if (!subgrupoCodigo) return;
+    let cancelled = false;
+    setLoadingCode(true);
+    nextCodeFn({ data: { subgrupoCodigo, companyId: companyId ?? null } })
+      .then((r) => { if (!cancelled) setNewForm((f) => ({ ...f, codigo_interno: r.codigo })); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingCode(false); });
+    return () => { cancelled = true; };
+  }, [subgrupoCodigo, companyId]);
+
   const linkMut = useMutation({
     mutationFn: () => linkFn({ data: { itemId: itemId!, produtoId: selectedProductId! } }),
     onSuccess: () => {

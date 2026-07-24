@@ -168,6 +168,7 @@ function ProductsPage() {
     return () => { cancelled = true; };
   }, [subgrupoCodigo, form.id, form.company_id]);
 
+  const saveMut = useMutation({
     mutationFn: (payload: ProdutoInput) => save({ data: payload }),
     onSuccess: (r) => {
       toast.success("Produto salvo");

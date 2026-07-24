@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 import { NfeItemLinkDialog } from "./NfeItemLinkDialog";
+import { NfeFinanceiro } from "./NfeFinanceiro";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";

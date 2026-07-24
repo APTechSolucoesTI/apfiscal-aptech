@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   listProducts, saveProduct, deleteProduct, deleteProducts,
   listProductSuppliers, saveProductSupplier, deleteProductSupplier,
+  getNextProductCode,
   type ProdutoInput,
 } from "@/lib/products.functions";
 import { listClassifications } from "@/lib/classifications.functions";

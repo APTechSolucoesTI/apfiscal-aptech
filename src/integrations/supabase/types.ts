@@ -84,6 +84,54 @@ export type Database = {
           },
         ]
       }
+      centros_custo: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          company_id: string
+          created_at: string
+          descricao: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          company_id: string
+          created_at?: string
+          descricao: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          company_id?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "centros_custo_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "centros_custo_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           bairro: string | null
@@ -338,6 +386,8 @@ export type Database = {
           inf_adicional: string | null
           ncm: string | null
           numero_item: number
+          plano_contas_alterado_manualmente: boolean
+          plano_contas_id: string | null
           product_id: string | null
           produto: Json | null
           quantidade_comercial: number | null
@@ -368,6 +418,8 @@ export type Database = {
           inf_adicional?: string | null
           ncm?: string | null
           numero_item: number
+          plano_contas_alterado_manualmente?: boolean
+          plano_contas_id?: string | null
           product_id?: string | null
           produto?: Json | null
           quantidade_comercial?: number | null
@@ -398,6 +450,8 @@ export type Database = {
           inf_adicional?: string | null
           ncm?: string | null
           numero_item?: number
+          plano_contas_alterado_manualmente?: boolean
+          plano_contas_id?: string | null
           product_id?: string | null
           produto?: Json | null
           quantidade_comercial?: number | null
@@ -420,6 +474,13 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_document_items_plano_contas_id_fkey"
+            columns: ["plano_contas_id"]
+            isOneToOne: false
+            referencedRelation: "plano_contas"
             referencedColumns: ["id"]
           },
           {
@@ -454,6 +515,7 @@ export type Database = {
           numero: string
           pagamentos: Json | null
           pdf_path: string | null
+          plano_contas_id: string | null
           protocolo: string | null
           raw_payload: Json | null
           risk_flag: boolean | null
@@ -496,6 +558,7 @@ export type Database = {
           numero: string
           pagamentos?: Json | null
           pdf_path?: string | null
+          plano_contas_id?: string | null
           protocolo?: string | null
           raw_payload?: Json | null
           risk_flag?: boolean | null
@@ -538,6 +601,7 @@ export type Database = {
           numero?: string
           pagamentos?: Json | null
           pdf_path?: string | null
+          plano_contas_id?: string | null
           protocolo?: string | null
           raw_payload?: Json | null
           risk_flag?: boolean | null
@@ -564,6 +628,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_documents_plano_contas_id_fkey"
+            columns: ["plano_contas_id"]
+            isOneToOne: false
+            referencedRelation: "plano_contas"
             referencedColumns: ["id"]
           },
         ]
@@ -641,6 +712,90 @@ export type Database = {
             columns: ["fiscal_document_id"]
             isOneToOne: false
             referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nfe_centro_custo: {
+        Row: {
+          centro_custo_id: string
+          created_at: string
+          document_id: string
+          id: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          centro_custo_id: string
+          created_at?: string
+          document_id: string
+          id?: string
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          centro_custo_id?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nfe_centro_custo_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nfe_centro_custo_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nfe_item_centro_custo: {
+        Row: {
+          centro_custo_id: string
+          created_at: string
+          document_item_id: string
+          id: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          centro_custo_id: string
+          created_at?: string
+          document_item_id: string
+          id?: string
+          updated_at?: string
+          valor: number
+        }
+        Update: {
+          centro_custo_id?: string
+          created_at?: string
+          document_item_id?: string
+          id?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nfe_item_centro_custo_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "centros_custo"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nfe_item_centro_custo_document_item_id_fkey"
+            columns: ["document_item_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_document_items"
             referencedColumns: ["id"]
           },
         ]
@@ -790,6 +945,67 @@ export type Database = {
           plan?: string
         }
         Relationships: []
+      }
+      plano_contas: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          company_id: string
+          conta_pai_id: string | null
+          created_at: string
+          descricao: string
+          id: string
+          organization_id: string
+          permite_lancamentos: boolean
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          company_id: string
+          conta_pai_id?: string | null
+          created_at?: string
+          descricao: string
+          id?: string
+          organization_id: string
+          permite_lancamentos?: boolean
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          company_id?: string
+          conta_pai_id?: string | null
+          created_at?: string
+          descricao?: string
+          id?: string
+          organization_id?: string
+          permite_lancamentos?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plano_contas_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plano_contas_conta_pai_id_fkey"
+            columns: ["conta_pai_id"]
+            isOneToOne: false
+            referencedRelation: "plano_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plano_contas_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       produtos: {
         Row: {

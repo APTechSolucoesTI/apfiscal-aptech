@@ -212,6 +212,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           {[
             ["resumo", "Resumo"],
             ["items", "Itens"],
+            ["financeiro", "Financeiro"],
             ["impostos", "Impostos"],
             ["transporte", "Transporte"],
             ["cobranca", "Cobrança"],

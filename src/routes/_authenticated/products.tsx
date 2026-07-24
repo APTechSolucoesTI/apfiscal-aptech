@@ -117,6 +117,7 @@ function ProductsPage() {
   const remove = useServerFn(deleteProduct);
   const removeMany = useServerFn(deleteProducts);
   const listClass = useServerFn(listClassifications);
+  const nextCodeFn = useServerFn(getNextProductCode);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["produtos", companyId],

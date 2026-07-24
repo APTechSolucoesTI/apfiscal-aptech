@@ -516,12 +516,30 @@ function ProductsPage() {
 
             <TabsContent value="classif" className="space-y-4">
               <div className="grid grid-cols-1 gap-3">
-                <ClassifSelect label="Família" value={form.familia_id ?? null} options={familias as any[]}
-                  onChange={(v) => setForm({ ...form, familia_id: v })} />
-                <ClassifSelect label="Grupo" value={form.grupo_id ?? null} options={grupos as any[]}
-                  onChange={(v) => setForm({ ...form, grupo_id: v })} />
-                <ClassifSelect label="Sub Grupo" value={form.subgrupo_id ?? null} options={subgrupos as any[]}
-                  onChange={(v) => setForm({ ...form, subgrupo_id: v })} />
+                <ClassifSelect
+                  label="Família"
+                  value={form.familia_id ?? null}
+                  options={familias as any[]}
+                  onChange={(v) => setForm({ ...form, familia_id: v, grupo_id: null, subgrupo_id: null })}
+                />
+                <ClassifSelect
+                  label="Grupo"
+                  value={form.grupo_id ?? null}
+                  options={gruposFiltrados}
+                  disabled={!form.familia_id}
+                  placeholder={!form.familia_id ? "Selecione a Família primeiro" : undefined}
+                  emptyMessage="Nenhum grupo cadastrado para esta família"
+                  onChange={(v) => setForm({ ...form, grupo_id: v, subgrupo_id: null })}
+                />
+                <ClassifSelect
+                  label="Sub Grupo"
+                  value={form.subgrupo_id ?? null}
+                  options={subgruposFiltrados}
+                  disabled={!form.grupo_id}
+                  placeholder={!form.grupo_id ? "Selecione o Grupo primeiro" : undefined}
+                  emptyMessage="Nenhum subgrupo cadastrado para este grupo"
+                  onChange={(v) => setForm({ ...form, subgrupo_id: v })}
+                />
               </div>
               <p className="text-xs text-slate-500">
                 Cadastre as opções em <a className="underline" href="/classifications">Classificações</a>.

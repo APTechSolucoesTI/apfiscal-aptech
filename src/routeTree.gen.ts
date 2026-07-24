@@ -23,8 +23,10 @@ import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCompaniesRouteImport } from './routes/_authenticated/companies'
 import { Route as AuthenticatedClassificationsRouteImport } from './routes/_authenticated/classifications'
+import { Route as AuthenticatedSettingsPlanoContasRouteImport } from './routes/_authenticated/settings.plano-contas'
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings.members'
 import { Route as AuthenticatedSettingsCertificatesRouteImport } from './routes/_authenticated/settings.certificates'
+import { Route as AuthenticatedSettingsCentrosCustoRouteImport } from './routes/_authenticated/settings.centros-custo'
 import { Route as AuthenticatedSettingsCatalogRouteImport } from './routes/_authenticated/settings.catalog'
 import { Route as AuthenticatedSettingsApiRouteImport } from './routes/_authenticated/settings.api'
 import { Route as AuthenticatedDocumentsNfseRouteImport } from './routes/_authenticated/documents.nfse'
@@ -103,6 +105,12 @@ const AuthenticatedClassificationsRoute =
     path: '/classifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsPlanoContasRoute =
+  AuthenticatedSettingsPlanoContasRouteImport.update({
+    id: '/plano-contas',
+    path: '/plano-contas',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsMembersRoute =
   AuthenticatedSettingsMembersRouteImport.update({
     id: '/members',
@@ -113,6 +121,12 @@ const AuthenticatedSettingsCertificatesRoute =
   AuthenticatedSettingsCertificatesRouteImport.update({
     id: '/certificates',
     path: '/certificates',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsCentrosCustoRoute =
+  AuthenticatedSettingsCentrosCustoRouteImport.update({
+    id: '/centros-custo',
+    path: '/centros-custo',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedSettingsCatalogRoute =
@@ -170,8 +184,10 @@ export interface FileRoutesByFullPath {
   '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/settings/api': typeof AuthenticatedSettingsApiRoute
   '/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
+  '/settings/centros-custo': typeof AuthenticatedSettingsCentrosCustoRoute
   '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
+  '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
   '/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
@@ -193,8 +209,10 @@ export interface FileRoutesByTo {
   '/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/settings/api': typeof AuthenticatedSettingsApiRoute
   '/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
+  '/settings/centros-custo': typeof AuthenticatedSettingsCentrosCustoRoute
   '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
+  '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
   '/documents/nfe': typeof AuthenticatedDocumentsNfeIndexRoute
 }
@@ -218,8 +236,10 @@ export interface FileRoutesById {
   '/_authenticated/documents/nfse': typeof AuthenticatedDocumentsNfseRoute
   '/_authenticated/settings/api': typeof AuthenticatedSettingsApiRoute
   '/_authenticated/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
+  '/_authenticated/settings/centros-custo': typeof AuthenticatedSettingsCentrosCustoRoute
   '/_authenticated/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
+  '/_authenticated/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/_authenticated/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
   '/_authenticated/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
@@ -243,8 +263,10 @@ export interface FileRouteTypes {
     | '/documents/nfse'
     | '/settings/api'
     | '/settings/catalog'
+    | '/settings/centros-custo'
     | '/settings/certificates'
     | '/settings/members'
+    | '/settings/plano-contas'
     | '/documents/nfe/$nfeId'
     | '/documents/nfe/'
   fileRoutesByTo: FileRoutesByTo
@@ -266,8 +288,10 @@ export interface FileRouteTypes {
     | '/documents/nfse'
     | '/settings/api'
     | '/settings/catalog'
+    | '/settings/centros-custo'
     | '/settings/certificates'
     | '/settings/members'
+    | '/settings/plano-contas'
     | '/documents/nfe/$nfeId'
     | '/documents/nfe'
   id:
@@ -290,8 +314,10 @@ export interface FileRouteTypes {
     | '/_authenticated/documents/nfse'
     | '/_authenticated/settings/api'
     | '/_authenticated/settings/catalog'
+    | '/_authenticated/settings/centros-custo'
     | '/_authenticated/settings/certificates'
     | '/_authenticated/settings/members'
+    | '/_authenticated/settings/plano-contas'
     | '/_authenticated/documents/nfe/$nfeId'
     | '/_authenticated/documents/nfe/'
   fileRoutesById: FileRoutesById
@@ -403,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClassificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/plano-contas': {
+      id: '/_authenticated/settings/plano-contas'
+      path: '/plano-contas'
+      fullPath: '/settings/plano-contas'
+      preLoaderRoute: typeof AuthenticatedSettingsPlanoContasRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/settings/members': {
       id: '/_authenticated/settings/members'
       path: '/members'
@@ -415,6 +448,13 @@ declare module '@tanstack/react-router' {
       path: '/certificates'
       fullPath: '/settings/certificates'
       preLoaderRoute: typeof AuthenticatedSettingsCertificatesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/centros-custo': {
+      id: '/_authenticated/settings/centros-custo'
+      path: '/centros-custo'
+      fullPath: '/settings/centros-custo'
+      preLoaderRoute: typeof AuthenticatedSettingsCentrosCustoRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/settings/catalog': {
@@ -485,16 +525,21 @@ const AuthenticatedDocumentsRouteWithChildren =
 interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsApiRoute: typeof AuthenticatedSettingsApiRoute
   AuthenticatedSettingsCatalogRoute: typeof AuthenticatedSettingsCatalogRoute
+  AuthenticatedSettingsCentrosCustoRoute: typeof AuthenticatedSettingsCentrosCustoRoute
   AuthenticatedSettingsCertificatesRoute: typeof AuthenticatedSettingsCertificatesRoute
   AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
+  AuthenticatedSettingsPlanoContasRoute: typeof AuthenticatedSettingsPlanoContasRoute
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsApiRoute: AuthenticatedSettingsApiRoute,
   AuthenticatedSettingsCatalogRoute: AuthenticatedSettingsCatalogRoute,
+  AuthenticatedSettingsCentrosCustoRoute:
+    AuthenticatedSettingsCentrosCustoRoute,
   AuthenticatedSettingsCertificatesRoute:
     AuthenticatedSettingsCertificatesRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,
+  AuthenticatedSettingsPlanoContasRoute: AuthenticatedSettingsPlanoContasRoute,
 }
 
 const AuthenticatedSettingsRouteWithChildren =
@@ -541,13 +586,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

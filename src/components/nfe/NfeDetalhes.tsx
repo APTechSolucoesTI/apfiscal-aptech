@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 import { NfeItemLinkDialog } from "./NfeItemLinkDialog";
+import { NfeFinanceiro } from "./NfeFinanceiro";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
@@ -211,6 +212,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           {[
             ["resumo", "Resumo"],
             ["items", "Itens"],
+            ["financeiro", "Financeiro"],
             ["impostos", "Impostos"],
             ["transporte", "Transporte"],
             ["cobranca", "Cobrança"],
@@ -384,7 +386,12 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
               </Card>
             </TabsContent>
 
+            <TabsContent value="financeiro" className="m-0">
+              <NfeFinanceiro doc={doc} items={items} />
+            </TabsContent>
+
             <TabsContent value="impostos" className="m-0 space-y-4">
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">ICMS</CardTitle></CardHeader>

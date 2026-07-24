@@ -13,6 +13,7 @@ import {
   Users,
   Package,
   Layers,
+  Wallet,
 } from "lucide-react";
 import { 
   Sidebar, 
@@ -82,6 +83,15 @@ const menuItems = [
     title: "Notificações",
     icon: Bell,
     url: "/notifications",
+  },
+  {
+    title: "Cadastros Financeiros",
+    icon: Wallet,
+    url: "/settings/centros-custo",
+    subItems: [
+      { title: "Centros de Custo", url: "/settings/centros-custo" },
+      { title: "Plano de Contas", url: "/settings/plano-contas" },
+    ]
   },
   {
     title: "Configurações",

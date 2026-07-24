@@ -13,6 +13,7 @@ import {
   Users,
   Package,
   Layers,
+  Wallet,
 } from "lucide-react";
 import { 
   Sidebar, 

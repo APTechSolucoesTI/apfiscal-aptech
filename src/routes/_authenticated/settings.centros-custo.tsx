@@ -18,8 +18,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Loader2, Wallet } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, Wallet, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
+
+const ccImportFields: ImportField[] = [
+  { key: "codigo", label: "Código", required: true, aliases: ["codigo", "cod", "codigocentrocusto", "centrocusto"] },
+  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "nome", "titulo"] },
+  { key: "ativo", label: "Ativo", aliases: ["status", "ativo", "situacao"] },
+];
+
+function parseAtivo(v: unknown): boolean {
+  if (v == null || v === "") return true;
+  if (typeof v === "boolean") return v;
+  return ["1", "true", "sim", "ativo", "s", "y", "yes"].includes(String(v).trim().toLowerCase());
+}
+
+function normalizeCodigoCC(raw: unknown): string {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (d.length !== 6) throw new Error("Código deve ter 6 dígitos (99.9999)");
+  return `${d.slice(0, 2)}.${d.slice(2)}`;
+}
 
 export const Route = createFileRoute("/_authenticated/settings/centros-custo")({
   component: CentrosCustoPage,
@@ -47,6 +66,7 @@ function CentrosCustoPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"todos" | "ativos" | "inativos">("todos");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [confirmInativar, setConfirmInativar] = useState<any | null>(null);
   const [confirmExcluir, setConfirmExcluir] = useState<any | null>(null);
   const [form, setForm] = useState<CentroCustoInput>({ company_id: "", codigo: "", descricao: "", ativo: true });
@@ -155,7 +175,12 @@ function CentrosCustoPage() {
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código ou descrição" className="pl-9" />
               </div>
             </div>
-            <Button onClick={openNew} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Novo Centro de Custo</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={(companies as any[]).length === 0}>
+                <Upload className="h-4 w-4 mr-1" /> Importar XLSX
+              </Button>
+              <Button onClick={openNew} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Novo Centro de Custo</Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -203,6 +228,36 @@ function CentrosCustoPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <ImportXlsxDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Centros de Custo via Excel"
+        description="Selecione a empresa e envie a planilha. As colunas são mapeadas automaticamente."
+        fields={ccImportFields}
+        companies={(companies as any[]).map((c) => ({ id: c.id, label: c.nome_fantasia ?? c.razao_social }))}
+        requireCompanySelection
+        buildRow={(m, ctx) => {
+          if (!ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
+          const codigo = normalizeCodigoCC(m.codigo);
+          const descricao = String(m.descricao ?? "").trim();
+          if (!descricao) throw new Error("Descrição obrigatória");
+          return { company_id: ctx.companyId, codigo, descricao, ativo: parseAtivo(m.ativo) } as CentroCustoInput;
+        }}
+        checkDuplicate={async (row) => {
+          const { count, error } = await supabase
+            .from("centros_custo")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", row.company_id)
+            .eq("codigo", row.codigo);
+          if (error) return false;
+          return (count ?? 0) > 0;
+        }}
+        onImportRow={async (row) => { await saveFn({ data: row }); }}
+        onDone={() => qc.invalidateQueries({ queryKey: ["centros-custo"] })}
+      />
+
+
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

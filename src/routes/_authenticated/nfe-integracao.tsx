@@ -170,7 +170,7 @@ function NfeIntegracao() {
     try {
       const r = await sincronizar(empresaFiltro);
       toast.success(
-        `${r.novosDocumentos} novas notas encontradas, ${r.xmlsResumidosBaixados} XMLs resumidos baixados.`,
+        `${r.novosDocumentos} novas notas encontradas, ${r.xmlsResumidosBaixados} XMLs resumidos, ${r.xmlsCompletosBaixados} XMLs completos, ${r.notasImportadas} NF-e importadas.`,
       );
       if (r.erros.length) toast.warning(`${r.erros.length} ocorrência(s): ${r.erros[0].mensagem}`);
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-documentos"] });

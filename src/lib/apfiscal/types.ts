@@ -51,6 +51,8 @@ export type HistoricoIntegracao = {
 export type ResultadoSincronizacao = {
   novosDocumentos: number;
   xmlsResumidosBaixados: number;
+  xmlsCompletosBaixados: number;
+  notasImportadas: number;
   ultimoNsu: number;
   erros: { chave?: string; nsu?: number; mensagem: string }[];
 };

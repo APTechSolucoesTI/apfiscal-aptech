@@ -279,6 +279,138 @@ export type Database = {
           },
         ]
       }
+      documentos_fiscais_integracao: {
+        Row: {
+          chave: string
+          company_id: string
+          created_at: string
+          data_emissao: string | null
+          emitente_cnpj: string | null
+          emitente_ie: string | null
+          emitente_nome: string | null
+          id: string
+          mensagem_sefaz: string | null
+          nsu: number
+          organization_id: string
+          protocolo: string | null
+          status: Database["public"]["Enums"]["doc_integracao_status"]
+          tentativas_xml_completo: number
+          tipo_documento: string | null
+          updated_at: string
+          valor_nota: number | null
+          xml_completo_path: string | null
+          xml_resumido_path: string | null
+        }
+        Insert: {
+          chave: string
+          company_id: string
+          created_at?: string
+          data_emissao?: string | null
+          emitente_cnpj?: string | null
+          emitente_ie?: string | null
+          emitente_nome?: string | null
+          id?: string
+          mensagem_sefaz?: string | null
+          nsu: number
+          organization_id: string
+          protocolo?: string | null
+          status?: Database["public"]["Enums"]["doc_integracao_status"]
+          tentativas_xml_completo?: number
+          tipo_documento?: string | null
+          updated_at?: string
+          valor_nota?: number | null
+          xml_completo_path?: string | null
+          xml_resumido_path?: string | null
+        }
+        Update: {
+          chave?: string
+          company_id?: string
+          created_at?: string
+          data_emissao?: string | null
+          emitente_cnpj?: string | null
+          emitente_ie?: string | null
+          emitente_nome?: string | null
+          id?: string
+          mensagem_sefaz?: string | null
+          nsu?: number
+          organization_id?: string
+          protocolo?: string | null
+          status?: Database["public"]["Enums"]["doc_integracao_status"]
+          tentativas_xml_completo?: number
+          tipo_documento?: string | null
+          updated_at?: string
+          valor_nota?: number | null
+          xml_completo_path?: string | null
+          xml_resumido_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documentos_fiscais_integracao_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_fiscais_integracao_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      empresa_integracoes_fiscais: {
+        Row: {
+          api_key_encrypted: string | null
+          api_key_last4: string | null
+          ativo: boolean
+          company_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          ultimo_nsu: number
+          updated_at: string
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          api_key_last4?: string | null
+          ativo?: boolean
+          company_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          ultimo_nsu?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          api_key_last4?: string | null
+          ativo?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          ultimo_nsu?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "empresa_integracoes_fiscais_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "empresa_integracoes_fiscais_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       familias: {
         Row: {
           codigo: string
@@ -677,6 +809,67 @@ export type Database = {
           },
           {
             foreignKeyName: "grupos_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historico_integracao_fiscal: {
+        Row: {
+          acao: string
+          company_id: string
+          created_at: string
+          documento_id: string | null
+          id: string
+          mensagem: string | null
+          organization_id: string
+          payload_bruto: Json | null
+          status_http: number | null
+          sucesso: boolean
+        }
+        Insert: {
+          acao: string
+          company_id: string
+          created_at?: string
+          documento_id?: string | null
+          id?: string
+          mensagem?: string | null
+          organization_id: string
+          payload_bruto?: Json | null
+          status_http?: number | null
+          sucesso?: boolean
+        }
+        Update: {
+          acao?: string
+          company_id?: string
+          created_at?: string
+          documento_id?: string | null
+          id?: string
+          mensagem?: string | null
+          organization_id?: string
+          payload_bruto?: Json | null
+          status_http?: number | null
+          sucesso?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_integracao_fiscal_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_integracao_fiscal_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documentos_fiscais_integracao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_integracao_fiscal_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1338,6 +1531,12 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "financeiro" | "visualizador"
+      doc_integracao_status:
+        | "resumida"
+        | "manifestacao_pendente"
+        | "aguardando_xml_completo"
+        | "completa"
+        | "erro"
       document_type: "nfe" | "nfse" | "cte"
     }
     CompositeTypes: {
@@ -1467,6 +1666,13 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "financeiro", "visualizador"],
+      doc_integracao_status: [
+        "resumida",
+        "manifestacao_pendente",
+        "aguardando_xml_completo",
+        "completa",
+        "erro",
+      ],
       document_type: ["nfe", "nfse", "cte"],
     },
   },

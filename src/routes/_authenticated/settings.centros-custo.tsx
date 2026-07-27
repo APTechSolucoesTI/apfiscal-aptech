@@ -37,7 +37,8 @@ function parseAtivo(v: unknown): boolean {
 
 function normalizeCodigoCC(raw: unknown): string {
   const d = String(raw ?? "").replace(/\D/g, "");
-  if (d.length !== 6) throw new Error("Código deve ter 6 dígitos (99.9999)");
+  if (d.length === 2) return d;
+  if (d.length !== 6) throw new Error("Código deve ter 2 dígitos (99) ou 6 dígitos (99.9999)");
   return `${d.slice(0, 2)}.${d.slice(2)}`;
 }
 

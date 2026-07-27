@@ -37,7 +37,8 @@ function parseAtivo(v: unknown): boolean {
 
 function normalizeCodigoCC(raw: unknown): string {
   const d = String(raw ?? "").replace(/\D/g, "");
-  if (d.length !== 6) throw new Error("Código deve ter 6 dígitos (99.9999)");
+  if (d.length === 2) return d;
+  if (d.length !== 6) throw new Error("Código deve ter 2 dígitos (99) ou 6 dígitos (99.9999)");
   return `${d.slice(0, 2)}.${d.slice(2)}`;
 }
 
@@ -295,7 +296,7 @@ function CentrosCustoPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar" : "Novo"} Centro de Custo</DialogTitle>
-            <DialogDescription>Preencha os campos abaixo. Código no formato 99.9999.</DialogDescription>
+            <DialogDescription>Preencha os campos abaixo. Código no formato 99 (sintético) ou 99.9999.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <div>
@@ -322,8 +323,8 @@ function CentrosCustoPage() {
                 maxLength={7}
                 className="font-mono"
               />
-              {form.codigo && !/^\d{2}\.\d{4}$/.test(form.codigo) && (
-                <p className="text-xs text-red-600 mt-1">Formato inválido. Use 99.9999</p>
+              {form.codigo && !/^\d{2}(\.\d{4})?$/.test(form.codigo) && (
+                <p className="text-xs text-red-600 mt-1">Formato inválido. Use 99 ou 99.9999</p>
               )}
             </div>
             <div>
@@ -339,7 +340,7 @@ function CentrosCustoPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button
               onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !/^\d{2}\.\d{4}$/.test(form.codigo) || !form.descricao.trim()}
+              disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !/^\d{2}(\.\d{4})?$/.test(form.codigo) || !form.descricao.trim()}
             >
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>

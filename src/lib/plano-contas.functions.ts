@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type PlanoContasInput = {
   id?: string;
-  company_id: string;
+  company_id: string | null;
   conta_pai_id?: string | null;
   codigo: string;
   descricao: string;
@@ -18,11 +18,16 @@ function codigoValido(c: string) {
   return NIVEL1.test(c) || NIVEL2.test(c) || NIVEL3.test(c);
 }
 
-async function orgIdOfCompany(context: any, companyId: string): Promise<string> {
-  const { data, error } = await context.supabase
-    .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
-  if (error || !data) throw new Error("Empresa não encontrada");
-  return data.organization_id as string;
+async function orgIdOf(context: any, companyId: string | null): Promise<string> {
+  if (companyId) {
+    const { data, error } = await context.supabase
+      .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
+    if (error || !data) throw new Error("Empresa não encontrada");
+    return data.organization_id as string;
+  }
+  const { data: orgId, error } = await context.supabase.rpc("ensure_user_organization");
+  if (error || !orgId) throw new Error("Organização não encontrada");
+  return orgId as string;
 }
 
 export const listPlanoContas = createServerFn({ method: "GET" })
@@ -30,13 +35,15 @@ export const listPlanoContas = createServerFn({ method: "GET" })
   .inputValidator((data: { companyId?: string; apenasLancaveis?: boolean; apenasAtivos?: boolean }) => data)
   .handler(async ({ data, context }) => {
     let q = (context.supabase as any).from("plano_contas").select("*").order("codigo");
-    if (data.companyId) q = q.eq("company_id", data.companyId);
+    // Quando uma empresa é informada, inclui também os cadastros globais (company_id IS NULL)
+    if (data.companyId) q = q.or(`company_id.eq.${data.companyId},company_id.is.null`);
     if (data.apenasLancaveis) q = q.eq("permite_lancamentos", true);
     if (data.apenasAtivos) q = q.eq("ativo", true);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []) as any[];
   });
+
 
 export const proximoCodigoPlanoContas = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

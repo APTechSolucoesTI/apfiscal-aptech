@@ -106,7 +106,9 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const emit = (doc.emitente ?? {}) as any;
   const dest = (doc.destinatario ?? {}) as any;
   const totais = (doc.totais ?? {}) as any;
+  const ibscbsTotais = getTotaisIbsCbs(totais, doc.raw_payload, items);
   const transp = (doc.transporte ?? {}) as any;
+
   const cobr = (doc.cobranca ?? null) as any;
   const pag = (doc.pagamentos ?? null) as any;
   const infAdic = (doc.inf_adicional ?? {}) as any;

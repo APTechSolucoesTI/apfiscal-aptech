@@ -327,7 +327,7 @@ function NFeList() {
           ) : sortedDocs.length === 0 ? (
             <div className="text-center py-16 text-slate-500">
               <p className="font-medium">Nenhuma NF-e capturada ainda.</p>
-              <p className="text-sm mt-1">Cadastre uma empresa com certificado A1 para começar a receber notas.</p>
+              <p className="text-sm mt-1">Importe um XML ou configure a integração fiscal da empresa para começar a receber notas.</p>
             </div>
           ) : (
             <Table>

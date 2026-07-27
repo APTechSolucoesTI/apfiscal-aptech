@@ -16,14 +16,10 @@ import {
 import { Label } from "@/components/ui/label";
 import {
   Activity,
-  AlertTriangle,
   CheckCircle2,
   Clock,
   Loader2,
   RefreshCw,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldX,
   Sparkles,
   Zap,
   FileText,
@@ -67,17 +63,13 @@ function formatRelative(dateISO?: string | null) {
   return `há ${d} d`;
 }
 
-function formatFull(dateISO?: string | null) {
-  if (!dateISO) return "";
-  return new Date(dateISO).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-}
-
 function formatDate(dateISO: string) {
   return new Date(dateISO).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
-function daysUntil(dateISO: string) {
-  return Math.ceil((new Date(dateISO).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+function formatFull(dateISO?: string | null) {
+  if (!dateISO) return "";
+  return new Date(dateISO).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
 // ---------- Component ----------
@@ -102,22 +94,6 @@ function MonitoringPage() {
   if (empresas && empresas.length > 0 && !selectedId) {
     setSelectedId(empresas[0].id);
   }
-
-  const { data: certificate } = useQuery({
-    queryKey: ["monitoring", "cert", selectedId],
-    enabled: !!selectedId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("digital_certificates")
-        .select("expires_at, status, type")
-        .eq("company_id", selectedId)
-        .order("expires_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
 
   const { data: docs, isLoading: loadingDocs } = useQuery({
     queryKey: ["monitoring", "docs", selectedId],
@@ -164,10 +140,6 @@ function MonitoringPage() {
     const cutoff = Date.now() - 1000 * 60 * 60 * 24;
     return docs.filter((d) => d.created_at && new Date(d.created_at).getTime() >= cutoff).length;
   }, [docs]);
-
-  const certDias = certificate ? daysUntil(certificate.expires_at) : null;
-  const certVencido = certDias !== null && certDias < 0;
-  const certProximo = certDias !== null && certDias >= 0 && certDias < 30;
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -252,37 +224,6 @@ function MonitoringPage() {
                 {empresa.uf ? ` · ${empresa.uf}` : ""}
               </CardDescription>
               <div className="flex flex-wrap gap-2 mt-3">
-                {certificate ? (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "gap-1",
-                      certVencido
-                        ? "bg-red-50 text-red-700 border-red-200"
-                        : certProximo
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-green-50 text-green-700 border-green-200",
-                    )}
-                  >
-                    {certVencido ? (
-                      <ShieldX className="h-3 w-3" />
-                    ) : certProximo ? (
-                      <ShieldAlert className="h-3 w-3" />
-                    ) : (
-                      <ShieldCheck className="h-3 w-3" />
-                    )}
-                    {certVencido
-                      ? "Certificado vencido"
-                      : certProximo
-                        ? `Vence em ${certDias} dias`
-                        : `Válido até ${formatDate(certificate.expires_at)}`}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="gap-1 bg-slate-50 text-slate-600 border-slate-200">
-                    <ShieldAlert className="h-3 w-3" />
-                    Sem certificado
-                  </Badge>
-                )}
                 <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
                   <Clock className="h-3 w-3 mr-1" />
                   Última sincronização:{" "}
@@ -300,15 +241,8 @@ function MonitoringPage() {
               <Button
                 size="lg"
                 onClick={handleRefresh}
-                disabled={refreshing || !certificate || certVencido}
+                disabled={refreshing}
                 className="gap-2 min-w-[220px]"
-                title={
-                  !certificate
-                    ? "Cadastre um certificado para buscar"
-                    : certVencido
-                      ? "Renove o certificado para buscar"
-                      : undefined
-                }
               >
                 {refreshing ? (
                   <>
@@ -325,41 +259,6 @@ function MonitoringPage() {
             </div>
           </div>
         </CardHeader>
-        {certVencido && (
-          <CardContent>
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 border border-red-200">
-              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold text-red-900">Certificado digital vencido</p>
-                <p className="text-sm text-red-700 mt-1">
-                  A busca automática está pausada. Renove o certificado A1 para
-                  retomar o monitoramento.
-                </p>
-              </div>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/settings/certificates">Renovar certificado</Link>
-              </Button>
-            </div>
-          </CardContent>
-        )}
-        {!certificate && (
-          <CardContent>
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
-              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold text-amber-900">
-                  Nenhum certificado digital vinculado
-                </p>
-                <p className="text-sm text-amber-700 mt-1">
-                  Vincule um certificado A1 para permitir a busca de NF-e na SEFAZ.
-                </p>
-              </div>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/settings/certificates">Adicionar certificado</Link>
-              </Button>
-            </div>
-          </CardContent>
-        )}
       </Card>
 
       {/* Novidades */}

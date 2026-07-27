@@ -177,7 +177,7 @@ function Dashboard() {
             <CardContent className="h-[320px]">
               {(data?.total ?? 0) === 0 ? (
                 <div className="flex items-center justify-center h-full text-sm text-slate-500">
-                  Sem documentos no período. Capture NF-e via certificado A1 para popular o gráfico.
+                  Sem documentos no período. Importe ou sincronize NF-e para popular o gráfico.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">

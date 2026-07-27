@@ -880,6 +880,67 @@ export type Database = {
           },
         ]
       }
+      locais_estoque: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          codigo_pai_id: string | null
+          company_id: string | null
+          created_at: string
+          descricao: string
+          id: string
+          organization_id: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          codigo_pai_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          descricao: string
+          id?: string
+          organization_id: string
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          codigo_pai_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          descricao?: string
+          id?: string
+          organization_id?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "locais_estoque_codigo_pai_id_fkey"
+            columns: ["codigo_pai_id"]
+            isOneToOne: false
+            referencedRelation: "locais_estoque"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "locais_estoque_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "locais_estoque_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       manifestations: {
         Row: {
           created_at: string | null

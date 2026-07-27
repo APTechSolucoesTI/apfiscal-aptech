@@ -66,6 +66,7 @@ function CentrosCustoPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"todos" | "ativos" | "inativos">("todos");
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [confirmInativar, setConfirmInativar] = useState<any | null>(null);
   const [confirmExcluir, setConfirmExcluir] = useState<any | null>(null);
   const [form, setForm] = useState<CentroCustoInput>({ company_id: "", codigo: "", descricao: "", ativo: true });

@@ -65,6 +65,7 @@ import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-prefere
 import { ColumnSettings } from "@/components/common/ColumnSettings";
 import { TablePagination } from "@/components/common/TablePagination";
 import { supabase } from "@/integrations/supabase/client";
+import { IntegracaoFiscalForm } from "@/components/nfe/IntegracaoFiscalForm";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/companies")({
@@ -535,6 +536,9 @@ function Companies() {
                   <TabsTrigger value="fiscais" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
                     Dados Fiscais
                   </TabsTrigger>
+                  <TabsTrigger value="integracao" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
+                    Integração Fiscal (NF-e)
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -686,6 +690,10 @@ function Companies() {
                         )}
                       </div>
                     </div>
+                  </TabsContent>
+
+                  <TabsContent value="integracao" className="mt-0 space-y-6">
+                    <IntegracaoFiscalForm companyId={editingId} />
                   </TabsContent>
                 </div>
               </ScrollArea>

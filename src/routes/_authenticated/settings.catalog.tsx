@@ -15,9 +15,9 @@ export const Route = createFileRoute("/_authenticated/settings/catalog")({
   head: () => ({
     meta: [
       { title: "Cadastros Globais | APFiscal" },
-      { name: "description", content: "Configure se fornecedores e produtos são compartilhados por todas as empresas ou vinculados a uma empresa específica." },
+      { name: "description", content: "Configure se fornecedores, produtos, plano de contas e centros de custo são compartilhados por todas as empresas ou vinculados a uma empresa específica." },
       { property: "og:title", content: "Cadastros Globais | APFiscal" },
-      { property: "og:description", content: "Defina o escopo do catálogo de fornecedores e produtos na sua organização." },
+      { property: "og:description", content: "Defina o escopo dos cadastros de fornecedores, produtos, plano de contas e centros de custo na sua organização." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -40,6 +40,8 @@ function CatalogSettingsPage() {
       qc.invalidateQueries({ queryKey: ["org-settings"] });
       qc.invalidateQueries({ queryKey: ["suppliers"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["plano-contas"] });
+      qc.invalidateQueries({ queryKey: ["centros-custo"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -47,15 +49,15 @@ function CatalogSettingsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Cadastros de Fornecedores e Produtos</h1>
-        <p className="text-sm text-slate-500">Escolha se o catálogo é compartilhado por todas as empresas da organização ou vinculado a uma empresa específica.</p>
+        <h1 className="text-2xl font-bold tracking-tight">Cadastros Globais</h1>
+        <p className="text-sm text-slate-500">Escolha se os cadastros de Fornecedores, Produtos (Famílias, Grupos e Subgrupos), Plano de Contas e Centros de Custo são compartilhados por todas as empresas da organização ou vinculados a uma empresa específica.</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Escopo do Catálogo</CardTitle>
+          <CardTitle>Escopo dos Cadastros</CardTitle>
           <CardDescription>
-            Essa configuração afeta como novos fornecedores e produtos são vinculados. Registros já cadastrados continuam com o vínculo original.
+            Aplica-se a Fornecedores, Produtos (Famílias, Grupos e Subgrupos), Plano de Contas e Centros de Custo. Essa configuração afeta como novos registros são vinculados. Registros já cadastrados continuam com o vínculo original.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -71,7 +73,7 @@ function CatalogSettingsPage() {
                       <Globe2 className="h-4 w-4 text-primary" /> Cadastro Global
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                      Fornecedores e produtos ficam disponíveis para todas as empresas cadastradas no tenant. Ideal para grupos empresariais que compartilham catálogo.
+                      Fornecedores, produtos, plano de contas e centros de custo ficam disponíveis para todas as empresas cadastradas no tenant. Ideal para grupos empresariais que compartilham cadastros.
                     </p>
                   </div>
                 </label>
@@ -82,7 +84,7 @@ function CatalogSettingsPage() {
                       <Building2 className="h-4 w-4 text-primary" /> Cadastro por Empresa
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                      Cada fornecedor e produto é vinculado a uma empresa específica. O usuário deverá selecionar a empresa ao cadastrar.
+                      Cada fornecedor, produto, conta contábil e centro de custo é vinculado a uma empresa específica. O usuário deverá selecionar a empresa ao cadastrar.
                     </p>
                   </div>
                 </label>

@@ -175,7 +175,12 @@ function CentrosCustoPage() {
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código ou descrição" className="pl-9" />
               </div>
             </div>
-            <Button onClick={openNew} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Novo Centro de Custo</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={(companies as any[]).length === 0}>
+                <Upload className="h-4 w-4 mr-1" /> Importar XLSX
+              </Button>
+              <Button onClick={openNew} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Novo Centro de Custo</Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

@@ -1,0 +1,2 @@
+ALTER TABLE public.centros_custo DROP CONSTRAINT IF EXISTS centros_custo_codigo_formato;
+ALTER TABLE public.centros_custo ADD CONSTRAINT centros_custo_codigo_formato CHECK (codigo ~ '^[0-9]{2}(\.[0-9]{4})?$');

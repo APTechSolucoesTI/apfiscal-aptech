@@ -110,7 +110,7 @@ function Notifications() {
           <div className="flex items-center justify-between">
             <div>
               <Label className="text-base">Notificações por e-mail</Label>
-              <p className="text-sm text-slate-500">Receba alertas de novas NF-e e vencimento de certificados.</p>
+              <p className="text-sm text-slate-500">Receba alertas de novas NF-e e pendências de manifestação.</p>
             </div>
             <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
           </div>

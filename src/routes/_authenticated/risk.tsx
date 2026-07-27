@@ -12,7 +12,7 @@ function RiskManagement() {
   const { data, isLoading } = useQuery({
     queryKey: ["risk", "summary"],
     queryFn: async () => {
-      const [pendingRes, riskRes, expiringCertsRes] = await Promise.all([
+      const [pendingRes, riskRes] = await Promise.all([
         supabase
           .from("fiscal_documents")
           .select("id", { count: "exact", head: true })
@@ -21,23 +21,12 @@ function RiskManagement() {
           .from("fiscal_documents")
           .select("id", { count: "exact", head: true })
           .eq("risk_flag", true),
-        supabase
-          .from("digital_certificates")
-          .select("id, expires_at"),
       ]);
       if (pendingRes.error) throw pendingRes.error;
       if (riskRes.error) throw riskRes.error;
-      if (expiringCertsRes.error) throw expiringCertsRes.error;
-      const now = Date.now();
-      const expiring = (expiringCertsRes.data ?? []).filter((c) => {
-        if (!c.expires_at) return false;
-        const days = (new Date(c.expires_at).getTime() - now) / 86400000;
-        return days < 30;
-      }).length;
       return {
         pending: pendingRes.count ?? 0,
         risk: riskRes.count ?? 0,
-        expiring,
       };
     },
   });
@@ -55,12 +44,6 @@ function RiskManagement() {
       level: (data?.risk ?? 0) > 0 ? "medium" : "low",
       description: "Notas sinalizadas com indicadores de irregularidade.",
     },
-    {
-      title: "Certificados a Vencer",
-      count: data?.expiring ?? 0,
-      level: (data?.expiring ?? 0) > 0 ? "medium" : "low",
-      description: "Certificados A1 com vencimento em menos de 30 dias.",
-    },
   ];
 
   return (
@@ -73,7 +56,7 @@ function RiskManagement() {
       {isLoading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {risks.map((risk, i) => {
             const isLow = risk.level === "low";
             const borderColor =

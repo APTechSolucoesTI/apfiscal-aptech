@@ -55,10 +55,16 @@ export async function getIntegracao(companyId: string): Promise<IntegracaoEmpres
 
 async function apiKeyFor(companyId: string, integracao?: IntegracaoEmpresa): Promise<string> {
   const rec = integracao ?? (await getIntegracao(companyId));
-  if (!rec.ativo) throw new ApfiscalApiError(403, "Integração fiscal desativada para esta empresa.");
+  if (!rec.ativo) {
+    throw new ApfiscalApiError(
+      null,
+      'Integração fiscal desativada nesta empresa. Ative o botão "Integração ativa" no cadastro da empresa.',
+    );
+  }
   if (!rec.api_key_encrypted) throw new ApfiscalApiError(401, "Chave de API não cadastrada para esta empresa.");
   return decryptApiKey(rec.api_key_encrypted);
 }
+
 
 async function request(
   companyId: string,

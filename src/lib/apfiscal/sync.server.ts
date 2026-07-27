@@ -144,15 +144,23 @@ async function executarSincronizacao(
     }
 
     for (const doc of novos) {
-      if (doc.tipo !== "nfe_resumida") continue;
+      const tipo = (doc.tipo ?? "").toLowerCase();
       try {
-        const xml = await baixarNfeResumida(companyId, doc.nsu);
-        const path = await salvarXml(companyId, `resumida-${doc.chave}.xml`, xml);
-        await supabaseAdmin
-          .from("documentos_fiscais_integracao")
-          .update({ xml_resumido_path: path, status: "resumida" } as never)
-          .eq("id", doc.id);
-        resultado.xmlsResumidosBaixados++;
+        if (tipo.includes("completa")) {
+          // Ciência já dada: o XML completo está disponível — baixa e importa como NF-e.
+          await baixarESalvarXmlCompleto(companyId, doc.chave, doc.id, integ.organization_id);
+          resultado.xmlsCompletosBaixados++;
+          const importado = await importarXmlCompleto(companyId, doc.chave, doc.id, integ.organization_id);
+          if (importado) resultado.notasImportadas++;
+        } else if (tipo === "nfe_resumida" || tipo.includes("resumida")) {
+          const xml = await baixarNfeResumida(companyId, doc.nsu);
+          const path = await salvarXml(companyId, `resumida-${doc.chave}.xml`, xml);
+          await supabaseAdmin
+            .from("documentos_fiscais_integracao")
+            .update({ xml_resumido_path: path, status: "resumida" } as never)
+            .eq("id", doc.id);
+          resultado.xmlsResumidosBaixados++;
+        }
       } catch (e) {
         resultado.erros.push({ chave: doc.chave, nsu: doc.nsu, mensagem: mensagemErro(e) });
       }

@@ -16,6 +16,8 @@ import { unlinkNfeItem } from "@/lib/products.functions";
 import { generateDanfePdfBlobUrl } from "@/lib/danfe-pdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";
+import { getItemIbsCbs, getTotaisIbsCbs } from "@/lib/nfe-ibscbs";
+
 
 const doc_ = (v: unknown) => {
   const s = String(v ?? "").trim();

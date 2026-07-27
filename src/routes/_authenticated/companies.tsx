@@ -443,7 +443,7 @@ function Companies() {
         </Button>
       </div>
     ) },
-  ], [certByCompany]);
+  ], []);
 
   const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("companies", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);

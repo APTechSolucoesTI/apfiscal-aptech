@@ -18,7 +18,7 @@ export class ApfiscalApiError extends Error {
 const STATUS_MESSAGES: Record<number, string> = {
   400: "Parâmetros inválidos enviados à API fiscal.",
   401: "Token da API inválido ou não informado.",
-  403: "Integração desativada ou acesso negado.",
+  403: "Acesso negado pela API fiscal (403): a chave não tem permissão para este CNPJ ou a integração está desativada no servidor da API.",
   404: "Registro ou XML não encontrado.",
   409: "O NSU informado representa um evento, não uma NF-e resumida.",
   422: "Manifestação recusada ou erro retornado pela SEFAZ.",

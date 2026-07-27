@@ -519,6 +519,8 @@ export type Database = {
           id: string
           impostos: Json | null
           inf_adicional: string | null
+          local_estoque_alterado_manualmente: boolean
+          local_estoque_id: string | null
           ncm: string | null
           numero_item: number
           plano_contas_alterado_manualmente: boolean
@@ -551,6 +553,8 @@ export type Database = {
           id?: string
           impostos?: Json | null
           inf_adicional?: string | null
+          local_estoque_alterado_manualmente?: boolean
+          local_estoque_id?: string | null
           ncm?: string | null
           numero_item: number
           plano_contas_alterado_manualmente?: boolean
@@ -583,6 +587,8 @@ export type Database = {
           id?: string
           impostos?: Json | null
           inf_adicional?: string | null
+          local_estoque_alterado_manualmente?: boolean
+          local_estoque_id?: string | null
           ncm?: string | null
           numero_item?: number
           plano_contas_alterado_manualmente?: boolean
@@ -609,6 +615,13 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_document_items_local_estoque_id_fkey"
+            columns: ["local_estoque_id"]
+            isOneToOne: false
+            referencedRelation: "locais_estoque"
             referencedColumns: ["id"]
           },
           {
@@ -645,6 +658,7 @@ export type Database = {
           id: string
           ide: Json | null
           inf_adicional: Json | null
+          local_estoque_id: string | null
           modelo: string | null
           natureza_operacao: string | null
           numero: string
@@ -688,6 +702,7 @@ export type Database = {
           id?: string
           ide?: Json | null
           inf_adicional?: Json | null
+          local_estoque_id?: string | null
           modelo?: string | null
           natureza_operacao?: string | null
           numero: string
@@ -731,6 +746,7 @@ export type Database = {
           id?: string
           ide?: Json | null
           inf_adicional?: Json | null
+          local_estoque_id?: string | null
           modelo?: string | null
           natureza_operacao?: string | null
           numero?: string
@@ -763,6 +779,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_documents_local_estoque_id_fkey"
+            columns: ["local_estoque_id"]
+            isOneToOne: false
+            referencedRelation: "locais_estoque"
             referencedColumns: ["id"]
           },
           {

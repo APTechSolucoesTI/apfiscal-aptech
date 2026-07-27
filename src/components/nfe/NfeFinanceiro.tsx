@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Loader2, BookOpen, Wallet, Save } from "lucide-react";
+import { Plus, Trash2, Loader2, BookOpen, Wallet, Save, Warehouse } from "lucide-react";
 import { listPlanoContas } from "@/lib/plano-contas.functions";
 import { listCentrosCusto } from "@/lib/centros-custo.functions";
-import { getAlocacaoNfe, setPlanoContasCabecalho, setPlanoContasItem, setAlocacoesCabecalho, setAlocacoesItem } from "@/lib/nfe-alocacao.functions";
+import { listLocaisEstoque } from "@/lib/locais-estoque.functions";
+import { getAlocacaoNfe, setPlanoContasCabecalho, setPlanoContasItem, setAlocacoesCabecalho, setAlocacoesItem, setLocalEstoqueCabecalho, setLocalEstoqueItem } from "@/lib/nfe-alocacao.functions";
 import { recalcularAlocacaoCabecalho, somaAlocacoes, type CentroCustoAlocacao } from "@/lib/nfe-alocacao";
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -25,6 +26,9 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
 
   const listPCFn = useServerFn(listPlanoContas);
   const listCCFn = useServerFn(listCentrosCusto);
+  const listLEFn = useServerFn(listLocaisEstoque);
+  const setLEHeaderFn = useServerFn(setLocalEstoqueCabecalho);
+  const setLEItemFn = useServerFn(setLocalEstoqueItem);
   const getAlocFn = useServerFn(getAlocacaoNfe);
   const setPCHeaderFn = useServerFn(setPlanoContasCabecalho);
   const setPCItemFn = useServerFn(setPlanoContasItem);
@@ -39,12 +43,17 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
     queryKey: ["ccs-ativos", companyId],
     queryFn: () => listCCFn({ data: { companyId, apenasAtivos: true } }),
   });
+  const { data: locais = [] } = useQuery({
+    queryKey: ["locais-estoque-ativos", companyId],
+    queryFn: () => listLEFn({ data: { companyId, apenasAtivos: true } }),
+  });
   const { data: alocacao } = useQuery({
     queryKey: ["nfe-alocacao", documentId],
     queryFn: () => getAlocFn({ data: { documentId } }),
   });
 
   const [confirmSobrescrever, setConfirmSobrescrever] = useState<string | null>(null);
+  const [confirmSobrescreverLE, setConfirmSobrescreverLE] = useState<string | null>(null);
   const [cabAllocs, setCabAllocs] = useState<CentroCustoAlocacao[]>([]);
   const [itemAllocs, setItemAllocs] = useState<Record<string, CentroCustoAlocacao[]>>({});
 
@@ -81,6 +90,25 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const setLEHeaderMut = useMutation({
+    mutationFn: (v: { localEstoqueId: string | null; sobrescreverItens: boolean }) =>
+      setLEHeaderFn({ data: { documentId, localEstoqueId: v.localEstoqueId, sobrescreverItens: v.sobrescreverItens } }),
+    onSuccess: () => {
+      toast.success("Local de Estoque atualizado no cabeçalho e propagado para os itens.");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setLEItemMut = useMutation({
+    mutationFn: (v: { itemId: string; localEstoqueId: string | null }) => setLEItemFn({ data: v }),
+    onSuccess: () => {
+      toast.success("Local de Estoque do item atualizado.");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const saveCabMut = useMutation({
     mutationFn: (propagar: boolean) => setCabFn({ data: { documentId, alocacoes: cabAllocs, propagarParaItens: propagar } }),
     onSuccess: () => {
@@ -108,7 +136,17 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
     setPCHeaderMut.mutate({ planoContasId: newId, sobrescreverItens: false });
   }
 
+  function alterarLECabecalho(newId: string | null) {
+    const algumItemManual = items.some((it) => it.local_estoque_alterado_manualmente);
+    if (algumItemManual) {
+      setConfirmSobrescreverLE(newId ?? "");
+      return;
+    }
+    setLEHeaderMut.mutate({ localEstoqueId: newId, sobrescreverItens: false });
+  }
+
   const ccOptions = (ccs as any[]);
+  const leOptions = (locais as any[]).filter((l) => l.tipo === "analitico");
 
   function addCabRow() { setCabAllocs((p) => [...p, { centro_custo_id: (ccOptions[0]?.id ?? ""), valor: 0 }]); }
   function addItemRow(itemId: string) {
@@ -137,6 +175,25 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
             </SelectContent>
           </Select>
           <p className="text-xs text-slate-500">Ao alterar, o Plano de Contas é propagado para todos os itens (exceto os alterados manualmente).</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2">
+          <Warehouse className="h-4 w-4 text-primary" />
+          <CardTitle className="text-lg">Local de Estoque (cabeçalho)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Select value={doc.local_estoque_id ?? "__none__"} onValueChange={(v) => alterarLECabecalho(v === "__none__" ? null : v)}>
+            <SelectTrigger className="max-w-xl"><SelectValue placeholder="Selecione um Local de Estoque" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">— sem local de estoque —</SelectItem>
+              {leOptions.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.codigo} · {l.descricao}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-500">Somente locais analíticos (99.999) podem ser usados. Ao alterar, o Local de Estoque é propagado para todos os itens (exceto os alterados manualmente).</p>
         </CardContent>
       </Card>
 
@@ -217,6 +274,21 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
                       </Select>
                     </div>
                     {it.plano_contas_alterado_manualmente && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">manual</Badge>}
+                    <div className="w-64">
+                      <Select
+                        value={it.local_estoque_id ?? "__none__"}
+                        onValueChange={(v) => setLEItemMut.mutate({ itemId: it.id, localEstoqueId: v === "__none__" ? null : v })}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Local de Estoque do item" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— herdar do cabeçalho —</SelectItem>
+                          {leOptions.map((l) => (
+                            <SelectItem key={l.id} value={l.id}>{l.codigo} · {l.descricao}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {it.local_estoque_alterado_manualmente && <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">estoque manual</Badge>}
                   </div>
                 </div>
                 {rateio.map((a, idx) => (
@@ -285,6 +357,25 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
               const id = confirmSobrescrever;
               setConfirmSobrescrever(null);
               setPCHeaderMut.mutate({ planoContasId: id === "" ? null : id, sobrescreverItens: true });
+            }}>Sobrescrever</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmSobrescreverLE !== null} onOpenChange={(o) => !o && setConfirmSobrescreverLE(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sobrescrever alterações manuais?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso substituirá o Local de Estoque já definido manualmente em algum item. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const id = confirmSobrescreverLE;
+              setConfirmSobrescreverLE(null);
+              setLEHeaderMut.mutate({ localEstoqueId: id === "" ? null : id, sobrescreverItens: true });
             }}>Sobrescrever</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

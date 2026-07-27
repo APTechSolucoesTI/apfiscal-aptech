@@ -296,7 +296,7 @@ function CentrosCustoPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar" : "Novo"} Centro de Custo</DialogTitle>
-            <DialogDescription>Preencha os campos abaixo. Código no formato 99.9999.</DialogDescription>
+            <DialogDescription>Preencha os campos abaixo. Código no formato 99 (sintético) ou 99.9999.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
             <div>

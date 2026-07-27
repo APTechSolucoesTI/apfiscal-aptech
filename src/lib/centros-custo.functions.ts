@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type CentroCustoInput = {
   id?: string;
-  company_id: string;
+  company_id: string | null;
   codigo: string;
   descricao: string;
   ativo?: boolean;
@@ -11,11 +11,16 @@ export type CentroCustoInput = {
 
 const CODIGO_RE = /^\d{2}\.\d{4}$/;
 
-async function orgIdOfCompany(context: any, companyId: string): Promise<string> {
-  const { data, error } = await context.supabase
-    .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
-  if (error || !data) throw new Error("Empresa não encontrada");
-  return data.organization_id as string;
+async function orgIdOf(context: any, companyId: string | null): Promise<string> {
+  if (companyId) {
+    const { data, error } = await context.supabase
+      .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
+    if (error || !data) throw new Error("Empresa não encontrada");
+    return data.organization_id as string;
+  }
+  const { data: orgId, error } = await context.supabase.rpc("ensure_user_organization");
+  if (error || !orgId) throw new Error("Organização não encontrada");
+  return orgId as string;
 }
 
 export const listCentrosCusto = createServerFn({ method: "GET" })
@@ -23,12 +28,14 @@ export const listCentrosCusto = createServerFn({ method: "GET" })
   .inputValidator((data: { companyId?: string; apenasAtivos?: boolean }) => data)
   .handler(async ({ data, context }) => {
     let q = (context.supabase as any).from("centros_custo").select("*").order("codigo");
-    if (data.companyId) q = q.eq("company_id", data.companyId);
+    // Quando uma empresa é informada, inclui também os cadastros globais (company_id IS NULL)
+    if (data.companyId) q = q.or(`company_id.eq.${data.companyId},company_id.is.null`);
     if (data.apenasAtivos) q = q.eq("ativo", true);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return (rows ?? []) as any[];
   });
+
 
 export const saveCentroCusto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

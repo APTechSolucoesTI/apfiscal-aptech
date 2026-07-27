@@ -15,9 +15,9 @@ export const Route = createFileRoute("/_authenticated/settings/catalog")({
   head: () => ({
     meta: [
       { title: "Cadastros Globais | APFiscal" },
-      { name: "description", content: "Configure se fornecedores e produtos são compartilhados por todas as empresas ou vinculados a uma empresa específica." },
+      { name: "description", content: "Configure se fornecedores, produtos, plano de contas e centros de custo são compartilhados por todas as empresas ou vinculados a uma empresa específica." },
       { property: "og:title", content: "Cadastros Globais | APFiscal" },
-      { property: "og:description", content: "Defina o escopo do catálogo de fornecedores e produtos na sua organização." },
+      { property: "og:description", content: "Defina o escopo dos cadastros de fornecedores, produtos, plano de contas e centros de custo na sua organização." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

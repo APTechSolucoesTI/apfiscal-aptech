@@ -181,6 +181,7 @@ function CentrosCustoPage() {
               <Select value={companyId} onValueChange={setCompanyId}>
                 <SelectTrigger className="w-[280px]"><SelectValue placeholder="Selecione uma empresa" /></SelectTrigger>
                 <SelectContent>
+                  {isGlobal && <SelectItem value={GLOBAL}>🌐 Global — Todas as empresas</SelectItem>}
                   {(companies as any[]).map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.nome_fantasia ?? c.razao_social}</SelectItem>
                   ))}
@@ -200,7 +201,7 @@ function CentrosCustoPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={(companies as any[]).length === 0}>
+              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && (companies as any[]).length === 0}>
                 <Upload className="h-4 w-4 mr-1" /> Importar XLSX
               </Button>
               <Button onClick={openNew} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Novo Centro de Custo</Button>
@@ -213,19 +214,21 @@ function CentrosCustoPage() {
               <TableRow>
                 <TableHead className="w-32">Código</TableHead>
                 <TableHead>Descrição</TableHead>
+                <TableHead className="w-56">Empresa</TableHead>
                 <TableHead className="w-32">Ativo</TableHead>
                 <TableHead className="w-32 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-slate-500">Nenhum centro de custo cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum centro de custo cadastrado.</TableCell></TableRow>
               ) : filtered.map((r: any) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono">{r.codigo}</TableCell>
                   <TableCell>{r.descricao}</TableCell>
+                  <TableCell className="text-sm text-slate-600">{companyName(r.company_id ?? null)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Switch
@@ -257,29 +260,34 @@ function CentrosCustoPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Centros de Custo via Excel"
-        description="Selecione a empresa e envie a planilha. As colunas são mapeadas automaticamente."
+        description={isGlobal
+          ? "Os registros podem ser globais (todas as empresas) ou de uma empresa específica. As colunas são mapeadas automaticamente."
+          : "Selecione a empresa e envie a planilha. As colunas são mapeadas automaticamente."}
         fields={ccImportFields}
         companies={(companies as any[]).map((c) => ({ id: c.id, label: c.nome_fantasia ?? c.razao_social }))}
-        requireCompanySelection
+        allowGlobal={isGlobal}
+        requireCompanySelection={!isGlobal}
         buildRow={(m, ctx) => {
-          if (!ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
+          if (!isGlobal && !ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
           const codigo = normalizeCodigoCC(m.codigo);
           const descricao = String(m.descricao ?? "").trim();
           if (!descricao) throw new Error("Descrição obrigatória");
-          return { company_id: ctx.companyId, codigo, descricao, ativo: parseAtivo(m.ativo) } as CentroCustoInput;
+          return { company_id: ctx.companyId ?? null, codigo, descricao, ativo: parseAtivo(m.ativo) } as CentroCustoInput;
         }}
         checkDuplicate={async (row) => {
-          const { count, error } = await supabase
+          let q = supabase
             .from("centros_custo")
             .select("id", { count: "exact", head: true })
-            .eq("company_id", row.company_id)
             .eq("codigo", row.codigo);
+          q = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
+          const { count, error } = await q;
           if (error) return false;
           return (count ?? 0) > 0;
         }}
         onImportRow={async (row) => { await saveFn({ data: row }); }}
         onDone={() => qc.invalidateQueries({ queryKey: ["centros-custo"] })}
       />
+
 
 
 

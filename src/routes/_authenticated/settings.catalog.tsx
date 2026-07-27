@@ -55,9 +55,9 @@ function CatalogSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Escopo do Catálogo</CardTitle>
+          <CardTitle>Escopo dos Cadastros</CardTitle>
           <CardDescription>
-            Essa configuração afeta como novos fornecedores e produtos são vinculados. Registros já cadastrados continuam com o vínculo original.
+            Aplica-se a Fornecedores, Produtos (Famílias, Grupos e Subgrupos), Plano de Contas e Centros de Custo. Essa configuração afeta como novos registros são vinculados. Registros já cadastrados continuam com o vínculo original.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

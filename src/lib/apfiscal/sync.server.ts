@@ -62,7 +62,7 @@ export async function lerXml(path: string): Promise<string> {
 
 function normalizarDocumento(doc: NfeResumo, integ: IntegracaoEmpresa) {
   const valor = doc.valor_nota != null ? Number(doc.valor_nota) : null;
-  return {
+  const base: Record<string, unknown> = {
     organization_id: integ.organization_id,
     company_id: integ.company_id,
     nsu: Number(doc.nsu),
@@ -75,7 +75,28 @@ function normalizarDocumento(doc: NfeResumo, integ: IntegracaoEmpresa) {
     valor_nota: Number.isFinite(valor as number) ? valor : null,
     protocolo: doc.protocolo ?? null,
   };
+  // Campos opcionais vazios são removidos para o upsert não apagar dados já
+  // preenchidos (ex.: emitente/valor obtidos do XML completo).
+  for (const k of [
+    "tipo_documento",
+    "emitente_cnpj",
+    "emitente_nome",
+    "emitente_ie",
+    "data_emissao",
+    "valor_nota",
+    "protocolo",
+  ]) {
+    if (base[k] == null) delete base[k];
+  }
+  return base as {
+    organization_id: string;
+    company_id: string;
+    nsu: number;
+    chave: string;
+    tipo_documento?: string | null;
+  };
 }
+
 
 export async function sincronizarEmpresa(companyId: string): Promise<ResultadoSincronizacao> {
   const integ = await getIntegracao(companyId);

@@ -38,7 +38,9 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
   const icms = pickTax(impostos.ICMS) ?? {};
   const ipi = pickTax(impostos.IPI) ?? {};
   const pis = pickTax(impostos.PIS) ?? {};
+  const cofins = pickTax(impostos.COFINS) ?? {};
   const ibscbs = getItemIbsCbs(impostos);
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

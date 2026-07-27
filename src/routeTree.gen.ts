@@ -32,6 +32,7 @@ import { Route as AuthenticatedSettingsApiRouteImport } from './routes/_authenti
 import { Route as AuthenticatedDocumentsNfseRouteImport } from './routes/_authenticated/documents.nfse'
 import { Route as AuthenticatedDocumentsCteRouteImport } from './routes/_authenticated/documents.cte'
 import { Route as AuthenticatedDocumentsNfeIndexRouteImport } from './routes/_authenticated/documents.nfe.index'
+import { Route as ApiPublicHooksApfiscalXmlRetryRouteImport } from './routes/api/public/hooks/apfiscal-xml-retry'
 import { Route as AuthenticatedDocumentsNfeNfeIdRouteImport } from './routes/_authenticated/documents.nfe.$nfeId'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -159,6 +160,12 @@ const AuthenticatedDocumentsNfeIndexRoute =
     path: '/nfe/',
     getParentRoute: () => AuthenticatedDocumentsRoute,
   } as any)
+const ApiPublicHooksApfiscalXmlRetryRoute =
+  ApiPublicHooksApfiscalXmlRetryRouteImport.update({
+    id: '/api/public/hooks/apfiscal-xml-retry',
+    path: '/api/public/hooks/apfiscal-xml-retry',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedDocumentsNfeNfeIdRoute =
   AuthenticatedDocumentsNfeNfeIdRouteImport.update({
     id: '/nfe/$nfeId',
@@ -189,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
+  '/api/public/hooks/apfiscal-xml-retry': typeof ApiPublicHooksApfiscalXmlRetryRoute
   '/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
 export interface FileRoutesByTo {
@@ -214,6 +222,7 @@ export interface FileRoutesByTo {
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
+  '/api/public/hooks/apfiscal-xml-retry': typeof ApiPublicHooksApfiscalXmlRetryRoute
   '/documents/nfe': typeof AuthenticatedDocumentsNfeIndexRoute
 }
 export interface FileRoutesById {
@@ -241,6 +250,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/_authenticated/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
+  '/api/public/hooks/apfiscal-xml-retry': typeof ApiPublicHooksApfiscalXmlRetryRoute
   '/_authenticated/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
 export interface FileRouteTypes {
@@ -268,6 +278,7 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/plano-contas'
     | '/documents/nfe/$nfeId'
+    | '/api/public/hooks/apfiscal-xml-retry'
     | '/documents/nfe/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -293,6 +304,7 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/plano-contas'
     | '/documents/nfe/$nfeId'
+    | '/api/public/hooks/apfiscal-xml-retry'
     | '/documents/nfe'
   id:
     | '__root__'
@@ -319,6 +331,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/members'
     | '/_authenticated/settings/plano-contas'
     | '/_authenticated/documents/nfe/$nfeId'
+    | '/api/public/hooks/apfiscal-xml-retry'
     | '/_authenticated/documents/nfe/'
   fileRoutesById: FileRoutesById
 }
@@ -327,6 +340,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
+  ApiPublicHooksApfiscalXmlRetryRoute: typeof ApiPublicHooksApfiscalXmlRetryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -492,6 +506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDocumentsNfeIndexRouteImport
       parentRoute: typeof AuthenticatedDocumentsRoute
     }
+    '/api/public/hooks/apfiscal-xml-retry': {
+      id: '/api/public/hooks/apfiscal-xml-retry'
+      path: '/api/public/hooks/apfiscal-xml-retry'
+      fullPath: '/api/public/hooks/apfiscal-xml-retry'
+      preLoaderRoute: typeof ApiPublicHooksApfiscalXmlRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/documents/nfe/$nfeId': {
       id: '/_authenticated/documents/nfe/$nfeId'
       path: '/nfe/$nfeId'
@@ -582,6 +603,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
+  ApiPublicHooksApfiscalXmlRetryRoute: ApiPublicHooksApfiscalXmlRetryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

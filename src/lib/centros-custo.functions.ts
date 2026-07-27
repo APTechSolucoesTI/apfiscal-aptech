@@ -40,7 +40,7 @@ export const listCentrosCusto = createServerFn({ method: "GET" })
 export const saveCentroCusto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: CentroCustoInput) => {
-    if (!CODIGO_RE.test(data.codigo)) throw new Error("Código deve estar no formato 99.9999");
+    if (!CODIGO_RE.test(data.codigo)) throw new Error("Código deve estar no formato 99 ou 99.9999");
     if (!data.descricao?.trim()) throw new Error("Descrição é obrigatória");
     return data;
   })

@@ -66,6 +66,7 @@ export type IntegracaoResumo = {
   ultimoNsu: number;
   apiKeyLast4: string | null;
   configurada: boolean;
+  baseUrl: string | null;
 };
 
 export const STATUS_LABEL: Record<StatusDocumentoFiscal, string> = {

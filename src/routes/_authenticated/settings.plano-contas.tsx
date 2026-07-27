@@ -100,6 +100,8 @@ function buildTree(rows: any[]): Node[] {
   return roots;
 }
 
+const GLOBAL = "__global__";
+
 function PlanoContasPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("");
@@ -111,17 +113,28 @@ function PlanoContasPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [confirmInativar, setConfirmInativar] = useState<any | null>(null);
   const [confirmExcluir, setConfirmExcluir] = useState<any | null>(null);
-  const [form, setForm] = useState<PlanoContasInput>({ company_id: "", codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: null });
+  const [form, setForm] = useState<PlanoContasInput>({ company_id: null, codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: null });
+
+  const getOrgFn = useServerFn(getOrgSettings);
+  const { data: orgSettings } = useQuery({ queryKey: ["org-settings"], queryFn: () => getOrgFn() });
+  const isGlobal = orgSettings?.catalog_scope === "global";
 
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],
     queryFn: async () => {
       const { data, error } = await supabase.from("companies").select("id, razao_social, nome_fantasia").order("razao_social");
       if (error) throw error;
-      if (!companyId && (data ?? [])[0]) setCompanyId((data as any)[0].id);
       return data ?? [];
     },
   });
+
+  // Define a seleção inicial conforme o escopo do catálogo
+  useEffect(() => {
+    if (companyId) return;
+    if (orgSettings === undefined) return;
+    if (isGlobal) setCompanyId(GLOBAL);
+    else if ((companies as any[])[0]) setCompanyId((companies as any[])[0].id);
+  }, [orgSettings, isGlobal, companies, companyId]);
 
   const listFn = useServerFn(listPlanoContas);
   const saveFn = useServerFn(savePlanoContas);
@@ -129,11 +142,20 @@ function PlanoContasPage() {
   const delFn = useServerFn(deletePlanoContas);
   const nextCodeFn = useServerFn(proximoCodigoPlanoContas);
 
+  const isGlobalView = companyId === GLOBAL;
+
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["plano-contas", companyId],
     enabled: !!companyId,
-    queryFn: () => listFn({ data: { companyId } }),
+    queryFn: () => listFn({ data: isGlobalView ? {} : { companyId } }),
   });
+
+  const companyName = (id: string | null) => {
+    if (!id) return "🌐 Global";
+    const c = (companies as any[]).find((x) => x.id === id);
+    return c ? (c.nome_fantasia ?? c.razao_social) : "—";
+  };
+
 
   const filteredRows = useMemo(() => {
     return (rows as any[]).filter((r) => {

@@ -102,6 +102,8 @@ async function executarSincronizacao(
   const resultado: ResultadoSincronizacao = {
     novosDocumentos: 0,
     xmlsResumidosBaixados: 0,
+    xmlsCompletosBaixados: 0,
+    notasImportadas: 0,
     ultimoNsu: integ.ultimo_nsu,
     erros: [],
   };
@@ -175,7 +177,7 @@ async function executarSincronizacao(
     acao: "sincronizar",
     statusHttp: 200,
     sucesso: resultado.erros.length === 0,
-    mensagem: `${resultado.novosDocumentos} documentos, ${resultado.xmlsResumidosBaixados} XMLs resumidos, ${resultado.erros.length} erros.`,
+    mensagem: `${resultado.novosDocumentos} documentos, ${resultado.xmlsResumidosBaixados} XMLs resumidos, ${resultado.xmlsCompletosBaixados} XMLs completos, ${resultado.notasImportadas} NF-e importadas, ${resultado.erros.length} erros.`,
   });
 
   return resultado;
@@ -264,6 +266,51 @@ export async function manifestarDocumento(input: {
       payload: e instanceof ApfiscalApiError ? e.payload : null,
     });
     throw e;
+  }
+}
+
+/**
+ * Importa o XML completo já salvo no storage para os cadastros de NF-e
+ * (mesmo fluxo do "Importar XML" manual). Retorna true quando a nota foi criada.
+ */
+export async function importarXmlCompleto(
+  companyId: string,
+  chave: string,
+  docId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const { data: reg } = await supabaseAdmin
+    .from("documentos_fiscais_integracao")
+    .select("xml_completo_path")
+    .eq("id", docId)
+    .maybeSingle();
+  const path = reg?.xml_completo_path;
+  if (!path) return false;
+
+  const xml = await lerXml(path);
+  const { importarNfeXml } = await import("@/lib/nfe-import.server");
+  try {
+    const res = await importarNfeXml(supabaseAdmin as never, { fileName: `completa-${chave}.xml`, xml });
+    await registrarHistorico({
+      organizationId,
+      companyId,
+      documentoId: docId,
+      acao: "importar_nfe",
+      statusHttp: 200,
+      sucesso: true,
+      mensagem: res.duplicated ? "NF-e já importada anteriormente." : "NF-e importada a partir do XML completo.",
+    });
+    return Boolean(res.ok);
+  } catch (e) {
+    await registrarHistorico({
+      organizationId,
+      companyId,
+      documentoId: docId,
+      acao: "importar_nfe",
+      sucesso: false,
+      mensagem: mensagemErro(e),
+    });
+    return false;
   }
 }
 

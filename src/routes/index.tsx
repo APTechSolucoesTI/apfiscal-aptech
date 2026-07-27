@@ -31,8 +31,8 @@ function Index() {
       icon: <BarChart3 className="h-6 w-6 text-primary" />,
     },
     {
-      title: "Gestão de Certificados",
-      description: "Controle centralizado de certificados A1 com avisos automáticos de expiração.",
+      title: "Integração via API",
+      description: "Captura automática de NF-e por API, sem necessidade de certificado digital.",
       icon: <Globe className="h-6 w-6 text-primary" />,
     },
     {

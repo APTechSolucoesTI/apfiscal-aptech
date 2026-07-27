@@ -323,8 +323,8 @@ function CentrosCustoPage() {
                 maxLength={7}
                 className="font-mono"
               />
-              {form.codigo && !/^\d{2}\.\d{4}$/.test(form.codigo) && (
-                <p className="text-xs text-red-600 mt-1">Formato inválido. Use 99.9999</p>
+              {form.codigo && !/^\d{2}(\.\d{4})?$/.test(form.codigo) && (
+                <p className="text-xs text-red-600 mt-1">Formato inválido. Use 99 ou 99.9999</p>
               )}
             </div>
             <div>

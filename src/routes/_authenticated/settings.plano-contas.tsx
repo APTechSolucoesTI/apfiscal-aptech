@@ -17,8 +17,37 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Loader2, BookOpen, ChevronRight, ChevronDown, FolderTree, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, BookOpen, ChevronRight, ChevronDown, FolderTree, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
+
+const pcImportFields: ImportField[] = [
+  { key: "codigo", label: "Código", required: true, aliases: ["codigo", "cod", "conta", "codigoconta"] },
+  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "nome", "titulo"] },
+  { key: "ativo", label: "Ativo", aliases: ["status", "ativo", "situacao"] },
+  { key: "permite_lancamentos", label: "Permite Lançamentos", aliases: ["permitelancamentos", "analitica", "lancamento", "lancavel"] },
+];
+
+function parseBool(v: unknown, def = true): boolean {
+  if (v == null || v === "") return def;
+  if (typeof v === "boolean") return v;
+  return ["1", "true", "sim", "ativo", "s", "y", "yes"].includes(String(v).trim().toLowerCase());
+}
+
+function normalizeCodigoPC(raw: unknown): string {
+  const s = String(raw ?? "").trim();
+  const d = s.replace(/\D/g, "");
+  if (d.length === 2) return d;
+  if (d.length === 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length === 9) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  throw new Error("Código inválido. Use 99, 99.999 ou 99.999.9999");
+}
+
+function codigoPai(codigo: string): string | null {
+  const parts = codigo.split(".");
+  if (parts.length <= 1) return null;
+  return parts.slice(0, -1).join(".");
+}
 
 export const Route = createFileRoute("/_authenticated/settings/plano-contas")({
   component: PlanoContasPage,

@@ -18,7 +18,7 @@ export class ApfiscalApiError extends Error {
 const STATUS_MESSAGES: Record<number, string> = {
   400: "Parâmetros inválidos enviados à API fiscal.",
   401: "Token da API inválido ou não informado.",
-  403: "Integração desativada ou acesso negado.",
+  403: "Acesso negado pela API fiscal (403): a chave não tem permissão para este CNPJ ou a integração está desativada no servidor da API.",
   404: "Registro ou XML não encontrado.",
   409: "O NSU informado representa um evento, não uma NF-e resumida.",
   422: "Manifestação recusada ou erro retornado pela SEFAZ.",
@@ -55,10 +55,16 @@ export async function getIntegracao(companyId: string): Promise<IntegracaoEmpres
 
 async function apiKeyFor(companyId: string, integracao?: IntegracaoEmpresa): Promise<string> {
   const rec = integracao ?? (await getIntegracao(companyId));
-  if (!rec.ativo) throw new ApfiscalApiError(403, "Integração fiscal desativada para esta empresa.");
+  if (!rec.ativo) {
+    throw new ApfiscalApiError(
+      null,
+      'Integração fiscal desativada nesta empresa. Ative o botão "Integração ativa" no cadastro da empresa.',
+    );
+  }
   if (!rec.api_key_encrypted) throw new ApfiscalApiError(401, "Chave de API não cadastrada para esta empresa.");
   return decryptApiKey(rec.api_key_encrypted);
 }
+
 
 async function request(
   companyId: string,
@@ -144,17 +150,38 @@ export async function listarNfes(
   if (body.sucesso === false) {
     throw new ApfiscalApiError(res.status, String(body.mensagem ?? "Falha na consulta de NF-e."), body);
   }
-  const dados = (body.dados ?? body) as Record<string, unknown>;
-  const listaBruta = (dados.documentos ?? dados.nfes ?? dados.itens) as unknown;
+  const dados = (Array.isArray(body.dados) ? {} : ((body.dados ?? {}) as Record<string, unknown>)) as Record<
+    string,
+    unknown
+  >;
+  const listaBruta = (Array.isArray(body.dados) ? body.dados : (dados.documentos ?? dados.nfes ?? dados.itens ?? body.documentos)) as unknown;
   if (!Array.isArray(listaBruta)) {
     throw new ApfiscalApiError(res.status, "Resposta inesperada da API fiscal (lista ausente).", body);
   }
   return {
-    documentos: listaBruta as NfeResumo[],
+    documentos: (listaBruta as Record<string, unknown>[]).map(normalizarResumo),
     proximo_ultimo_nsu: Number(dados.proximo_ultimo_nsu ?? body.proximo_ultimo_nsu ?? ultimoNsu),
     tem_mais: Boolean(dados.tem_mais ?? body.tem_mais ?? false),
   };
 }
+
+function normalizarResumo(item: Record<string, unknown>): NfeResumo {
+  const emitente = (item.emitente ?? {}) as Record<string, unknown>;
+  const status = (item.status ?? {}) as Record<string, unknown>;
+  const texto = (v: unknown) => (v == null ? undefined : String(v).trim() || undefined);
+  return {
+    nsu: Number(item.nsu),
+    chave: texto(item.chave),
+    tipo_documento: texto(item.tipo_documento),
+    emitente_cnpj: texto(item.emitente_cnpj ?? emitente.cnpj),
+    emitente_nome: texto(item.emitente_nome ?? emitente.nome),
+    emitente_ie: texto(item.emitente_ie ?? emitente.ie),
+    data_emissao: texto(item.data_emissao),
+    valor_nota: (item.valor_nota as number | string | undefined) ?? undefined,
+    protocolo: texto(item.protocolo ?? status.protocolo),
+  };
+}
+
 
 export async function baixarNfeResumida(companyId: string, nsu: number, apiKey?: string): Promise<string> {
   const res = await request(companyId, "getNfeResumida.php", { nsu }, { apiKey });

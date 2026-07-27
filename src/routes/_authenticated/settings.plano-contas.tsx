@@ -303,6 +303,7 @@ function PlanoContasPage() {
               <Select value={companyId} onValueChange={setCompanyId}>
                 <SelectTrigger className="w-[280px]"><SelectValue placeholder="Selecione uma empresa" /></SelectTrigger>
                 <SelectContent>
+                  {isGlobal && <SelectItem value={GLOBAL}>🌐 Global — Todas as empresas</SelectItem>}
                   {(companies as any[]).map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.nome_fantasia ?? c.razao_social}</SelectItem>
                   ))}

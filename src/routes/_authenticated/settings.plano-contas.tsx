@@ -226,15 +226,16 @@ function PlanoContasPage() {
   });
 
   async function openNew(pai: any | null = null) {
-    setForm({ company_id: companyId, codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: pai?.id ?? null });
+    const defaultCompany = pai ? (pai.company_id ?? null) : (isGlobalView ? null : (companyId || null));
+    setForm({ company_id: defaultCompany, codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: pai?.id ?? null });
     setOpen(true);
     try {
-      const { codigo } = await nextCodeFn({ data: { companyId, contaPaiId: pai?.id ?? null } });
+      const { codigo } = await nextCodeFn({ data: { companyId: defaultCompany, contaPaiId: pai?.id ?? null } });
       setForm((f) => ({ ...f, codigo }));
     } catch { /* ignore */ }
   }
   function openEdit(r: any) {
-    setForm({ id: r.id, company_id: r.company_id, codigo: r.codigo, descricao: r.descricao, ativo: r.ativo, permite_lancamentos: r.permite_lancamentos, conta_pai_id: r.conta_pai_id });
+    setForm({ id: r.id, company_id: r.company_id ?? null, codigo: r.codigo, descricao: r.descricao, ativo: r.ativo, permite_lancamentos: r.permite_lancamentos, conta_pai_id: r.conta_pai_id });
     setOpen(true);
   }
 

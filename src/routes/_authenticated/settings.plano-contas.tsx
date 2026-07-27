@@ -331,7 +331,7 @@ function PlanoContasPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={(companies as any[]).length === 0}>
+              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && (companies as any[]).length === 0}>
                 <Upload className="h-4 w-4 mr-1" /> Importar XLSX
               </Button>
               <Button onClick={() => openNew(null)} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Nova Conta</Button>
@@ -353,17 +353,20 @@ function PlanoContasPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Plano de Contas via Excel"
-        description="Selecione a empresa e envie a planilha. Ordene as contas do nível 1 para o nível 3 — as contas pai são vinculadas automaticamente pelo código."
+        description={isGlobal
+          ? "As contas podem ser globais (todas as empresas) ou de uma empresa específica. Ordene do nível 1 para o nível 3 — as contas pai são vinculadas automaticamente pelo código."
+          : "Selecione a empresa e envie a planilha. Ordene as contas do nível 1 para o nível 3 — as contas pai são vinculadas automaticamente pelo código."}
         fields={pcImportFields}
         companies={(companies as any[]).map((c) => ({ id: c.id, label: c.nome_fantasia ?? c.razao_social }))}
-        requireCompanySelection
+        allowGlobal={isGlobal}
+        requireCompanySelection={!isGlobal}
         buildRow={(m, ctx) => {
-          if (!ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
+          if (!isGlobal && !ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
           const codigo = normalizeCodigoPC(m.codigo);
           const descricao = String(m.descricao ?? "").trim();
           if (!descricao) throw new Error("Descrição obrigatória");
           return {
-            company_id: ctx.companyId,
+            company_id: ctx.companyId ?? null,
             codigo,
             descricao,
             ativo: parseBool(m.ativo, true),
@@ -372,11 +375,12 @@ function PlanoContasPage() {
           } as PlanoContasInput;
         }}
         checkDuplicate={async (row) => {
-          const { count, error } = await supabase
+          let q = supabase
             .from("plano_contas")
             .select("id", { count: "exact", head: true })
-            .eq("company_id", row.company_id)
             .eq("codigo", row.codigo);
+          q = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
+          const { count, error } = await q;
           if (error) return false;
           return (count ?? 0) > 0;
         }}
@@ -384,12 +388,12 @@ function PlanoContasPage() {
           const pai = codigoPai(row.codigo);
           let conta_pai_id: string | null = null;
           if (pai) {
-            const { data } = await supabase
+            let pq = supabase
               .from("plano_contas")
               .select("id")
-              .eq("company_id", row.company_id)
-              .eq("codigo", pai)
-              .maybeSingle();
+              .eq("codigo", pai);
+            pq = row.company_id ? pq.eq("company_id", row.company_id) : pq.is("company_id", null);
+            const { data } = await pq.maybeSingle();
             if (!data) throw new Error(`Conta pai ${pai} não encontrada. Importe/ordene as contas do nível 1 para o nível 3.`);
             conta_pai_id = (data as any).id;
           }

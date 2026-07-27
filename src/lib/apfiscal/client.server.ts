@@ -33,11 +33,12 @@ export type IntegracaoEmpresa = {
   ultimo_nsu: number;
   api_key_last4: string | null;
   api_key_encrypted: string | null;
+  base_url: string | null;
 };
 
-function baseUrl(): string {
-  const url = process.env.APFISCAL_BASE_URL;
-  if (!url) throw new ApfiscalApiError(null, "APFISCAL_BASE_URL não configurada no servidor.");
+function baseUrl(custom?: string | null): string {
+  const url = custom?.trim() || process.env.APFISCAL_BASE_URL;
+  if (!url) throw new ApfiscalApiError(null, "URL base da API fiscal não configurada para esta empresa.");
   return url.replace(/\/+$/, "");
 }
 
@@ -63,10 +64,17 @@ async function request(
   companyId: string,
   path: string,
   params: Record<string, string | number>,
-  opts: { apiKey?: string; method?: string } = {},
+  opts: { apiKey?: string; method?: string; baseUrl?: string | null } = {},
 ): Promise<Response> {
-  const key = opts.apiKey ?? (await apiKeyFor(companyId));
-  const url = new URL(`${baseUrl()}/${path}`);
+  let rec: IntegracaoEmpresa | undefined;
+  if (!opts.apiKey || opts.baseUrl === undefined) {
+    rec = await getIntegracao(companyId).catch((e) => {
+      if (opts.apiKey && opts.baseUrl !== undefined) return undefined as never;
+      throw e;
+    });
+  }
+  const key = opts.apiKey ?? (await apiKeyFor(companyId, rec));
+  const url = new URL(`${baseUrl(opts.baseUrl ?? rec?.base_url ?? null)}/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
   return fetch(url.toString(), {
     method: opts.method ?? "GET",
@@ -117,13 +125,14 @@ export async function listarNfes(
   ultimoNsu: number,
   limite = 50,
   apiKey?: string,
+  baseUrlOverride?: string | null,
 ): Promise<ListagemNfes> {
   const limiteFinal = Math.min(Math.max(1, Math.trunc(limite)), 100);
   const res = await request(
     companyId,
     "getNfes.php",
     { ultimo_nsu: ultimoNsu, limite: limiteFinal },
-    { apiKey },
+    { apiKey, baseUrl: baseUrlOverride },
   );
   await ensureOk(res);
   const raw = await res.text();

@@ -133,7 +133,21 @@ function parseNfe(xml: string) {
   };
 }
 
+/** Resumo leve da NF-e a partir do XML completo (emitente, valor, data). */
+export function resumoDoXmlNfe(xml: string) {
+  const nfe = parseNfe(xml);
+  return {
+    chave: nfe.chave,
+    emitente_cnpj: nfe.emitente.cnpj || null,
+    emitente_nome: nfe.emitente.nome || null,
+    emitente_ie: nfe.emitente.ie,
+    data_emissao: nfe.dataEmissao || null,
+    valor_nota: nfe.valorTotal ?? null,
+  };
+}
+
 export async function importarNfeXml(supabase: ImportClient, data: ImportInput) {
+
     const nfe = parseNfe(data.xml);
 
     if (!nfe.destinatario.cnpj) {

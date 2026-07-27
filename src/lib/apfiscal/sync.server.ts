@@ -62,7 +62,7 @@ export async function lerXml(path: string): Promise<string> {
 
 function normalizarDocumento(doc: NfeResumo, integ: IntegracaoEmpresa) {
   const valor = doc.valor_nota != null ? Number(doc.valor_nota) : null;
-  return {
+  const base: Record<string, unknown> = {
     organization_id: integ.organization_id,
     company_id: integ.company_id,
     nsu: Number(doc.nsu),
@@ -75,7 +75,28 @@ function normalizarDocumento(doc: NfeResumo, integ: IntegracaoEmpresa) {
     valor_nota: Number.isFinite(valor as number) ? valor : null,
     protocolo: doc.protocolo ?? null,
   };
+  // Campos opcionais vazios são removidos para o upsert não apagar dados já
+  // preenchidos (ex.: emitente/valor obtidos do XML completo).
+  for (const k of [
+    "tipo_documento",
+    "emitente_cnpj",
+    "emitente_nome",
+    "emitente_ie",
+    "data_emissao",
+    "valor_nota",
+    "protocolo",
+  ]) {
+    if (base[k] == null) delete base[k];
+  }
+  return base as {
+    organization_id: string;
+    company_id: string;
+    nsu: number;
+    chave: string;
+    tipo_documento?: string | null;
+  };
 }
+
 
 export async function sincronizarEmpresa(companyId: string): Promise<ResultadoSincronizacao> {
   const integ = await getIntegracao(companyId);
@@ -171,6 +192,10 @@ async function executarSincronizacao(
     temMais = pagina.tem_mais && validos.length > 0;
   }
 
+  await preencherResumoFaltante(companyId);
+
+
+
   await registrarHistorico({
     organizationId: integ.organization_id,
     companyId,
@@ -182,6 +207,37 @@ async function executarSincronizacao(
 
   return resultado;
 }
+
+/** Completa emitente/valor de documentos que já possuem XML completo salvo. */
+async function preencherResumoFaltante(companyId: string, limite = 100) {
+  const { data } = await supabaseAdmin
+    .from("documentos_fiscais_integracao")
+    .select("id, xml_completo_path, emitente_nome, valor_nota")
+    .eq("company_id", companyId)
+    .not("xml_completo_path", "is", null)
+    .or("emitente_nome.is.null,valor_nota.is.null")
+    .limit(limite);
+
+  if (!data?.length) return;
+  const { resumoDoXmlNfe } = await import("@/lib/nfe-import.server");
+  for (const doc of data) {
+    try {
+      const xml = await lerXml(doc.xml_completo_path as string);
+      const r = resumoDoXmlNfe(xml);
+      await marcarStatus(doc.id, {
+        ...(r.emitente_cnpj ? { emitente_cnpj: r.emitente_cnpj } : {}),
+        ...(r.emitente_nome ? { emitente_nome: r.emitente_nome } : {}),
+        ...(r.emitente_ie ? { emitente_ie: r.emitente_ie } : {}),
+        ...(r.data_emissao ? { data_emissao: r.data_emissao } : {}),
+        ...(r.valor_nota != null ? { valor_nota: r.valor_nota } : {}),
+      });
+    } catch {
+      // Documento sem XML legível — ignorado.
+    }
+  }
+}
+
+
 
 async function marcarStatus(id: string, patch: Record<string, unknown>) {
   await supabaseAdmin.from("documentos_fiscais_integracao").update(patch as never).eq("id", id);
@@ -323,11 +379,29 @@ export async function baixarESalvarXmlCompleto(
 ) {
   const xml = await baixarNfeCompleta(companyId, chave);
   const path = await salvarXml(companyId, `completa-${chave}.xml`, xml);
+  // A listagem por NSU nem sempre traz emitente/valor nas notas completas;
+  // extraímos esses dados do próprio XML.
+  let resumo: Record<string, unknown> = {};
+  try {
+    const { resumoDoXmlNfe } = await import("@/lib/nfe-import.server");
+    const r = resumoDoXmlNfe(xml);
+    resumo = {
+      ...(r.emitente_cnpj ? { emitente_cnpj: r.emitente_cnpj } : {}),
+      ...(r.emitente_nome ? { emitente_nome: r.emitente_nome } : {}),
+      ...(r.emitente_ie ? { emitente_ie: r.emitente_ie } : {}),
+      ...(r.data_emissao ? { data_emissao: r.data_emissao } : {}),
+      ...(r.valor_nota != null ? { valor_nota: r.valor_nota } : {}),
+    };
+  } catch {
+    resumo = {};
+  }
   await marcarStatus(docId, {
     xml_completo_path: path,
     status: "completa" satisfies StatusDocumentoFiscal,
     mensagem_sefaz: null,
+    ...resumo,
   });
+
   await registrarHistorico({
     organizationId,
     companyId,

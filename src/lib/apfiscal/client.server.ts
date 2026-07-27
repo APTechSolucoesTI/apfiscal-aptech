@@ -67,11 +67,10 @@ async function request(
   opts: { apiKey?: string; method?: string; baseUrl?: string | null } = {},
 ): Promise<Response> {
   let rec: IntegracaoEmpresa | undefined;
-  if (!opts.apiKey || opts.baseUrl === undefined) {
-    rec = await getIntegracao(companyId).catch((e) => {
-      if (opts.apiKey && opts.baseUrl !== undefined) return undefined as never;
-      throw e;
-    });
+  if (!opts.apiKey) {
+    rec = await getIntegracao(companyId);
+  } else if (!opts.baseUrl) {
+    rec = (await getIntegracao(companyId).catch(() => undefined)) ?? undefined;
   }
   const key = opts.apiKey ?? (await apiKeyFor(companyId, rec));
   const url = new URL(`${baseUrl(opts.baseUrl ?? rec?.base_url ?? null)}/${path}`);

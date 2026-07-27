@@ -79,6 +79,26 @@ function normalizarDocumento(doc: NfeResumo, integ: IntegracaoEmpresa) {
 
 export async function sincronizarEmpresa(companyId: string): Promise<ResultadoSincronizacao> {
   const integ = await getIntegracao(companyId);
+  try {
+    return await executarSincronizacao(companyId, integ);
+  } catch (e) {
+    await registrarHistorico({
+      organizationId: integ.organization_id,
+      companyId,
+      acao: "sincronizar",
+      statusHttp: e instanceof ApfiscalApiError ? e.codigo : null,
+      sucesso: false,
+      mensagem: mensagemErro(e),
+      payload: e instanceof ApfiscalApiError ? e.payload : null,
+    });
+    throw e;
+  }
+}
+
+async function executarSincronizacao(
+  companyId: string,
+  integ: IntegracaoEmpresa,
+): Promise<ResultadoSincronizacao> {
   const resultado: ResultadoSincronizacao = {
     novosDocumentos: 0,
     xmlsResumidosBaixados: 0,

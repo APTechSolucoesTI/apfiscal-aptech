@@ -44,7 +44,7 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-xl w-[90vw] p-0">
+      <SheetContent className="sm:max-w-5xl w-[95vw] p-0">
         <SheetHeader className="p-6 border-b">
           <div className="flex justify-between items-start">
             <div>
@@ -57,7 +57,7 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
           <div className="p-6 space-y-8 pb-10">
             <section>
               <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Dados Gerais</h3>
-              <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6">
                 <div><p className="text-xs text-muted-foreground">NCM</p><p className="text-sm font-medium">{item.ncm ?? "-"}</p></div>
                 <div><p className="text-xs text-muted-foreground">CEST</p><p className="text-sm font-medium">{item.cest ?? "-"}</p></div>
                 <div><p className="text-xs text-muted-foreground">CFOP</p><p className="text-sm font-medium">{item.cfop ?? "-"}</p></div>
@@ -83,7 +83,7 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
                     {icms.CST && <Badge variant="outline">CST {icms.CST}</Badge>}
                     {icms.CSOSN && <Badge variant="outline">CSOSN {icms.CSOSN}</Badge>}
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div><p className="text-xs text-muted-foreground">Origem</p><p>{icms.orig ?? "-"}</p></div>
                     <div><p className="text-xs text-muted-foreground">Base de Cálculo</p><p>{fmt(icms.vBC)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Alíquota</p><p>{icms.pICMS ?? "-"}%</p></div>
@@ -92,7 +92,7 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card className="bg-muted/30 border-none shadow-none">
                   <CardContent className="p-4 space-y-3">
                     <span className="font-semibold text-sm">PIS</span>
@@ -114,10 +114,10 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
                   </CardContent>
                 </Card>
                 {(ipi.vIPI || ipi.pIPI) && (
-                  <Card className="bg-muted/30 border-none shadow-none col-span-2">
+                  <Card className="bg-muted/30 border-none shadow-none col-span-2 md:col-span-4">
                     <CardContent className="p-4 space-y-3">
                       <span className="font-semibold text-sm">IPI</span>
-                      <div className="text-xs grid grid-cols-3 gap-2">
+                      <div className="text-xs grid grid-cols-2 md:grid-cols-4 gap-2">
                         <div><span className="text-muted-foreground">CST:</span> {ipi.CST ?? "-"}</div>
                         <div><span className="text-muted-foreground">Alíquota:</span> {ipi.pIPI ?? "-"}%</div>
                         <div className="font-medium"><span className="text-muted-foreground">Valor:</span> {fmt(ipi.vIPI)}</div>
@@ -126,7 +126,7 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
                   </Card>
                 )}
                 {ibscbs.present && (
-                  <Card className="bg-muted/30 border-none shadow-none col-span-2">
+                  <Card className="bg-muted/30 border-none shadow-none col-span-2 md:col-span-4">
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-sm">IBS / CBS</span>
@@ -135,7 +135,7 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
                           {ibscbs.cClassTrib && <Badge variant="outline">cClassTrib {ibscbs.cClassTrib}</Badge>}
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div><p className="text-xs text-muted-foreground">Base de Cálculo</p><p>{fmt(ibscbs.vBC)}</p></div>
                         <div><p className="text-xs text-muted-foreground">Total IBS</p><p className="font-medium">{fmt(ibscbs.vIBS)}</p></div>
                         <div><p className="text-xs text-muted-foreground">IBS UF ({ibscbs.pIBSUF || 0}%)</p><p>{fmt(ibscbs.vIBSUF)}</p></div>

@@ -344,11 +344,29 @@ export async function baixarESalvarXmlCompleto(
 ) {
   const xml = await baixarNfeCompleta(companyId, chave);
   const path = await salvarXml(companyId, `completa-${chave}.xml`, xml);
+  // A listagem por NSU nem sempre traz emitente/valor nas notas completas;
+  // extraímos esses dados do próprio XML.
+  let resumo: Record<string, unknown> = {};
+  try {
+    const { resumoDoXmlNfe } = await import("@/lib/nfe-import.server");
+    const r = resumoDoXmlNfe(xml);
+    resumo = {
+      ...(r.emitente_cnpj ? { emitente_cnpj: r.emitente_cnpj } : {}),
+      ...(r.emitente_nome ? { emitente_nome: r.emitente_nome } : {}),
+      ...(r.emitente_ie ? { emitente_ie: r.emitente_ie } : {}),
+      ...(r.data_emissao ? { data_emissao: r.data_emissao } : {}),
+      ...(r.valor_nota != null ? { valor_nota: r.valor_nota } : {}),
+    };
+  } catch {
+    resumo = {};
+  }
   await marcarStatus(docId, {
     xml_completo_path: path,
     status: "completa" satisfies StatusDocumentoFiscal,
     mensagem_sefaz: null,
+    ...resumo,
   });
+
   await registrarHistorico({
     organizationId,
     companyId,

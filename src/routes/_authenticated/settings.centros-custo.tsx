@@ -299,6 +299,21 @@ function CentrosCustoPage() {
           </DialogHeader>
           <div className="grid gap-3">
             <div>
+              <Label>Empresa {isGlobal ? "" : "*"}</Label>
+              <Select
+                value={form.company_id ?? GLOBAL}
+                onValueChange={(v) => setForm({ ...form, company_id: v === GLOBAL ? null : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+                <SelectContent>
+                  {isGlobal && <SelectItem value={GLOBAL}>🌐 Global — Todas as empresas</SelectItem>}
+                  {(companies as any[]).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome_fantasia ?? c.razao_social}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Código *</Label>
               <Input
                 value={form.codigo}

@@ -40,6 +40,8 @@ function CatalogSettingsPage() {
       qc.invalidateQueries({ queryKey: ["org-settings"] });
       qc.invalidateQueries({ queryKey: ["suppliers"] });
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["plano-contas"] });
+      qc.invalidateQueries({ queryKey: ["centros-custo"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -47,8 +49,8 @@ function CatalogSettingsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Cadastros de Fornecedores e Produtos</h1>
-        <p className="text-sm text-slate-500">Escolha se o catálogo é compartilhado por todas as empresas da organização ou vinculado a uma empresa específica.</p>
+        <h1 className="text-2xl font-bold tracking-tight">Cadastros Globais</h1>
+        <p className="text-sm text-slate-500">Escolha se os cadastros de Fornecedores, Produtos (Famílias, Grupos e Subgrupos), Plano de Contas e Centros de Custo são compartilhados por todas as empresas da organização ou vinculados a uma empresa específica.</p>
       </div>
 
       <Card>

@@ -208,6 +208,37 @@ async function executarSincronizacao(
   return resultado;
 }
 
+/** Completa emitente/valor de documentos que já possuem XML completo salvo. */
+async function preencherResumoFaltante(companyId: string, limite = 100) {
+  const { data } = await supabaseAdmin
+    .from("documentos_fiscais_integracao")
+    .select("id, xml_completo_path, emitente_nome, valor_nota")
+    .eq("company_id", companyId)
+    .not("xml_completo_path", "is", null)
+    .or("emitente_nome.is.null,valor_nota.is.null")
+    .limit(limite);
+
+  if (!data?.length) return;
+  const { resumoDoXmlNfe } = await import("@/lib/nfe-import.server");
+  for (const doc of data) {
+    try {
+      const xml = await lerXml(doc.xml_completo_path as string);
+      const r = resumoDoXmlNfe(xml);
+      await marcarStatus(doc.id, {
+        ...(r.emitente_cnpj ? { emitente_cnpj: r.emitente_cnpj } : {}),
+        ...(r.emitente_nome ? { emitente_nome: r.emitente_nome } : {}),
+        ...(r.emitente_ie ? { emitente_ie: r.emitente_ie } : {}),
+        ...(r.data_emissao ? { data_emissao: r.data_emissao } : {}),
+        ...(r.valor_nota != null ? { valor_nota: r.valor_nota } : {}),
+      });
+    } catch {
+      // Documento sem XML legível — ignorado.
+    }
+  }
+}
+
+
+
 async function marcarStatus(id: string, patch: Record<string, unknown>) {
   await supabaseAdmin.from("documentos_fiscais_integracao").update(patch as never).eq("id", id);
 }

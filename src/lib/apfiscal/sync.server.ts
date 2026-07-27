@@ -192,6 +192,10 @@ async function executarSincronizacao(
     temMais = pagina.tem_mais && validos.length > 0;
   }
 
+  await preencherResumoFaltante(companyId);
+
+
+
   await registrarHistorico({
     organizationId: integ.organization_id,
     companyId,

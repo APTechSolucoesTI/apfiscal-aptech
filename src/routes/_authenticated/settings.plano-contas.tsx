@@ -200,7 +200,7 @@ function PlanoContasPage() {
   };
 
   const saveMut = useMutation({
-    mutationFn: () => saveFn({ data: { ...form, company_id: companyId } }),
+    mutationFn: () => saveFn({ data: { ...form, company_id: form.company_id ?? null } }),
     onSuccess: () => {
       toast.success(form.id ? "Conta atualizada" : "Conta criada");
       qc.invalidateQueries({ queryKey: ["plano-contas"] });

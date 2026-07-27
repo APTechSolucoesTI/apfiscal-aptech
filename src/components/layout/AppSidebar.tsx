@@ -67,6 +67,7 @@ const menuItems = [
       { title: "NF-e (Produtos)", url: "/documents/nfe" },
       { title: "NFS-e (Serviços)", url: "/documents/nfse" },
       { title: "CT-e (Transporte)", url: "/documents/cte" },
+      { title: "Integração NF-e", url: "/nfe-integracao" },
     ]
   },
   {

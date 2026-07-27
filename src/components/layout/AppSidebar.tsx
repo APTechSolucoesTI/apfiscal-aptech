@@ -103,7 +103,7 @@ const menuItems = [
     subItems: [
       { title: "Cadastros Globais", url: "/settings/catalog" },
       { title: "Membros da Equipe", url: "/settings/members" },
-      { title: "Certificados Digitais", url: "/settings/certificates" },
+      
       { title: "API Keys", url: "/settings/api" },
     ]
   },

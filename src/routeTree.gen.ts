@@ -27,7 +27,6 @@ import { Route as AuthenticatedClassificationsRouteImport } from './routes/_auth
 import { Route as AuthenticatedSettingsPlanoContasRouteImport } from './routes/_authenticated/settings.plano-contas'
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings.members'
 import { Route as AuthenticatedSettingsLocaisEstoqueRouteImport } from './routes/_authenticated/settings.locais-estoque'
-import { Route as AuthenticatedSettingsCertificatesRouteImport } from './routes/_authenticated/settings.certificates'
 import { Route as AuthenticatedSettingsCentrosCustoRouteImport } from './routes/_authenticated/settings.centros-custo'
 import { Route as AuthenticatedSettingsCatalogRouteImport } from './routes/_authenticated/settings.catalog'
 import { Route as AuthenticatedSettingsApiRouteImport } from './routes/_authenticated/settings.api'
@@ -132,12 +131,6 @@ const AuthenticatedSettingsLocaisEstoqueRoute =
     path: '/locais-estoque',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsCertificatesRoute =
-  AuthenticatedSettingsCertificatesRouteImport.update({
-    id: '/certificates',
-    path: '/certificates',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
 const AuthenticatedSettingsCentrosCustoRoute =
   AuthenticatedSettingsCentrosCustoRouteImport.update({
     id: '/centros-custo',
@@ -207,7 +200,6 @@ export interface FileRoutesByFullPath {
   '/settings/api': typeof AuthenticatedSettingsApiRoute
   '/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
   '/settings/centros-custo': typeof AuthenticatedSettingsCentrosCustoRoute
-  '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/locais-estoque': typeof AuthenticatedSettingsLocaisEstoqueRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
@@ -235,7 +227,6 @@ export interface FileRoutesByTo {
   '/settings/api': typeof AuthenticatedSettingsApiRoute
   '/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
   '/settings/centros-custo': typeof AuthenticatedSettingsCentrosCustoRoute
-  '/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/settings/locais-estoque': typeof AuthenticatedSettingsLocaisEstoqueRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
@@ -265,7 +256,6 @@ export interface FileRoutesById {
   '/_authenticated/settings/api': typeof AuthenticatedSettingsApiRoute
   '/_authenticated/settings/catalog': typeof AuthenticatedSettingsCatalogRoute
   '/_authenticated/settings/centros-custo': typeof AuthenticatedSettingsCentrosCustoRoute
-  '/_authenticated/settings/certificates': typeof AuthenticatedSettingsCertificatesRoute
   '/_authenticated/settings/locais-estoque': typeof AuthenticatedSettingsLocaisEstoqueRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
@@ -295,7 +285,6 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/settings/catalog'
     | '/settings/centros-custo'
-    | '/settings/certificates'
     | '/settings/locais-estoque'
     | '/settings/members'
     | '/settings/plano-contas'
@@ -323,7 +312,6 @@ export interface FileRouteTypes {
     | '/settings/api'
     | '/settings/catalog'
     | '/settings/centros-custo'
-    | '/settings/certificates'
     | '/settings/locais-estoque'
     | '/settings/members'
     | '/settings/plano-contas'
@@ -352,7 +340,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/api'
     | '/_authenticated/settings/catalog'
     | '/_authenticated/settings/centros-custo'
-    | '/_authenticated/settings/certificates'
     | '/_authenticated/settings/locais-estoque'
     | '/_authenticated/settings/members'
     | '/_authenticated/settings/plano-contas'
@@ -497,13 +484,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsLocaisEstoqueRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
-    '/_authenticated/settings/certificates': {
-      id: '/_authenticated/settings/certificates'
-      path: '/certificates'
-      fullPath: '/settings/certificates'
-      preLoaderRoute: typeof AuthenticatedSettingsCertificatesRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
     '/_authenticated/settings/centros-custo': {
       id: '/_authenticated/settings/centros-custo'
       path: '/centros-custo'
@@ -587,7 +567,6 @@ interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsApiRoute: typeof AuthenticatedSettingsApiRoute
   AuthenticatedSettingsCatalogRoute: typeof AuthenticatedSettingsCatalogRoute
   AuthenticatedSettingsCentrosCustoRoute: typeof AuthenticatedSettingsCentrosCustoRoute
-  AuthenticatedSettingsCertificatesRoute: typeof AuthenticatedSettingsCertificatesRoute
   AuthenticatedSettingsLocaisEstoqueRoute: typeof AuthenticatedSettingsLocaisEstoqueRoute
   AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
   AuthenticatedSettingsPlanoContasRoute: typeof AuthenticatedSettingsPlanoContasRoute
@@ -598,8 +577,6 @@ const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsCatalogRoute: AuthenticatedSettingsCatalogRoute,
   AuthenticatedSettingsCentrosCustoRoute:
     AuthenticatedSettingsCentrosCustoRoute,
-  AuthenticatedSettingsCertificatesRoute:
-    AuthenticatedSettingsCertificatesRoute,
   AuthenticatedSettingsLocaisEstoqueRoute:
     AuthenticatedSettingsLocaisEstoqueRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,

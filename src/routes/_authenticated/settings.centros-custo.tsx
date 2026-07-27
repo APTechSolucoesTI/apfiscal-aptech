@@ -340,7 +340,7 @@ function CentrosCustoPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button
               onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !/^\d{2}\.\d{4}$/.test(form.codigo) || !form.descricao.trim()}
+              disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !/^\d{2}(\.\d{4})?$/.test(form.codigo) || !form.descricao.trim()}
             >
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>

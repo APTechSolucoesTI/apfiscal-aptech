@@ -54,6 +54,37 @@ const finLabel = (v: unknown) => {
   return ({ "1": "1 - Normal", "2": "2 - Complementar", "3": "3 - Ajuste", "4": "4 - Devolução" }[s] ?? (s || "-"));
 };
 
+const TPAG_LABELS: Record<string, string> = {
+  "01": "Dinheiro",
+  "02": "Cheque",
+  "03": "Cartão de Crédito",
+  "04": "Cartão de Débito",
+  "05": "Crédito Loja",
+  "10": "Vale Alimentação",
+  "11": "Vale Refeição",
+  "12": "Vale Presente",
+  "13": "Vale Combustível",
+  "14": "Duplicata Mercantil",
+  "15": "Boleto Bancário",
+  "16": "Depósito Bancário",
+  "17": "PIX (Dinâmico)",
+  "18": "PIX (Estático) / Carteira Digital",
+  "19": "Programa de Fidelidade / Cashback",
+  "20": "PIX (Dinâmico)",
+  "21": "Transferência bancária / Carteira Digital",
+  "22": "Programa de Fidelidade / Cashback",
+  "90": "Sem pagamento",
+  "99": "Outros",
+};
+
+const tPagLabel = (v: unknown) => {
+  const raw = String(v ?? "").trim();
+  if (!raw) return "-";
+  const code = raw.padStart(2, "0");
+  const label = TPAG_LABELS[code];
+  return label ? `${code} - ${label}` : code;
+};
+
 export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
@@ -549,7 +580,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                         <tbody>
                           {detPag.map((p: any, i: number) => (
                             <tr key={i} className="border-b">
-                              <td className="px-4 py-3">{p.tPag ?? "-"}</td>
+                              <td className="px-4 py-3">{tPagLabel(p.tPag)}</td>
                               <td className="px-4 py-3 text-right font-bold">{fmt(p.vPag)}</td>
                             </tr>
                           ))}

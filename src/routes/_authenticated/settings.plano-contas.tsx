@@ -255,6 +255,9 @@ function PlanoContasPage() {
           {analitica ? <FileText className="h-4 w-4 text-blue-500 shrink-0" /> : <FolderTree className="h-4 w-4 text-amber-600 shrink-0" />}
           <span className="font-mono text-sm w-36 shrink-0">{n.row.codigo}</span>
           <span className="flex-1 truncate">{n.row.descricao}</span>
+          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 max-w-[180px] truncate">
+            {companyName(n.row.company_id ?? null)}
+          </Badge>
           <Badge variant="outline" className={analitica ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
             {analitica ? "Analítica" : "Sintética"}
           </Badge>

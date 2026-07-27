@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { getOrgSettings } from "@/lib/organization.functions";
 import {
   listCentrosCusto, saveCentroCusto, toggleCentroCustoAtivo, deleteCentroCusto,
   type CentroCustoInput,
@@ -60,6 +61,8 @@ function maskCodigoCC(raw: string): string {
   return `${d.slice(0, 2)}.${d.slice(2)}`;
 }
 
+const GLOBAL = "__global__";
+
 function CentrosCustoPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("");
@@ -69,28 +72,47 @@ function CentrosCustoPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [confirmInativar, setConfirmInativar] = useState<any | null>(null);
   const [confirmExcluir, setConfirmExcluir] = useState<any | null>(null);
-  const [form, setForm] = useState<CentroCustoInput>({ company_id: "", codigo: "", descricao: "", ativo: true });
+  const [form, setForm] = useState<CentroCustoInput>({ company_id: null, codigo: "", descricao: "", ativo: true });
+
+  const getOrgFn = useServerFn(getOrgSettings);
+  const { data: orgSettings } = useQuery({ queryKey: ["org-settings"], queryFn: () => getOrgFn() });
+  const isGlobal = orgSettings?.catalog_scope === "global";
 
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],
     queryFn: async () => {
       const { data, error } = await supabase.from("companies").select("id, razao_social, nome_fantasia").order("razao_social");
       if (error) throw error;
-      if (!companyId && (data ?? [])[0]) setCompanyId((data as any)[0].id);
       return data ?? [];
     },
   });
+
+  // Define a seleção inicial conforme o escopo do catálogo
+  useEffect(() => {
+    if (companyId) return;
+    if (orgSettings === undefined) return;
+    if (isGlobal) setCompanyId(GLOBAL);
+    else if ((companies as any[])[0]) setCompanyId((companies as any[])[0].id);
+  }, [orgSettings, isGlobal, companies, companyId]);
 
   const listFn = useServerFn(listCentrosCusto);
   const saveFn = useServerFn(saveCentroCusto);
   const toggleFn = useServerFn(toggleCentroCustoAtivo);
   const delFn = useServerFn(deleteCentroCusto);
 
+  const isGlobalView = companyId === GLOBAL;
+
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["centros-custo", companyId],
     enabled: !!companyId,
-    queryFn: () => listFn({ data: { companyId } }),
+    queryFn: () => listFn({ data: isGlobalView ? {} : { companyId } }),
   });
+
+  const companyName = (id: string | null) => {
+    if (!id) return "🌐 Global";
+    const c = (companies as any[]).find((x) => x.id === id);
+    return c ? (c.nome_fantasia ?? c.razao_social) : "—";
+  };
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
@@ -105,7 +127,7 @@ function CentrosCustoPage() {
   }, [rows, search, statusFilter]);
 
   const saveMut = useMutation({
-    mutationFn: () => saveFn({ data: { ...form, company_id: companyId, codigo: form.codigo } }),
+    mutationFn: () => saveFn({ data: { ...form, company_id: form.company_id ?? null, codigo: form.codigo } }),
     onSuccess: () => {
       toast.success(form.id ? "Centro de Custo atualizado" : "Centro de Custo criado");
       qc.invalidateQueries({ queryKey: ["centros-custo"] });
@@ -133,13 +155,15 @@ function CentrosCustoPage() {
   });
 
   function openNew() {
-    setForm({ company_id: companyId, codigo: "", descricao: "", ativo: true });
+    const defaultCompany = isGlobalView ? null : (companyId || null);
+    setForm({ company_id: defaultCompany, codigo: "", descricao: "", ativo: true });
     setOpen(true);
   }
   function openEdit(r: any) {
-    setForm({ id: r.id, company_id: r.company_id, codigo: r.codigo, descricao: r.descricao, ativo: r.ativo });
+    setForm({ id: r.id, company_id: r.company_id ?? null, codigo: r.codigo, descricao: r.descricao, ativo: r.ativo });
     setOpen(true);
   }
+
 
   return (
     <div className="p-6 space-y-6">
@@ -157,6 +181,7 @@ function CentrosCustoPage() {
               <Select value={companyId} onValueChange={setCompanyId}>
                 <SelectTrigger className="w-[280px]"><SelectValue placeholder="Selecione uma empresa" /></SelectTrigger>
                 <SelectContent>
+                  {isGlobal && <SelectItem value={GLOBAL}>🌐 Global — Todas as empresas</SelectItem>}
                   {(companies as any[]).map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.nome_fantasia ?? c.razao_social}</SelectItem>
                   ))}
@@ -176,7 +201,7 @@ function CentrosCustoPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={(companies as any[]).length === 0}>
+              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && (companies as any[]).length === 0}>
                 <Upload className="h-4 w-4 mr-1" /> Importar XLSX
               </Button>
               <Button onClick={openNew} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Novo Centro de Custo</Button>
@@ -189,19 +214,21 @@ function CentrosCustoPage() {
               <TableRow>
                 <TableHead className="w-32">Código</TableHead>
                 <TableHead>Descrição</TableHead>
+                <TableHead className="w-56">Empresa</TableHead>
                 <TableHead className="w-32">Ativo</TableHead>
                 <TableHead className="w-32 text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8"><Loader2 className="h-4 w-4 animate-spin inline" /></TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-slate-500">Nenhum centro de custo cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-slate-500">Nenhum centro de custo cadastrado.</TableCell></TableRow>
               ) : filtered.map((r: any) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-mono">{r.codigo}</TableCell>
                   <TableCell>{r.descricao}</TableCell>
+                  <TableCell className="text-sm text-slate-600">{companyName(r.company_id ?? null)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Switch
@@ -233,29 +260,34 @@ function CentrosCustoPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Centros de Custo via Excel"
-        description="Selecione a empresa e envie a planilha. As colunas são mapeadas automaticamente."
+        description={isGlobal
+          ? "Os registros podem ser globais (todas as empresas) ou de uma empresa específica. As colunas são mapeadas automaticamente."
+          : "Selecione a empresa e envie a planilha. As colunas são mapeadas automaticamente."}
         fields={ccImportFields}
         companies={(companies as any[]).map((c) => ({ id: c.id, label: c.nome_fantasia ?? c.razao_social }))}
-        requireCompanySelection
+        allowGlobal={isGlobal}
+        requireCompanySelection={!isGlobal}
         buildRow={(m, ctx) => {
-          if (!ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
+          if (!isGlobal && !ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
           const codigo = normalizeCodigoCC(m.codigo);
           const descricao = String(m.descricao ?? "").trim();
           if (!descricao) throw new Error("Descrição obrigatória");
-          return { company_id: ctx.companyId, codigo, descricao, ativo: parseAtivo(m.ativo) } as CentroCustoInput;
+          return { company_id: ctx.companyId ?? null, codigo, descricao, ativo: parseAtivo(m.ativo) } as CentroCustoInput;
         }}
         checkDuplicate={async (row) => {
-          const { count, error } = await supabase
+          let q = supabase
             .from("centros_custo")
             .select("id", { count: "exact", head: true })
-            .eq("company_id", row.company_id)
             .eq("codigo", row.codigo);
+          q = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
+          const { count, error } = await q;
           if (error) return false;
           return (count ?? 0) > 0;
         }}
         onImportRow={async (row) => { await saveFn({ data: row }); }}
         onDone={() => qc.invalidateQueries({ queryKey: ["centros-custo"] })}
       />
+
 
 
 
@@ -266,6 +298,21 @@ function CentrosCustoPage() {
             <DialogDescription>Preencha os campos abaixo. Código no formato 99.9999.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
+            <div>
+              <Label>Empresa {isGlobal ? "" : "*"}</Label>
+              <Select
+                value={form.company_id ?? GLOBAL}
+                onValueChange={(v) => setForm({ ...form, company_id: v === GLOBAL ? null : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+                <SelectContent>
+                  {isGlobal && <SelectItem value={GLOBAL}>🌐 Global — Todas as empresas</SelectItem>}
+                  {(companies as any[]).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome_fantasia ?? c.razao_social}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label>Código *</Label>
               <Input
@@ -292,7 +339,7 @@ function CentrosCustoPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button
               onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending || !/^\d{2}\.\d{4}$/.test(form.codigo) || !form.descricao.trim()}
+              disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !/^\d{2}\.\d{4}$/.test(form.codigo) || !form.descricao.trim()}
             >
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>

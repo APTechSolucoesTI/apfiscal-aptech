@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { getOrgSettings } from "@/lib/organization.functions";
 import {
   listPlanoContas, savePlanoContas, togglePlanoContasAtivo, deletePlanoContas, proximoCodigoPlanoContas,
   type PlanoContasInput,
@@ -99,6 +100,8 @@ function buildTree(rows: any[]): Node[] {
   return roots;
 }
 
+const GLOBAL = "__global__";
+
 function PlanoContasPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("");
@@ -110,17 +113,28 @@ function PlanoContasPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [confirmInativar, setConfirmInativar] = useState<any | null>(null);
   const [confirmExcluir, setConfirmExcluir] = useState<any | null>(null);
-  const [form, setForm] = useState<PlanoContasInput>({ company_id: "", codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: null });
+  const [form, setForm] = useState<PlanoContasInput>({ company_id: null, codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: null });
+
+  const getOrgFn = useServerFn(getOrgSettings);
+  const { data: orgSettings } = useQuery({ queryKey: ["org-settings"], queryFn: () => getOrgFn() });
+  const isGlobal = orgSettings?.catalog_scope === "global";
 
   const { data: companies = [] } = useQuery({
     queryKey: ["companies-list"],
     queryFn: async () => {
       const { data, error } = await supabase.from("companies").select("id, razao_social, nome_fantasia").order("razao_social");
       if (error) throw error;
-      if (!companyId && (data ?? [])[0]) setCompanyId((data as any)[0].id);
       return data ?? [];
     },
   });
+
+  // Define a seleção inicial conforme o escopo do catálogo
+  useEffect(() => {
+    if (companyId) return;
+    if (orgSettings === undefined) return;
+    if (isGlobal) setCompanyId(GLOBAL);
+    else if ((companies as any[])[0]) setCompanyId((companies as any[])[0].id);
+  }, [orgSettings, isGlobal, companies, companyId]);
 
   const listFn = useServerFn(listPlanoContas);
   const saveFn = useServerFn(savePlanoContas);
@@ -128,11 +142,20 @@ function PlanoContasPage() {
   const delFn = useServerFn(deletePlanoContas);
   const nextCodeFn = useServerFn(proximoCodigoPlanoContas);
 
+  const isGlobalView = companyId === GLOBAL;
+
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["plano-contas", companyId],
     enabled: !!companyId,
-    queryFn: () => listFn({ data: { companyId } }),
+    queryFn: () => listFn({ data: isGlobalView ? {} : { companyId } }),
   });
+
+  const companyName = (id: string | null) => {
+    if (!id) return "🌐 Global";
+    const c = (companies as any[]).find((x) => x.id === id);
+    return c ? (c.nome_fantasia ?? c.razao_social) : "—";
+  };
+
 
   const filteredRows = useMemo(() => {
     return (rows as any[]).filter((r) => {
@@ -177,7 +200,7 @@ function PlanoContasPage() {
   };
 
   const saveMut = useMutation({
-    mutationFn: () => saveFn({ data: { ...form, company_id: companyId } }),
+    mutationFn: () => saveFn({ data: { ...form, company_id: form.company_id ?? null } }),
     onSuccess: () => {
       toast.success(form.id ? "Conta atualizada" : "Conta criada");
       qc.invalidateQueries({ queryKey: ["plano-contas"] });
@@ -203,15 +226,16 @@ function PlanoContasPage() {
   });
 
   async function openNew(pai: any | null = null) {
-    setForm({ company_id: companyId, codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: pai?.id ?? null });
+    const defaultCompany = pai ? (pai.company_id ?? null) : (isGlobalView ? null : (companyId || null));
+    setForm({ company_id: defaultCompany, codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: pai?.id ?? null });
     setOpen(true);
     try {
-      const { codigo } = await nextCodeFn({ data: { companyId, contaPaiId: pai?.id ?? null } });
+      const { codigo } = await nextCodeFn({ data: { companyId: defaultCompany, contaPaiId: pai?.id ?? null } });
       setForm((f) => ({ ...f, codigo }));
     } catch { /* ignore */ }
   }
   function openEdit(r: any) {
-    setForm({ id: r.id, company_id: r.company_id, codigo: r.codigo, descricao: r.descricao, ativo: r.ativo, permite_lancamentos: r.permite_lancamentos, conta_pai_id: r.conta_pai_id });
+    setForm({ id: r.id, company_id: r.company_id ?? null, codigo: r.codigo, descricao: r.descricao, ativo: r.ativo, permite_lancamentos: r.permite_lancamentos, conta_pai_id: r.conta_pai_id });
     setOpen(true);
   }
 
@@ -231,6 +255,9 @@ function PlanoContasPage() {
           {analitica ? <FileText className="h-4 w-4 text-blue-500 shrink-0" /> : <FolderTree className="h-4 w-4 text-amber-600 shrink-0" />}
           <span className="font-mono text-sm w-36 shrink-0">{n.row.codigo}</span>
           <span className="flex-1 truncate">{n.row.descricao}</span>
+          <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 max-w-[180px] truncate">
+            {companyName(n.row.company_id ?? null)}
+          </Badge>
           <Badge variant="outline" className={analitica ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
             {analitica ? "Analítica" : "Sintética"}
           </Badge>
@@ -276,6 +303,7 @@ function PlanoContasPage() {
               <Select value={companyId} onValueChange={setCompanyId}>
                 <SelectTrigger className="w-[280px]"><SelectValue placeholder="Selecione uma empresa" /></SelectTrigger>
                 <SelectContent>
+                  {isGlobal && <SelectItem value={GLOBAL}>🌐 Global — Todas as empresas</SelectItem>}
                   {(companies as any[]).map((c) => (
                     <SelectItem key={c.id} value={c.id}>{c.nome_fantasia ?? c.razao_social}</SelectItem>
                   ))}
@@ -303,7 +331,7 @@ function PlanoContasPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={(companies as any[]).length === 0}>
+              <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!isGlobal && (companies as any[]).length === 0}>
                 <Upload className="h-4 w-4 mr-1" /> Importar XLSX
               </Button>
               <Button onClick={() => openNew(null)} disabled={!companyId}><Plus className="h-4 w-4 mr-1" /> Nova Conta</Button>
@@ -325,17 +353,20 @@ function PlanoContasPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="Importar Plano de Contas via Excel"
-        description="Selecione a empresa e envie a planilha. Ordene as contas do nível 1 para o nível 3 — as contas pai são vinculadas automaticamente pelo código."
+        description={isGlobal
+          ? "As contas podem ser globais (todas as empresas) ou de uma empresa específica. Ordene do nível 1 para o nível 3 — as contas pai são vinculadas automaticamente pelo código."
+          : "Selecione a empresa e envie a planilha. Ordene as contas do nível 1 para o nível 3 — as contas pai são vinculadas automaticamente pelo código."}
         fields={pcImportFields}
         companies={(companies as any[]).map((c) => ({ id: c.id, label: c.nome_fantasia ?? c.razao_social }))}
-        requireCompanySelection
+        allowGlobal={isGlobal}
+        requireCompanySelection={!isGlobal}
         buildRow={(m, ctx) => {
-          if (!ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
+          if (!isGlobal && !ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
           const codigo = normalizeCodigoPC(m.codigo);
           const descricao = String(m.descricao ?? "").trim();
           if (!descricao) throw new Error("Descrição obrigatória");
           return {
-            company_id: ctx.companyId,
+            company_id: ctx.companyId ?? null,
             codigo,
             descricao,
             ativo: parseBool(m.ativo, true),
@@ -344,11 +375,12 @@ function PlanoContasPage() {
           } as PlanoContasInput;
         }}
         checkDuplicate={async (row) => {
-          const { count, error } = await supabase
+          let q = supabase
             .from("plano_contas")
             .select("id", { count: "exact", head: true })
-            .eq("company_id", row.company_id)
             .eq("codigo", row.codigo);
+          q = row.company_id ? q.eq("company_id", row.company_id) : q.is("company_id", null);
+          const { count, error } = await q;
           if (error) return false;
           return (count ?? 0) > 0;
         }}
@@ -356,12 +388,12 @@ function PlanoContasPage() {
           const pai = codigoPai(row.codigo);
           let conta_pai_id: string | null = null;
           if (pai) {
-            const { data } = await supabase
+            let pq = supabase
               .from("plano_contas")
               .select("id")
-              .eq("company_id", row.company_id)
-              .eq("codigo", pai)
-              .maybeSingle();
+              .eq("codigo", pai);
+            pq = row.company_id ? pq.eq("company_id", row.company_id) : pq.is("company_id", null);
+            const { data } = await pq.maybeSingle();
             if (!data) throw new Error(`Conta pai ${pai} não encontrada. Importe/ordene as contas do nível 1 para o nível 3.`);
             conta_pai_id = (data as any).id;
           }
@@ -381,6 +413,23 @@ function PlanoContasPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
+            <div>
+              <Label>Empresa {isGlobal ? "" : "*"}</Label>
+              <Select
+                value={form.company_id ?? GLOBAL}
+                onValueChange={(v) => setForm({ ...form, company_id: v === GLOBAL ? null : v })}
+                disabled={!!form.conta_pai_id}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+                <SelectContent>
+                  {isGlobal && <SelectItem value={GLOBAL}>🌐 Global — Todas as empresas</SelectItem>}
+                  {(companies as any[]).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome_fantasia ?? c.razao_social}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {form.conta_pai_id && <p className="text-xs text-slate-500 mt-1">Subcontas herdam o vínculo da conta pai.</p>}
+            </div>
             <div>
               <Label>Código *</Label>
               <Input
@@ -418,7 +467,7 @@ function PlanoContasPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button
               onClick={() => saveMut.mutate()}
-              disabled={saveMut.isPending || !codigoValido(form.codigo) || !form.descricao.trim()}
+              disabled={saveMut.isPending || (!isGlobal && !form.company_id) || !codigoValido(form.codigo) || !form.descricao.trim()}
             >
               {saveMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
             </Button>

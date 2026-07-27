@@ -88,7 +88,7 @@ export type Database = {
         Row: {
           ativo: boolean
           codigo: string
-          company_id: string
+          company_id: string | null
           created_at: string
           descricao: string
           id: string
@@ -98,7 +98,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           codigo: string
-          company_id: string
+          company_id?: string | null
           created_at?: string
           descricao: string
           id?: string
@@ -108,7 +108,7 @@ export type Database = {
         Update: {
           ativo?: boolean
           codigo?: string
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           descricao?: string
           id?: string
@@ -950,7 +950,7 @@ export type Database = {
         Row: {
           ativo: boolean
           codigo: string
-          company_id: string
+          company_id: string | null
           conta_pai_id: string | null
           created_at: string
           descricao: string
@@ -962,7 +962,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           codigo: string
-          company_id: string
+          company_id?: string | null
           conta_pai_id?: string | null
           created_at?: string
           descricao: string
@@ -974,7 +974,7 @@ export type Database = {
         Update: {
           ativo?: boolean
           codigo?: string
-          company_id?: string
+          company_id?: string | null
           conta_pai_id?: string | null
           created_at?: string
           descricao?: string

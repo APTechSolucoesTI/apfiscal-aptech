@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type PlanoContasInput = {
   id?: string;
-  company_id: string;
+  company_id: string | null;
   conta_pai_id?: string | null;
   codigo: string;
   descricao: string;
@@ -18,11 +18,16 @@ function codigoValido(c: string) {
   return NIVEL1.test(c) || NIVEL2.test(c) || NIVEL3.test(c);
 }
 
-async function orgIdOfCompany(context: any, companyId: string): Promise<string> {
-  const { data, error } = await context.supabase
-    .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
-  if (error || !data) throw new Error("Empresa não encontrada");
-  return data.organization_id as string;
+async function orgIdOf(context: any, companyId: string | null): Promise<string> {
+  if (companyId) {
+    const { data, error } = await context.supabase
+      .from("companies").select("organization_id").eq("id", companyId).maybeSingle();
+    if (error || !data) throw new Error("Empresa não encontrada");
+    return data.organization_id as string;
+  }
+  const { data: orgId, error } = await context.supabase.rpc("ensure_user_organization");
+  if (error || !orgId) throw new Error("Organização não encontrada");
+  return orgId as string;
 }
 
 export const listPlanoContas = createServerFn({ method: "GET" })
@@ -30,7 +35,8 @@ export const listPlanoContas = createServerFn({ method: "GET" })
   .inputValidator((data: { companyId?: string; apenasLancaveis?: boolean; apenasAtivos?: boolean }) => data)
   .handler(async ({ data, context }) => {
     let q = (context.supabase as any).from("plano_contas").select("*").order("codigo");
-    if (data.companyId) q = q.eq("company_id", data.companyId);
+    // Quando uma empresa é informada, inclui também os cadastros globais (company_id IS NULL)
+    if (data.companyId) q = q.or(`company_id.eq.${data.companyId},company_id.is.null`);
     if (data.apenasLancaveis) q = q.eq("permite_lancamentos", true);
     if (data.apenasAtivos) q = q.eq("ativo", true);
     const { data: rows, error } = await q;
@@ -38,9 +44,10 @@ export const listPlanoContas = createServerFn({ method: "GET" })
     return (rows ?? []) as any[];
   });
 
+
 export const proximoCodigoPlanoContas = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { companyId: string; contaPaiId?: string | null }) => data)
+  .inputValidator((data: { companyId: string | null; contaPaiId?: string | null }) => data)
   .handler(async ({ data, context }) => {
     let prefix = "";
     let level: 1 | 2 | 3 = 1;
@@ -53,9 +60,12 @@ export const proximoCodigoPlanoContas = createServerFn({ method: "GET" })
       if (level === 3 && NIVEL3.test(pai.codigo)) throw new Error("Nível máximo atingido (não é permitido subcontas nível 4)");
     }
     const width = level === 1 ? 2 : level === 2 ? 3 : 4;
-    const { data: irmaos } = await (context.supabase as any)
-      .from("plano_contas").select("codigo").eq("company_id", data.companyId)
-      .like("codigo", `${prefix}%`);
+    let sq = (context.supabase as any)
+      .from("plano_contas").select("codigo").like("codigo", `${prefix}%`);
+    sq = data.companyId
+      ? sq.or(`company_id.eq.${data.companyId},company_id.is.null`)
+      : sq.is("company_id", null);
+    const { data: irmaos } = await sq;
     let max = 0;
     for (const r of (irmaos ?? []) as any[]) {
       const rest = r.codigo.slice(prefix.length);
@@ -72,16 +82,15 @@ export const proximoCodigoPlanoContas = createServerFn({ method: "GET" })
 export const savePlanoContas = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: PlanoContasInput) => {
-    if (!data.company_id) throw new Error("Empresa é obrigatória");
     if (!codigoValido(data.codigo)) throw new Error("Código inválido. Use 99, 99.999 ou 99.999.9999");
     if (!data.descricao?.trim()) throw new Error("Descrição é obrigatória");
     return data;
   })
   .handler(async ({ data, context }) => {
-    const organization_id = await orgIdOfCompany(context, data.company_id);
+    const organization_id = await orgIdOf(context, data.company_id ?? null);
     const payload: any = {
       organization_id,
-      company_id: data.company_id,
+      company_id: data.company_id ?? null,
       conta_pai_id: data.conta_pai_id ?? null,
       codigo: data.codigo.trim(),
       descricao: data.descricao.trim(),

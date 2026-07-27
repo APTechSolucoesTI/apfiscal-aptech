@@ -229,6 +229,36 @@ function CentrosCustoPage() {
         </CardContent>
       </Card>
 
+      <ImportXlsxDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Importar Centros de Custo via Excel"
+        description="Selecione a empresa e envie a planilha. As colunas são mapeadas automaticamente."
+        fields={ccImportFields}
+        companies={(companies as any[]).map((c) => ({ id: c.id, label: c.nome_fantasia ?? c.razao_social }))}
+        requireCompanySelection
+        buildRow={(m, ctx) => {
+          if (!ctx.companyId) throw new Error("Selecione uma empresa antes de importar");
+          const codigo = normalizeCodigoCC(m.codigo);
+          const descricao = String(m.descricao ?? "").trim();
+          if (!descricao) throw new Error("Descrição obrigatória");
+          return { company_id: ctx.companyId, codigo, descricao, ativo: parseAtivo(m.ativo) } as CentroCustoInput;
+        }}
+        checkDuplicate={async (row) => {
+          const { count, error } = await supabase
+            .from("centros_custo")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", row.company_id)
+            .eq("codigo", row.codigo);
+          if (error) return false;
+          return (count ?? 0) > 0;
+        }}
+        onImportRow={async (row) => { await saveFn({ data: row }); }}
+        onDone={() => qc.invalidateQueries({ queryKey: ["centros-custo"] })}
+      />
+
+
+
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

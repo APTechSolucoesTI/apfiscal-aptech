@@ -16,6 +16,8 @@ import { unlinkNfeItem } from "@/lib/products.functions";
 import { generateDanfePdfBlobUrl } from "@/lib/danfe-pdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";
+import { getItemIbsCbs, getTotaisIbsCbs } from "@/lib/nfe-ibscbs";
+
 
 const doc_ = (v: unknown) => {
   const s = String(v ?? "").trim();
@@ -106,7 +108,9 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const emit = (doc.emitente ?? {}) as any;
   const dest = (doc.destinatario ?? {}) as any;
   const totais = (doc.totais ?? {}) as any;
+  const ibscbsTotais = getTotaisIbsCbs(totais, doc.raw_payload, items);
   const transp = (doc.transporte ?? {}) as any;
+
   const cobr = (doc.cobranca ?? null) as any;
   const pag = (doc.pagamentos ?? null) as any;
   const infAdic = (doc.inf_adicional ?? {}) as any;
@@ -423,6 +427,84 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                   </CardContent>
                 </Card>
               </div>
+
+              {ibscbsTotais.present ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">IBS</CardTitle></CardHeader>
+                    <CardContent>
+                      <div className="flex justify-between items-end">
+                        <div><p className="text-xs text-muted-foreground">Base IBS/CBS</p><p className="font-bold">{fmt(ibscbsTotais.vBC)}</p></div>
+                        <div className="text-right"><p className="text-xs text-muted-foreground">Total IBS</p><p className="text-xl font-bold text-primary">{fmt(ibscbsTotais.vIBS)}</p></div>
+                      </div>
+                      <div className="flex justify-between items-end mt-3">
+                        <div><p className="text-xs text-muted-foreground">IBS UF</p><p>{fmt(ibscbsTotais.vIBSUF)}</p></div>
+                        <div className="text-right"><p className="text-xs text-muted-foreground">IBS Município</p><p>{fmt(ibscbsTotais.vIBSMun)}</p></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">CBS</CardTitle></CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">Valor CBS</p>
+                      <p className="text-xl font-bold text-primary">{fmt(ibscbsTotais.vCBS)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">IS (Imposto Seletivo)</CardTitle></CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">Valor IS</p>
+                      <p className="text-xl font-bold">{fmt(ibscbsTotais.vIS)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Esta NF-e não possui tributos da Reforma Tributária (IBS / CBS / IS) informados no XML.
+                </p>
+              )}
+
+              {ibscbsTotais.present && (
+                <Card>
+                  <CardHeader className="py-3"><CardTitle className="text-sm uppercase text-muted-foreground">IBS / CBS por item</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className="p-3 text-left">#</th>
+                            <th className="p-3 text-left">Descrição</th>
+                            <th className="p-3 text-left">CST</th>
+                            <th className="p-3 text-right">Base</th>
+                            <th className="p-3 text-right">IBS UF</th>
+                            <th className="p-3 text-right">IBS Mun.</th>
+                            <th className="p-3 text-right">IBS</th>
+                            <th className="p-3 text-right">CBS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((it: any) => {
+                            const t = getItemIbsCbs(it.impostos);
+                            return (
+                              <tr key={it.id} className="border-t">
+                                <td className="p-3">{it.numero_item}</td>
+                                <td className="p-3">{it.descricao ?? "-"}</td>
+                                <td className="p-3">{t.cst ?? "-"}</td>
+                                <td className="p-3 text-right">{fmt(t.vBC)}</td>
+                                <td className="p-3 text-right">{fmt(t.vIBSUF)}</td>
+                                <td className="p-3 text-right">{fmt(t.vIBSMun)}</td>
+                                <td className="p-3 text-right font-medium">{fmt(t.vIBS)}</td>
+                                <td className="p-3 text-right font-medium">{fmt(t.vCBS)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
             </TabsContent>
 
             <TabsContent value="transporte" className="m-0 space-y-6">

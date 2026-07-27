@@ -580,7 +580,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                         <tbody>
                           {detPag.map((p: any, i: number) => (
                             <tr key={i} className="border-b">
-                              <td className="px-4 py-3">{p.tPag ?? "-"}</td>
+                              <td className="px-4 py-3">{tPagLabel(p.tPag)}</td>
                               <td className="px-4 py-3 text-right font-bold">{fmt(p.vPag)}</td>
                             </tr>
                           ))}

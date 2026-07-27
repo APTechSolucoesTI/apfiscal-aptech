@@ -14,6 +14,7 @@ type Props = { companyId: string | null };
 export function IntegracaoFiscalForm({ companyId }: Props) {
   const queryClient = useQueryClient();
   const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [ativo, setAtivo] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [testando, setTestando] = useState(false);
@@ -25,7 +26,10 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
   });
 
   useEffect(() => {
-    if (data) setAtivo(data.ativo);
+    if (data) {
+      setAtivo(data.ativo);
+      setBaseUrl(data.baseUrl ?? "");
+    }
   }, [data]);
 
   if (!companyId) {
@@ -39,7 +43,7 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
   const handleSalvar = async () => {
     setSalvando(true);
     try {
-      await salvarIntegracao({ companyId, apiKey: apiKey.trim() || null, ativo });
+      await salvarIntegracao({ companyId, apiKey: apiKey.trim() || null, ativo, baseUrl: baseUrl.trim() || null });
       setApiKey("");
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-integracao", companyId] });
       toast.success("Integração fiscal atualizada.");
@@ -53,7 +57,11 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
   const handleTestar = async () => {
     setTestando(true);
     try {
-      const res = await testarConexao({ companyId, apiKey: apiKey.trim() || null });
+      const res = await testarConexao({
+        companyId,
+        apiKey: apiKey.trim() || null,
+        baseUrl: baseUrl.trim() || null,
+      });
       if (res.ok) toast.success(res.mensagem);
       else toast.error(res.mensagem);
     } catch (e) {
@@ -76,6 +84,23 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
         </div>
       ) : (
         <>
+          <div className="grid gap-2">
+            <Label htmlFor="apfiscal-base-url">URL base da API (APFISCAL_BASE_URL)</Label>
+            <Input
+              id="apfiscal-base-url"
+              type="url"
+              inputMode="url"
+              maxLength={300}
+              autoComplete="off"
+              placeholder="https://api.suaempresa.com.br/apfiscal"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+            />
+            <p className="text-xs text-slate-500">
+              Endereço de conexão exclusivo desta empresa. Deixe em branco para usar a URL padrão do servidor.
+            </p>
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="apfiscal-key">Chave de API (APFISCAL_API_KEY)</Label>
             <div className="flex items-center gap-2">

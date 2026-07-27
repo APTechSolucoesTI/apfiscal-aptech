@@ -365,6 +365,7 @@ export type Database = {
           api_key_encrypted: string | null
           api_key_last4: string | null
           ativo: boolean
+          base_url: string | null
           company_id: string
           created_at: string
           id: string
@@ -376,6 +377,7 @@ export type Database = {
           api_key_encrypted?: string | null
           api_key_last4?: string | null
           ativo?: boolean
+          base_url?: string | null
           company_id: string
           created_at?: string
           id?: string
@@ -387,6 +389,7 @@ export type Database = {
           api_key_encrypted?: string | null
           api_key_last4?: string | null
           ativo?: boolean
+          base_url?: string | null
           company_id?: string
           created_at?: string
           id?: string

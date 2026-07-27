@@ -33,6 +33,7 @@ export function salvarIntegracao(input: {
   companyId: string;
   apiKey?: string | null;
   ativo: boolean;
+  baseUrl?: string | null;
 }): Promise<{ ok: boolean }> {
   return salvarIntegracaoEmpresa({ data: input });
 }
@@ -40,6 +41,7 @@ export function salvarIntegracao(input: {
 export function testarConexao(input: {
   companyId: string;
   apiKey?: string | null;
+  baseUrl?: string | null;
 }): Promise<{ ok: boolean; mensagem: string }> {
   return testarConexaoApfiscal({ data: input });
 }

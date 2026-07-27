@@ -14,7 +14,7 @@ export const getIntegracaoEmpresa = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: rec } = await supabaseAdmin
       .from("empresa_integracoes_fiscais")
-      .select("ativo, ultimo_nsu, api_key_last4, api_key_encrypted")
+      .select("ativo, ultimo_nsu, api_key_last4, api_key_encrypted, base_url")
       .eq("company_id", data.companyId)
       .maybeSingle();
     return {
@@ -22,15 +22,29 @@ export const getIntegracaoEmpresa = createServerFn({ method: "POST" })
       ultimoNsu: Number(rec?.ultimo_nsu ?? 0),
       apiKeyLast4: rec?.api_key_last4 ?? null,
       configurada: Boolean(rec?.api_key_encrypted),
+      baseUrl: rec?.base_url ?? null,
     };
   });
 
 export const salvarIntegracaoEmpresa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { companyId: string; apiKey?: string | null; ativo: boolean }) => {
+  .inputValidator((data: { companyId: string; apiKey?: string | null; ativo: boolean; baseUrl?: string | null }) => {
     if (!data?.companyId) throw new Error("Empresa é obrigatória.");
     if (data.apiKey != null && data.apiKey.trim().length > 0 && data.apiKey.trim().length < 8) {
       throw new Error("Chave de API inválida.");
+    }
+    const url = data.baseUrl?.trim();
+    if (url) {
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+      } catch {
+        throw new Error("URL base inválida.");
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error("URL base deve usar http ou https.");
+      }
+      if (url.length > 300) throw new Error("URL base muito longa.");
     }
     return data;
   })
@@ -43,6 +57,7 @@ export const salvarIntegracaoEmpresa = createServerFn({ method: "POST" })
       organization_id: organizationId,
       company_id: data.companyId,
       ativo: data.ativo,
+      base_url: data.baseUrl?.trim() || null,
     };
     const key = data.apiKey?.trim();
     if (key) {
@@ -58,7 +73,7 @@ export const salvarIntegracaoEmpresa = createServerFn({ method: "POST" })
 
 export const testarConexaoApfiscal = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { companyId: string; apiKey?: string | null }) => {
+  .inputValidator((data: { companyId: string; apiKey?: string | null; baseUrl?: string | null }) => {
     if (!data?.companyId) throw new Error("Empresa é obrigatória.");
     return data;
   })
@@ -67,7 +82,7 @@ export const testarConexaoApfiscal = createServerFn({ method: "POST" })
     const { listarNfes } = await import("./apfiscal/client.server");
     const { mensagemErro } = await import("./apfiscal/sync.server");
     try {
-      await listarNfes(data.companyId, 0, 1, data.apiKey?.trim() || undefined);
+      await listarNfes(data.companyId, 0, 1, data.apiKey?.trim() || undefined, data.baseUrl?.trim() || undefined);
       return { ok: true, mensagem: "Conexão estabelecida com sucesso." };
     } catch (e) {
       return { ok: false, mensagem: mensagemErro(e) };

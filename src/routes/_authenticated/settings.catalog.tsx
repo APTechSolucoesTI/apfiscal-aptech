@@ -73,7 +73,7 @@ function CatalogSettingsPage() {
                       <Globe2 className="h-4 w-4 text-primary" /> Cadastro Global
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                      Fornecedores e produtos ficam disponíveis para todas as empresas cadastradas no tenant. Ideal para grupos empresariais que compartilham catálogo.
+                      Fornecedores, produtos, plano de contas e centros de custo ficam disponíveis para todas as empresas cadastradas no tenant. Ideal para grupos empresariais que compartilham cadastros.
                     </p>
                   </div>
                 </label>
@@ -84,7 +84,7 @@ function CatalogSettingsPage() {
                       <Building2 className="h-4 w-4 text-primary" /> Cadastro por Empresa
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                      Cada fornecedor e produto é vinculado a uma empresa específica. O usuário deverá selecionar a empresa ao cadastrar.
+                      Cada fornecedor, produto, conta contábil e centro de custo é vinculado a uma empresa específica. O usuário deverá selecionar a empresa ao cadastrar.
                     </p>
                   </div>
                 </label>

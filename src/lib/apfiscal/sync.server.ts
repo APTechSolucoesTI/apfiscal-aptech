@@ -16,7 +16,7 @@ const BUCKET = "fiscal-xml";
 export const MAX_TENTATIVAS_XML = 6;
 
 export function mensagemErro(e: unknown): string {
-  if (e instanceof ApfiscalApiError) return e.mensagemAmigavel();
+  if (e instanceof ApfiscalApiError) return e.message;
   return e instanceof Error ? e.message : "Erro desconhecido.";
 }
 

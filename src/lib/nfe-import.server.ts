@@ -82,7 +82,12 @@ function parseNfe(xml: string) {
       nome: dest.xNome ? String(dest.xNome) : null,
       raw: dest,
     },
-    totais: totalIcms,
+    totais: {
+      ...totalIcms,
+      ...(inf.total?.IBSCBSTot ? { IBSCBSTot: inf.total.IBSCBSTot } : {}),
+      ...(inf.total?.ISTot ? { ISTot: inf.total.ISTot } : {}),
+    },
+
     valorTotal: num(totalIcms.vNF) ?? 0,
     valorProdutos: num(totalIcms.vProd),
     valorImpostos: num(totalIcms.vTotTrib),

@@ -100,11 +100,21 @@ async function ensureOk(res: Response): Promise<void> {
     payload && typeof payload === "object" && "mensagem" in (payload as Record<string, unknown>)
       ? String((payload as Record<string, unknown>).mensagem)
       : null;
+  // A rede de saída do servidor bloqueia chamadas feitas direto para um endereço IP
+  // (Cloudflare "error code: 1003"). Nesse caso o erro NÃO vem da API fiscal.
+  if (!msgFromApi && /error code:\s*1003|Direct IP access not allowed/i.test(raw)) {
+    throw new ApfiscalApiError(
+      res.status,
+      "A conexão foi bloqueada antes de chegar na API fiscal porque a URL base usa um endereço IP direto (ex.: http://194.140.198.97/...). Configure um domínio para a API (ex.: https://api.suaempresa.com.br/apfiscal/rotas) e informe essa URL na aba Integração Fiscal da empresa.",
+      payload,
+    );
+  }
   throw new ApfiscalApiError(
     res.status,
     msgFromApi ?? STATUS_MESSAGES[res.status] ?? `Erro HTTP ${res.status} na API fiscal.`,
     payload,
   );
+
 }
 
 export type NfeResumo = {

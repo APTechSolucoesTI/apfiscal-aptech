@@ -99,6 +99,13 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
             <p className="text-xs text-slate-500">
               Endereço de conexão exclusivo desta empresa. Deixe em branco para usar a URL padrão do servidor.
             </p>
+            {/^https?:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/|$)/.test(baseUrl.trim()) && (
+              <p className="text-xs font-medium text-amber-600">
+                Atenção: URLs com endereço IP direto são bloqueadas pela rede do servidor (erro 1003) e a
+                sincronização falhará. Use um domínio, de preferência com HTTPS.
+              </p>
+            )}
+
           </div>
 
           <div className="grid gap-2">

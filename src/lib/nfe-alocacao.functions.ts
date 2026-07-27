@@ -38,6 +38,45 @@ export const setPlanoContasItem = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------- Local de Estoque (NF-e) ----------
+
+export const setLocalEstoqueCabecalho = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { documentId: string; localEstoqueId: string | null; sobrescreverItens: boolean }) => data)
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as any)
+      .from("fiscal_documents")
+      .update({ local_estoque_id: data.localEstoqueId })
+      .eq("id", data.documentId);
+    if (error) throw new Error(error.message);
+    let itemsQ = (context.supabase as any)
+      .from("fiscal_document_items")
+      .update({ local_estoque_id: data.localEstoqueId, local_estoque_alterado_manualmente: false })
+      .eq("document_id", data.documentId);
+    if (!data.sobrescreverItens) {
+      itemsQ = itemsQ.eq("local_estoque_alterado_manualmente", false);
+    }
+    const { error: e2 } = await itemsQ;
+    if (e2) throw new Error(e2.message);
+    return { ok: true };
+  });
+
+export const setLocalEstoqueItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { itemId: string; localEstoqueId: string | null }) => data)
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as any)
+      .from("fiscal_document_items")
+      .update({
+        local_estoque_id: data.localEstoqueId,
+        local_estoque_alterado_manualmente: data.localEstoqueId !== null,
+      })
+      .eq("id", data.itemId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+
 // ---------- Rateio de Centro de Custo ----------
 
 export const getAlocacaoNfe = createServerFn({ method: "GET" })

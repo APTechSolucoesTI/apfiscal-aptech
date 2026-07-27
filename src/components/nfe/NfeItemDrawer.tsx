@@ -125,7 +125,31 @@ export const NfeItemDrawer = ({ item, open, onOpenChange }: NfeItemDrawerProps) 
                     </CardContent>
                   </Card>
                 )}
+                {ibscbs.present && (
+                  <Card className="bg-muted/30 border-none shadow-none col-span-2">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-sm">IBS / CBS</span>
+                        <div className="flex gap-2">
+                          {ibscbs.cst && <Badge variant="outline">CST {ibscbs.cst}</Badge>}
+                          {ibscbs.cClassTrib && <Badge variant="outline">cClassTrib {ibscbs.cClassTrib}</Badge>}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div><p className="text-xs text-muted-foreground">Base de Cálculo</p><p>{fmt(ibscbs.vBC)}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Total IBS</p><p className="font-medium">{fmt(ibscbs.vIBS)}</p></div>
+                        <div><p className="text-xs text-muted-foreground">IBS UF ({ibscbs.pIBSUF || 0}%)</p><p>{fmt(ibscbs.vIBSUF)}</p></div>
+                        <div><p className="text-xs text-muted-foreground">IBS Município ({ibscbs.pIBSMun || 0}%)</p><p>{fmt(ibscbs.vIBSMun)}</p></div>
+                        <div><p className="text-xs text-muted-foreground">CBS ({ibscbs.pCBS || 0}%)</p><p className="font-medium">{fmt(ibscbs.vCBS)}</p></div>
+                        {(ibscbs.vIS > 0 || ibscbs.cstIS) && (
+                          <div><p className="text-xs text-muted-foreground">IS {ibscbs.cstIS ? `(CST ${ibscbs.cstIS})` : ""}</p><p>{fmt(ibscbs.vIS)}</p></div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
+
             </section>
 
             {item.inf_adicional && (

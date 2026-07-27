@@ -9,7 +9,7 @@ export type CentroCustoInput = {
   ativo?: boolean;
 };
 
-const CODIGO_RE = /^\d{2}\.\d{4}$/;
+const CODIGO_RE = /^\d{2}(\.\d{4})?$/;
 
 async function orgIdOf(context: any, companyId: string | null): Promise<string> {
   if (companyId) {

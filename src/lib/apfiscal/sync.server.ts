@@ -229,6 +229,7 @@ export async function manifestarDocumento(input: {
 
     if (resp.xml_completo_disponivel && docId) {
       await baixarESalvarXmlCompleto(input.companyId, input.chave, docId, integ.organization_id);
+      await importarXmlCompleto(input.companyId, input.chave, docId, integ.organization_id);
     } else if (docId) {
       await marcarStatus(docId, {
         status: "aguardando_xml_completo" satisfies StatusDocumentoFiscal,

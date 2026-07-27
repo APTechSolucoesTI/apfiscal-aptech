@@ -92,7 +92,9 @@ const menuItems = [
     subItems: [
       { title: "Centros de Custo", url: "/settings/centros-custo" },
       { title: "Plano de Contas", url: "/settings/plano-contas" },
+      { title: "Local de Estoque", url: "/settings/locais-estoque" },
     ]
+
   },
   {
     title: "Configurações",

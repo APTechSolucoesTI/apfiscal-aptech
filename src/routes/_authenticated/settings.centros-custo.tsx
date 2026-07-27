@@ -18,8 +18,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Loader2, Wallet } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, Wallet, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
+
+const ccImportFields: ImportField[] = [
+  { key: "codigo", label: "Código", required: true, aliases: ["codigo", "cod", "codigocentrocusto", "centrocusto"] },
+  { key: "descricao", label: "Descrição", required: true, aliases: ["descricao", "nome", "titulo"] },
+  { key: "ativo", label: "Ativo", aliases: ["status", "ativo", "situacao"] },
+];
+
+function parseAtivo(v: unknown): boolean {
+  if (v == null || v === "") return true;
+  if (typeof v === "boolean") return v;
+  return ["1", "true", "sim", "ativo", "s", "y", "yes"].includes(String(v).trim().toLowerCase());
+}
+
+function normalizeCodigoCC(raw: unknown): string {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (d.length !== 6) throw new Error("Código deve ter 6 dígitos (99.9999)");
+  return `${d.slice(0, 2)}.${d.slice(2)}`;
+}
 
 export const Route = createFileRoute("/_authenticated/settings/centros-custo")({
   component: CentrosCustoPage,

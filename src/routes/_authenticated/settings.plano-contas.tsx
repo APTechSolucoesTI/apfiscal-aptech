@@ -107,6 +107,7 @@ function PlanoContasPage() {
   const [tipoFilter, setTipoFilter] = useState<"todos" | "sintetica" | "analitica">("todos");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [confirmInativar, setConfirmInativar] = useState<any | null>(null);
   const [confirmExcluir, setConfirmExcluir] = useState<any | null>(null);
   const [form, setForm] = useState<PlanoContasInput>({ company_id: "", codigo: "", descricao: "", ativo: true, permite_lancamentos: true, conta_pai_id: null });

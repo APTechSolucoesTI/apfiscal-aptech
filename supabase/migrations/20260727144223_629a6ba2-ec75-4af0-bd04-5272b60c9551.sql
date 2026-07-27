@@ -1,0 +1,1 @@
+ALTER TABLE public.empresa_integracoes_fiscais ADD COLUMN IF NOT EXISTS base_url text;

@@ -40,16 +40,15 @@ export const listCentrosCusto = createServerFn({ method: "GET" })
 export const saveCentroCusto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: CentroCustoInput) => {
-    if (!data.company_id) throw new Error("Empresa é obrigatória");
     if (!CODIGO_RE.test(data.codigo)) throw new Error("Código deve estar no formato 99.9999");
     if (!data.descricao?.trim()) throw new Error("Descrição é obrigatória");
     return data;
   })
   .handler(async ({ data, context }) => {
-    const organization_id = await orgIdOfCompany(context, data.company_id);
+    const organization_id = await orgIdOf(context, data.company_id ?? null);
     const payload = {
       organization_id,
-      company_id: data.company_id,
+      company_id: data.company_id ?? null,
       codigo: data.codigo.trim(),
       descricao: data.descricao.trim(),
       ativo: data.ativo ?? true,

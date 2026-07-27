@@ -18,6 +18,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedRiskRouteImport } from './routes/_authenticated/risk'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedNfeIntegracaoRouteImport } from './routes/_authenticated/nfe-integracao'
 import { Route as AuthenticatedMonitoringRouteImport } from './routes/_authenticated/monitoring'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -78,6 +79,12 @@ const AuthenticatedNotificationsRoute =
   AuthenticatedNotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNfeIntegracaoRoute =
+  AuthenticatedNfeIntegracaoRouteImport.update({
+    id: '/nfe-integracao',
+    path: '/nfe-integracao',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedMonitoringRoute = AuthenticatedMonitoringRouteImport.update({
@@ -182,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/monitoring': typeof AuthenticatedMonitoringRoute
+  '/nfe-integracao': typeof AuthenticatedNfeIntegracaoRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/products': typeof AuthenticatedProductsRoute
   '/risk': typeof AuthenticatedRiskRoute
@@ -208,6 +216,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/monitoring': typeof AuthenticatedMonitoringRoute
+  '/nfe-integracao': typeof AuthenticatedNfeIntegracaoRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/products': typeof AuthenticatedProductsRoute
   '/risk': typeof AuthenticatedRiskRoute
@@ -236,6 +245,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/documents': typeof AuthenticatedDocumentsRouteWithChildren
   '/_authenticated/monitoring': typeof AuthenticatedMonitoringRoute
+  '/_authenticated/nfe-integracao': typeof AuthenticatedNfeIntegracaoRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/risk': typeof AuthenticatedRiskRoute
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/documents'
     | '/monitoring'
+    | '/nfe-integracao'
     | '/notifications'
     | '/products'
     | '/risk'
@@ -290,6 +301,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/documents'
     | '/monitoring'
+    | '/nfe-integracao'
     | '/notifications'
     | '/products'
     | '/risk'
@@ -317,6 +329,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/documents'
     | '/_authenticated/monitoring'
+    | '/_authenticated/nfe-integracao'
     | '/_authenticated/notifications'
     | '/_authenticated/products'
     | '/_authenticated/risk'
@@ -406,6 +419,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/nfe-integracao': {
+      id: '/_authenticated/nfe-integracao'
+      path: '/nfe-integracao'
+      fullPath: '/nfe-integracao'
+      preLoaderRoute: typeof AuthenticatedNfeIntegracaoRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/monitoring': {
@@ -574,6 +594,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRouteWithChildren
   AuthenticatedMonitoringRoute: typeof AuthenticatedMonitoringRoute
+  AuthenticatedNfeIntegracaoRoute: typeof AuthenticatedNfeIntegracaoRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedRiskRoute: typeof AuthenticatedRiskRoute
@@ -587,6 +608,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRouteWithChildren,
   AuthenticatedMonitoringRoute: AuthenticatedMonitoringRoute,
+  AuthenticatedNfeIntegracaoRoute: AuthenticatedNfeIntegracaoRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedRiskRoute: AuthenticatedRiskRoute,

@@ -56,10 +56,9 @@ import {
   manifestar,
   sincronizar,
   type DocumentoFiscal,
-  type StatusDocumentoFiscal,
   type TipoEventoManifestacao,
 } from "@/services/apfiscalService";
-import { STATUS_LABEL, TIPOS_EVENTO_MANIFESTACAO } from "@/lib/apfiscal/types";
+import { STATUS_LABEL, TIPOS_EVENTO_MANIFESTACAO, type StatusDocumentoFiscal } from "@/lib/apfiscal/types";
 
 export const Route = createFileRoute("/_authenticated/nfe-integracao")({
   component: NfeIntegracao,

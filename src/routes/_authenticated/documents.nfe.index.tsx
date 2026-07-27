@@ -173,7 +173,12 @@ function NFeList() {
           if (r.ok) {
             results.push({ name: f.name, ok: true, message: `Importada para ${r.companyName} (${r.itemCount} item(ns))` });
           } else if (r.duplicated) {
-            results.push({ name: f.name, ok: false, duplicated: true, message: r.message });
+            results.push({
+              name: f.name,
+              ok: false,
+              duplicated: true,
+              message: r.message ?? "Esta NF-e já foi importada anteriormente.",
+            });
           } else {
             results.push({ name: f.name, ok: false, message: "Falha desconhecida" });
           }

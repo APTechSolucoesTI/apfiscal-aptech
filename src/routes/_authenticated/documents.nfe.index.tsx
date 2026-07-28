@@ -320,9 +320,17 @@ function NFeList() {
             <Download className="mr-2 h-4 w-4" /> Exportar CSV
           </Button>
           <Button variant="outline">
-            <FileDown className="mr-2 h-4 w-4" /> Baixar XMLs (Lote)
+          <Button
+            variant="outline"
+            onClick={() => bulkXmlMut.mutate(Array.from(selectedIds))}
+            disabled={selectedIds.size === 0 || bulkXmlMut.isPending}
+            title={selectedIds.size === 0 ? "Selecione ao menos uma NF-e" : undefined}
+          >
+            {bulkXmlMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+            Baixar XMLs (Lote){selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
           </Button>
         </div>
+
 
       </div>
 

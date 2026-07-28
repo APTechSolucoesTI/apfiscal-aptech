@@ -479,15 +479,26 @@ function NfeIntegracao() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
               <CardTitle className="text-base">Documentos fiscais</CardTitle>
-              <Input
-                placeholder="Buscar por chave, emitente ou CNPJ"
-                className="max-w-xs"
-                value={busca}
-                onChange={(e) => {
-                  setBusca(e.target.value);
-                  setPage(1);
-                }}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Buscar por chave, emitente ou CNPJ"
+                  className="max-w-xs"
+                  value={busca}
+                  onChange={(e) => {
+                    setBusca(e.target.value);
+                    setPage(1);
+                  }}
+                />
+                <ColumnSettings
+                  columns={orderedCols}
+                  isVisible={isVisible}
+                  toggleVisible={toggleVisible}
+                  moveColumn={moveColumn}
+                  reset={reset}
+                  pageSize={pageSize}
+                  onPageSizeChange={setPageSize}
+                />
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -501,33 +512,37 @@ function NfeIntegracao() {
                       />
                     </TableHead>
                     <TableHead className="w-8" />
-                    <TableHead>NSU</TableHead>
-                    <TableHead>Chave</TableHead>
-                    <TableHead>Emitente</TableHead>
-                    <TableHead>Emissão</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Situação</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    {visibleCols.map((c) => (
+                      <TableHead
+                        key={c.key}
+                        className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer select-none" : ""}`}
+                        onClick={c.sortKey ? () => requestSort(c.sortKey as keyof Row) : undefined}
+                      >
+                        <div className={`flex items-center gap-1 ${c.headClassName?.includes("text-right") ? "justify-end" : ""}`}>
+                          {c.label}
+                          {c.sortKey && <ArrowUpDown className="h-3 w-3" />}
+                        </div>
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={colSpan} className="py-10 text-center text-slate-500">
                         <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                       </TableCell>
                     </TableRow>
                   ) : paginados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={colSpan} className="py-10 text-center text-slate-500">
                         Nenhum documento sincronizado.
                       </TableCell>
                     </TableRow>
                   ) : (
                     paginados.map((doc) => (
-                      <>
-                        <TableRow key={doc.id} data-state={selecionados.has(doc.id) ? "selected" : undefined}>
+                      <Fragment key={doc.id}>
+                        <TableRow data-state={selecionados.has(doc.id) ? "selected" : undefined}>
                           <TableCell>
                             <Checkbox
                               checked={selecionados.has(doc.id)}
@@ -548,81 +563,15 @@ function NfeIntegracao() {
                               )}
                             </button>
                           </TableCell>
-                          <TableCell className="font-mono text-xs">{doc.nsu}</TableCell>
-                          <TableCell className="font-mono text-xs">{doc.chave}</TableCell>
-                          <TableCell>
-                            <div className="text-sm font-medium text-slate-800">
-                              {doc.emitente_nome ?? "—"}
-                            </div>
-                            <div className="text-xs text-slate-500">{doc.emitente_cnpj ?? ""}</div>
-                          </TableCell>
-                          <TableCell className="text-sm">{fmtData(doc.data_emissao)}</TableCell>
-                          <TableCell className="text-right text-sm">{fmtMoeda(doc.valor_nota)}</TableCell>
-                          <TableCell className="text-sm">{doc.tipo_documento ?? "NF-e"}</TableCell>
-                          <TableCell>
-                            {doc.status === "erro" ? (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge variant="outline" className={STATUS_STYLE[doc.status]}>
-                                      <AlertTriangle className="mr-1 h-3 w-3" />
-                                      {STATUS_LABEL[doc.status]}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    {doc.mensagem_sefaz || "Erro sem detalhamento da SEFAZ."}
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : (
-                              <Badge variant="outline" className={STATUS_STYLE[doc.status]}>
-                                {doc.status === "aguardando_xml_completo" && (
-                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                )}
-                                {STATUS_LABEL[doc.status]}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setAlvo(doc);
-                                  setTipoEvento("210210");
-                                  setJustificativa("");
-                                }}
-                              >
-                                <FileCheck2 className="mr-1 h-3.5 w-3.5" />
-                                Ciência
-                              </Button>
-                              {doc.xml_resumido_path && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleBaixar(doc, "resumido")}
-                                >
-                                  <Download className="mr-1 h-3.5 w-3.5" />
-                                  Resumido
-                                </Button>
-                              )}
-                              {doc.status === "completa" && doc.xml_completo_path && (
-                                <Button
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700"
-                                  onClick={() => handleBaixar(doc, "completo")}
-                                >
-                                  <Download className="mr-1 h-3.5 w-3.5" />
-                                  Completo
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
+                          {visibleCols.map((c) => (
+                            <TableCell key={c.key} className={c.className}>
+                              {c.render(doc)}
+                            </TableCell>
+                          ))}
                         </TableRow>
                         {expandida === doc.id && (
-                          <TableRow key={`${doc.id}-det`} className="bg-slate-50">
-                            <TableCell colSpan={10}>
+                          <TableRow className="bg-slate-50">
+                            <TableCell colSpan={colSpan}>
                               <div className="grid gap-1 p-2 text-xs text-slate-600">
                                 <div>
                                   <span className="font-semibold">Protocolo:</span>{" "}
@@ -644,10 +593,11 @@ function NfeIntegracao() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     ))
                   )}
                 </TableBody>
+
               </Table>
               <TablePagination
                 page={page}

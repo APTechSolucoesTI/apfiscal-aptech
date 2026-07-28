@@ -62,6 +62,8 @@ import {
   type TipoEventoManifestacao,
 } from "@/services/apfiscalService";
 import { STATUS_LABEL, TIPOS_EVENTO_MANIFESTACAO, type StatusDocumentoFiscal } from "@/lib/apfiscal/types";
+import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
+
 
 export const Route = createFileRoute("/_authenticated/nfe-integracao")({
   component: NfeIntegracao,

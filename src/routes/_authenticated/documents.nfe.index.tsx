@@ -288,12 +288,14 @@ function NFeList() {
             <Eye className="h-4 w-4" />
           </Link>
         </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML">
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML" onClick={() => handleDownloadOne(doc)}>
           <Download className="h-4 w-4" />
         </Button>
       </div>
     ) },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], []);
+
 
   const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("nfe", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);

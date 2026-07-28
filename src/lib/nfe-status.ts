@@ -46,3 +46,18 @@ export function podeEditarApontamentos(status?: string | null) {
 export function podeAprovar(status?: string | null) {
   return (status ?? "pendente_confirmacao") === "pendente_confirmacao";
 }
+
+/** NF-e integrada na TOTVS: totalmente bloqueada para alterações */
+export function nfeBloqueada(status?: string | null) {
+  return status === "integrado_totvs";
+}
+
+/** Vínculo/desvínculo de produto só após a aprovação e antes da integração */
+export function podeVincularProduto(status?: string | null) {
+  return status === "aprovada" || status === "pronta_para_integracao";
+}
+
+export function motivoBloqueioVinculo(status?: string | null) {
+  if (nfeBloqueada(status)) return "NF-e já integrada na TOTVS: não é permitido alterar os vínculos dos itens.";
+  return "Esta NF-e está pendente de confirmação. Aprove a NF-e antes de vincular produtos aos itens.";
+}

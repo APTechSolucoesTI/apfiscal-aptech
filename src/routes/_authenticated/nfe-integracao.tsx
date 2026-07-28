@@ -108,12 +108,20 @@ function fmtData(v: string | null) {
   return new Date(v).toLocaleString("pt-BR");
 }
 
+type Row = DocumentoFiscal & { data_num: number; valor_num: number };
+
+type Col = ColumnDef & {
+  sortKey?: keyof Row;
+  className?: string;
+  headClassName?: string;
+  render: (r: Row) => ReactNode;
+};
+
 function NfeIntegracao() {
   const queryClient = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("todas");
   const [busca, setBusca] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(20);
   const [expandida, setExpandida] = useState<string | null>(null);
   const [sincronizando, setSincronizando] = useState(false);
   const [manifestando, setManifestando] = useState(false);

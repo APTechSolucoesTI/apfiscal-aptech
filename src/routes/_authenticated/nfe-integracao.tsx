@@ -158,6 +158,22 @@ function NfeIntegracao() {
   const paginados = filtrados.slice((page - 1) * pageSize, page * pageSize);
   const histPaginado = historico.slice((histPage - 1) * pageSize, histPage * pageSize);
 
+  const todosMarcados = paginados.length > 0 && paginados.every((d) => selecionados.has(d.id));
+  const algunsMarcados = selecionados.size > 0 && !todosMarcados;
+
+  useEffect(() => {
+    setSelecionados((prev) => {
+      if (prev.size === 0) return prev;
+      const visiveis = new Set(filtrados.map((d) => d.id));
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (visiveis.has(id)) next.add(id);
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filtrados]);
+
+
   const handleSincronizar = async () => {
     if (!empresaFiltro) {
       toast.error("Selecione uma empresa para sincronizar.");

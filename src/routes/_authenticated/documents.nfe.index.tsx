@@ -45,6 +45,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
 import { importNfeXml } from "@/lib/nfe-import.functions";
 import { toast } from "sonner";
+import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
+
 
 
 export const Route = createFileRoute("/_authenticated/documents/nfe/")({

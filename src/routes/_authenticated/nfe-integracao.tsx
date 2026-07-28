@@ -158,22 +158,25 @@ function NfeIntegracao() {
     queryFn: () => listarHistorico(empresaFiltro, filtroHist),
   });
 
-  const filtrados = useMemo(() => {
+  const filtrados = useMemo<Row[]>(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return documentos;
-    return documentos.filter(
-      (d) =>
-        d.chave.toLowerCase().includes(q) ||
-        (d.emitente_nome ?? "").toLowerCase().includes(q) ||
-        (d.emitente_cnpj ?? "").includes(q),
-    );
+    const base = !q
+      ? documentos
+      : documentos.filter(
+          (d) =>
+            d.chave.toLowerCase().includes(q) ||
+            (d.emitente_nome ?? "").toLowerCase().includes(q) ||
+            (d.emitente_cnpj ?? "").includes(q),
+        );
+    return base.map((d) => ({
+      ...d,
+      data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
+      valor_num: Number(d.valor_nota ?? 0),
+    }));
   }, [documentos, busca]);
 
-  const paginados = filtrados.slice((page - 1) * pageSize, page * pageSize);
-  const histPaginado = historico.slice((histPage - 1) * pageSize, histPage * pageSize);
+  const { items: ordenados, requestSort } = useSortableData<Row>(filtrados);
 
-  const todosMarcados = paginados.length > 0 && paginados.every((d) => selecionados.has(d.id));
-  const algunsMarcados = selecionados.size > 0 && !todosMarcados;
 
   useEffect(() => {
     setSelecionados((prev) => {

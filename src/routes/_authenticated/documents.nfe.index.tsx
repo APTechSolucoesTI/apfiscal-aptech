@@ -23,6 +23,7 @@ import {
   Loader2,
   Trash2,
   Upload,
+  PlugZap,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +50,7 @@ import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NfeAprovacaoDialog } from "@/components/nfe/NfeAprovacaoDialog";
 import { NFE_STATUS_ORDER, statusConfig, podeAprovar, type NfeStatus } from "@/lib/nfe-status";
+import { marcarIntegradoTotvs } from "@/lib/nfe-status.functions";
 
 
 
@@ -87,6 +89,7 @@ function NFeList() {
   const [aprovarId, setAprovarId] = useState<string | null>(null);
   const removeMany = useServerFn(deleteFiscalDocuments);
   const importXml = useServerFn(importNfeXml);
+  const marcarIntegrado = useServerFn(marcarIntegradoTotvs);
 
 
   const { data: docs = [], isLoading } = useQuery({
@@ -153,6 +156,15 @@ function NFeList() {
     onSuccess: (r) => {
       toast.success(`${r.count} nota(s) excluída(s)`);
       setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const integrarMut = useMutation({
+    mutationFn: (documentId: string) => marcarIntegrado({ data: { documentId } }),
+    onSuccess: () => {
+      toast.success("NF-e marcada como integrada na TOTVS.");
       qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -295,6 +307,11 @@ function NFeList() {
         {podeAprovar(doc.status) && (
           <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Aprovar NF-e" onClick={() => setAprovarId(doc.id)}>
             <CheckCircle2 className="h-4 w-4" />
+          </Button>
+        )}
+        {doc.status === "pronta_para_integracao" && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:bg-green-50" title="Marcar como Integrado na TOTVS" onClick={() => integrarMut.mutate(doc.id)}>
+            <PlugZap className="h-4 w-4" />
           </Button>
         )}
         <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Ver detalhes" asChild>

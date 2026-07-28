@@ -48,6 +48,9 @@ import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
 import { importNfeXml } from "@/lib/nfe-import.functions";
 import { toast } from "sonner";
 import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { NfeAprovacaoDialog } from "@/components/nfe/NfeAprovacaoDialog";
+import { NFE_STATUS_ORDER, statusConfig, podeAprovar, type NfeStatus } from "@/lib/nfe-status";
 
 
 
@@ -63,7 +66,7 @@ type FiscalDoc = {
   emitente_cnpj: string | null;
   emitente_nome: string | null;
   valor_total: number | null;
-  status_manifestacao: string | null;
+  status: NfeStatus | null;
   data_emissao: string | null;
 };
 
@@ -74,13 +77,6 @@ type Row = FiscalDoc & {
 
 type Col = ColumnDef & { sortKey?: keyof Row; className?: string; headClassName?: string; render: (r: Row) => ReactNode };
 
-function statusStyle(status: string | null) {
-  const s = (status ?? "pendente").toLowerCase();
-  if (s.includes("confirm")) return { color: "bg-green-100 text-green-700 hover:bg-green-100", icon: CheckCircle2, label: "Confirmada" };
-  if (s.includes("cien")) return { color: "bg-blue-100 text-blue-700 hover:bg-blue-100", icon: AlertCircle, label: "Ciência" };
-  return { color: "bg-amber-100 text-amber-700 hover:bg-amber-100", icon: Clock, label: status ?? "Pendente" };
-}
-
 function NFeList() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -89,6 +85,8 @@ function NFeList() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = useState(false);
   const [importFiles, setImportFiles] = useState<File[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [aprovarId, setAprovarId] = useState<string | null>(null);
   const removeMany = useServerFn(deleteFiscalDocuments);
   const importXml = useServerFn(importNfeXml);
 
@@ -98,7 +96,7 @@ function NFeList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fiscal_documents")
-        .select("id, numero, serie, chave_acesso, emitente_cnpj, emitente_nome, valor_total, status_manifestacao, data_emissao")
+        .select("id, numero, serie, chave_acesso, emitente_cnpj, emitente_nome, valor_total, status, data_emissao")
         .eq("tipo", "nfe")
         .order("data_emissao", { ascending: false });
       if (error) throw error;
@@ -119,6 +117,7 @@ function NFeList() {
           (d.chave_acesso ?? "").toLowerCase().includes(q)
         );
       })
+      .filter((d) => (statusFilter === "todos" ? true : (d.status ?? "pendente_confirmacao") === statusFilter))
       .filter((d) => {
         if (!de && !ate) return true;
         if (!d.data_emissao) return false;
@@ -132,7 +131,7 @@ function NFeList() {
         data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
         valor_num: Number(d.valor_total ?? 0),
       }));
-  }, [docs, search, dataInicio, dataFim]);
+  }, [docs, search, dataInicio, dataFim, statusFilter]);
 
 
   const { items: sortedDocs, requestSort } = useSortableData(rows);
@@ -265,8 +264,8 @@ function NFeList() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const totalConfirmed = docs.filter((d) => (d.status_manifestacao ?? "").toLowerCase().includes("confirm")).length;
-  const totalPending = docs.length - totalConfirmed;
+  const totalIntegradas = docs.filter((d) => d.status === "integrado_totvs").length;
+  const totalPending = docs.filter((d) => (d.status ?? "pendente_confirmacao") === "pendente_confirmacao").length;
 
   const columns: Col[] = useMemo(() => [
     { key: "numero", label: "Número", sortKey: "numero", headClassName: "w-[120px] text-slate-500 font-semibold", className: "font-medium text-slate-900", render: (doc) => (
@@ -284,18 +283,22 @@ function NFeList() {
     ) },
     { key: "cnpj", label: "CNPJ Emitente", headClassName: "text-slate-500 font-semibold", className: "font-mono text-xs text-slate-600", render: (doc) => doc.emitente_cnpj ?? "-" },
     { key: "valor", label: "Valor", sortKey: "valor_num", headClassName: "text-slate-500 font-semibold", className: "font-semibold text-slate-900 text-sm", render: (doc) => Number(doc.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) },
-    { key: "manifestacao", label: "Manifestação", headClassName: "text-slate-500 font-semibold", render: (doc) => {
-      const st = statusStyle(doc.status_manifestacao);
-      const Icon = st.icon;
+    { key: "status", label: "Status", headClassName: "text-slate-500 font-semibold", render: (doc) => {
+      const st = statusConfig(doc.status);
       return (
-        <Badge variant="secondary" className={`font-medium text-xs px-2 py-0.5 rounded-full ${st.color}`}>
-          <Icon className="mr-1 h-3 w-3 inline" />
+        <Badge variant="secondary" className={`font-medium text-xs px-2 py-0.5 rounded-full border ${st.badge}`}>
+          <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${st.dot}`} />
           {st.label}
         </Badge>
       );
     } },
     { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "text-right text-slate-500 font-semibold", className: "text-right", render: (doc) => (
       <div className="flex justify-end gap-1">
+        {podeAprovar(doc.status) && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Aprovar NF-e" onClick={() => setAprovarId(doc.id)}>
+            <CheckCircle2 className="h-4 w-4" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Ver detalhes" asChild>
           <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
             <Eye className="h-4 w-4" />
@@ -315,7 +318,7 @@ function NFeList() {
   const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
 
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [search, pageSize, sortedDocs.length]);
+  useEffect(() => { setPage(1); }, [search, pageSize, statusFilter, sortedDocs.length]);
   const pagedDocs = useMemo(() => sortedDocs.slice((page - 1) * pageSize, page * pageSize), [sortedDocs, page, pageSize]);
 
   return (
@@ -394,16 +397,28 @@ function NFeList() {
                 </PopoverContent>
               </Popover>
 
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[210px] bg-white border-slate-200">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os status</SelectItem>
+                  {NFE_STATUS_ORDER.map((st) => (
+                    <SelectItem key={st} value={st}>{statusConfig(st).label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
             <div className="flex items-center gap-4 text-sm text-slate-500">
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-green-500" />
-                <span>{totalConfirmed} Confirmadas</span>
+                <span>{totalIntegradas} Integradas</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-amber-500" />
-                <span>{totalPending} Pendentes</span>
+                <div className="h-2 w-2 rounded-full bg-red-500" />
+                <span>{totalPending} Pendentes de confirmação</span>
               </div>
             </div>
           </div>
@@ -513,6 +528,12 @@ function NFeList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NfeAprovacaoDialog
+        documentId={aprovarId}
+        open={!!aprovarId}
+        onOpenChange={(o) => { if (!o) setAprovarId(null); }}
+      />
     </div>
   );
 

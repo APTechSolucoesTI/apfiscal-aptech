@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 import { NfeItemLinkDialog } from "./NfeItemLinkDialog";
 import { NfeFinanceiro } from "./NfeFinanceiro";
+import { statusConfig, podeEditarApontamentos } from "@/lib/nfe-status";
+import { NfeStatusTimeline } from "./NfeStatusTimeline";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
@@ -157,12 +159,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const dupl = asArr<any>(cobr?.dup);
   const detPag = asArr<any>(pag?.detPag);
 
-  const statusLabel = doc.status_manifestacao ?? "pendente";
-  const statusColor = /confirm/i.test(statusLabel)
-    ? "bg-green-100 text-green-800 border-green-200"
-    : /cien/i.test(statusLabel)
-    ? "bg-blue-100 text-blue-800 border-blue-200"
-    : "bg-amber-100 text-amber-800 border-amber-200";
+  const st = statusConfig(doc.status);
 
   return (
     <div className="flex flex-col h-full space-y-4 p-6">
@@ -174,7 +171,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
               NF-e nº {doc.numero ?? "-"} — Série {doc.serie ?? "-"} — Modelo {doc.modelo ?? "55"}
             </h1>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary" className={statusColor}>{statusLabel}</Badge>
+              <Badge variant="secondary" className={`border ${st.badge}`}>{st.label}</Badge>
               <span className="font-mono">{doc.chave_acesso}</span>
               <Button
                 variant="ghost"
@@ -422,7 +419,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
             </TabsContent>
 
             <TabsContent value="financeiro" className="m-0">
-              <NfeFinanceiro doc={doc} items={items} />
+              <NfeFinanceiro doc={doc} items={items} readOnly={!podeEditarApontamentos(doc.status)} />
             </TabsContent>
 
             <TabsContent value="impostos" className="m-0 space-y-4">
@@ -616,6 +613,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
             </TabsContent>
 
             <TabsContent value="historico" className="m-0 space-y-6">
+              <NfeStatusTimeline documentId={doc.id} />
               <Card>
                 <CardHeader className="flex flex-row items-center gap-2">
                   <History className="h-4 w-4 text-primary" />

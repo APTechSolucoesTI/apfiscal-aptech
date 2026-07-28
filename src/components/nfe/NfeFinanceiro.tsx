@@ -18,7 +18,7 @@ import { recalcularAlocacaoCabecalho, somaAlocacoes, type CentroCustoAlocacao } 
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
+export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; items: any[]; readOnly?: boolean }) {
   const qc = useQueryClient();
   const companyId = doc.company_id as string;
   const documentId = doc.id as string;
@@ -157,8 +157,19 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
     items.map((it) => ({ id: it.id, valor_bruto: Number(it.valor_bruto || 0), alocacoes: itemAllocs[it.id] ?? [] })),
   ), [items, itemAllocs]);
 
+  const aviso =
+    doc.status === "integrado_totvs"
+      ? "NF-e já integrada na TOTVS. Os apontamentos estão encerrados e não podem mais ser alterados."
+      : "Esta NF-e precisa ser aprovada antes de realizar os apontamentos.";
+
   return (
     <div className="space-y-6">
+      {readOnly && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          {aviso}
+        </div>
+      )}
+      <fieldset disabled={readOnly} className={readOnly ? "space-y-6 opacity-60" : "space-y-6"}>
       <Card>
         <CardHeader className="flex flex-row items-center gap-2">
           <BookOpen className="h-4 w-4 text-primary" />
@@ -380,6 +391,7 @@ export function NfeFinanceiro({ doc, items }: { doc: any; items: any[] }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </fieldset>
     </div>
   );
 }

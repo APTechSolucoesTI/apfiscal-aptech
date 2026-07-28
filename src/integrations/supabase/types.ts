@@ -670,7 +670,11 @@ export type Database = {
           risk_flag: boolean | null
           serie: string | null
           situacao: string | null
+          status: Database["public"]["Enums"]["nfe_status"]
           status_manifestacao: string | null
+          status_observacao: string | null
+          status_updated_at: string
+          status_updated_by: string | null
           tipo: Database["public"]["Enums"]["document_type"]
           tipo_operacao: string | null
           totais: Json | null
@@ -714,7 +718,11 @@ export type Database = {
           risk_flag?: boolean | null
           serie?: string | null
           situacao?: string | null
+          status?: Database["public"]["Enums"]["nfe_status"]
           status_manifestacao?: string | null
+          status_observacao?: string | null
+          status_updated_at?: string
+          status_updated_by?: string | null
           tipo: Database["public"]["Enums"]["document_type"]
           tipo_operacao?: string | null
           totais?: Json | null
@@ -758,7 +766,11 @@ export type Database = {
           risk_flag?: boolean | null
           serie?: string | null
           situacao?: string | null
+          status?: Database["public"]["Enums"]["nfe_status"]
           status_manifestacao?: string | null
+          status_observacao?: string | null
+          status_updated_at?: string
+          status_updated_by?: string | null
           tipo?: Database["public"]["Enums"]["document_type"]
           tipo_operacao?: string | null
           totais?: Json | null
@@ -1076,6 +1088,54 @@ export type Database = {
             columns: ["document_item_id"]
             isOneToOne: false
             referencedRelation: "fiscal_document_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nfe_status_historico: {
+        Row: {
+          alterado_em: string
+          alterado_por: string | null
+          company_id: string
+          id: string
+          nfe_id: string
+          observacao: string | null
+          status_anterior: Database["public"]["Enums"]["nfe_status"] | null
+          status_novo: Database["public"]["Enums"]["nfe_status"]
+        }
+        Insert: {
+          alterado_em?: string
+          alterado_por?: string | null
+          company_id: string
+          id?: string
+          nfe_id: string
+          observacao?: string | null
+          status_anterior?: Database["public"]["Enums"]["nfe_status"] | null
+          status_novo: Database["public"]["Enums"]["nfe_status"]
+        }
+        Update: {
+          alterado_em?: string
+          alterado_por?: string | null
+          company_id?: string
+          id?: string
+          nfe_id?: string
+          observacao?: string | null
+          status_anterior?: Database["public"]["Enums"]["nfe_status"] | null
+          status_novo?: Database["public"]["Enums"]["nfe_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nfe_status_historico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nfe_status_historico_nfe_id_fkey"
+            columns: ["nfe_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -1625,6 +1685,11 @@ export type Database = {
         | "completa"
         | "erro"
       document_type: "nfe" | "nfse" | "cte"
+      nfe_status:
+        | "pendente_confirmacao"
+        | "aprovada"
+        | "pronta_para_integracao"
+        | "integrado_totvs"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1761,6 +1826,12 @@ export const Constants = {
         "erro",
       ],
       document_type: ["nfe", "nfse", "cte"],
+      nfe_status: [
+        "pendente_confirmacao",
+        "aprovada",
+        "pronta_para_integracao",
+        "integrado_totvs",
+      ],
     },
   },
 } as const

@@ -360,6 +360,13 @@ function NfeIntegracao() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={todosMarcados ? true : algunsMarcados ? "indeterminate" : false}
+                        onCheckedChange={alternarTodos}
+                        aria-label="Selecionar todas"
+                      />
+                    </TableHead>
                     <TableHead className="w-8" />
                     <TableHead>NSU</TableHead>
                     <TableHead>Chave</TableHead>

@@ -118,6 +118,32 @@ export function AppSidebar() {
     router.navigate({ to: "/" });
   };
 
+  const { data: integracao } = useQuery({
+    queryKey: ["status-integracao-sidebar"],
+    queryFn: async () => {
+      const [total, integradas] = await Promise.all([
+        supabase
+          .from("fiscal_documents")
+          .select("id", { count: "exact", head: true }),
+        supabase
+          .from("fiscal_documents")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "integrado_totvs"),
+      ]);
+      const totalCount = total.count ?? 0;
+      const integradasCount = integradas.count ?? 0;
+      return {
+        total: totalCount,
+        integradas: integradasCount,
+        percentual: totalCount > 0 ? Math.round((integradasCount / totalCount) * 100) : 0,
+      };
+    },
+    staleTime: 60_000,
+  });
+
+  const percentual = integracao?.percentual ?? 0;
+
+
   return (
     <Sidebar className="border-r border-slate-200">
       <SidebarHeader className="h-16 flex items-center px-6 border-b border-slate-100 bg-white">

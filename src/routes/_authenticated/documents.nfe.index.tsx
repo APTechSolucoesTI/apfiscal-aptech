@@ -27,6 +27,8 @@ import {
   Upload,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +84,8 @@ function statusStyle(status: string | null) {
 function NFeList() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = useState(false);
   const [importFiles, setImportFiles] = useState<File[]>([]);
@@ -102,25 +106,34 @@ function NFeList() {
     },
   });
 
-  const rows: Row[] = useMemo(
-    () =>
-      docs
-        .filter((d) => {
-          const q = search.toLowerCase();
-          if (!q) return true;
-          return (
-            (d.numero ?? "").toLowerCase().includes(q) ||
-            (d.emitente_nome ?? "").toLowerCase().includes(q) ||
-            (d.chave_acesso ?? "").toLowerCase().includes(q)
-          );
-        })
-        .map((d) => ({
-          ...d,
-          data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
-          valor_num: Number(d.valor_total ?? 0),
-        })),
-    [docs, search],
-  );
+  const rows: Row[] = useMemo(() => {
+    const de = dataInicio ? new Date(`${dataInicio}T00:00:00`).getTime() : null;
+    const ate = dataFim ? new Date(`${dataFim}T23:59:59`).getTime() : null;
+    return docs
+      .filter((d) => {
+        const q = search.toLowerCase();
+        if (!q) return true;
+        return (
+          (d.numero ?? "").toLowerCase().includes(q) ||
+          (d.emitente_nome ?? "").toLowerCase().includes(q) ||
+          (d.chave_acesso ?? "").toLowerCase().includes(q)
+        );
+      })
+      .filter((d) => {
+        if (!de && !ate) return true;
+        if (!d.data_emissao) return false;
+        const t = new Date(d.data_emissao).getTime();
+        if (de && t < de) return false;
+        if (ate && t > ate) return false;
+        return true;
+      })
+      .map((d) => ({
+        ...d,
+        data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
+        valor_num: Number(d.valor_total ?? 0),
+      }));
+  }, [docs, search, dataInicio, dataFim]);
+
 
   const { items: sortedDocs, requestSort } = useSortableData(rows);
 
@@ -347,9 +360,40 @@ function NFeList() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="sm">
-                <Filter className="mr-2 h-4 w-4" /> Filtros
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={dataInicio || dataFim ? "default" : "outline"} size="sm">
+                    <Filter className="mr-2 h-4 w-4" /> Filtros
+                    {(dataInicio || dataFim) && <span className="ml-1 text-xs">(1)</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Período de emissão</p>
+                    <p className="text-xs text-slate-500">Filtra a coluna Emissão entre as datas.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="dt-ini" className="text-xs">De</Label>
+                      <Input id="dt-ini" type="date" value={dataInicio} max={dataFim || undefined} onChange={(e) => setDataInicio(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="dt-fim" className="text-xs">Até</Label>
+                      <Input id="dt-fim" type="date" value={dataFim} min={dataInicio || undefined} onChange={(e) => setDataFim(e.target.value)} />
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    disabled={!dataInicio && !dataFim}
+                    onClick={() => { setDataInicio(""); setDataFim(""); }}
+                  >
+                    Limpar filtro
+                  </Button>
+                </PopoverContent>
+              </Popover>
+
               <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
             <div className="flex items-center gap-4 text-sm text-slate-500">

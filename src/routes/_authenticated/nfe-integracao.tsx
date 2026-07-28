@@ -51,6 +51,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/common/TablePagination";
+import { ColumnSettings } from "@/components/common/ColumnSettings";
+import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
+import { useSortableData } from "@/hooks/use-sortable-data";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {

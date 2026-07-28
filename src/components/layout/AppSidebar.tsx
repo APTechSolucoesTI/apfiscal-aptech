@@ -76,11 +76,6 @@ const menuItems = [
     url: "/monitoring",
   },
   {
-    title: "Gestão de Risco",
-    icon: ShieldAlert,
-    url: "/risk",
-  },
-  {
     title: "Notificações",
     icon: Bell,
     url: "/notifications",

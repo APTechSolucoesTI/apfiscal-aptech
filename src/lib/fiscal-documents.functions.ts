@@ -1,11 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertNenhumaIntegrada } from "./nfe-vinculo-guard";
 
 export const deleteFiscalDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { ids: string[] }) => data)
   .handler(async ({ data, context }) => {
     if (!data.ids?.length) return { ok: true, count: 0 };
+    await assertNenhumaIntegrada(context.supabase, data.ids);
     const { error, count } = await context.supabase
       .from("fiscal_documents").delete({ count: "exact" }).in("id", data.ids);
     if (error) throw new Error(error.message);

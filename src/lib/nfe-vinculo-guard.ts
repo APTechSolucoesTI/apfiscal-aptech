@@ -20,3 +20,17 @@ export async function assertVinculoPermitidoPorItem(supabase: any, itemId: strin
   if (!item) throw new Error("Item não encontrado");
   await assertVinculoPermitidoPorDocumento(supabase, item.document_id as string);
 }
+
+/** Impede exclusão/alteração de NF-e já integradas na TOTVS. */
+export async function assertNenhumaIntegrada(supabase: any, ids: string[]) {
+  if (!ids?.length) return;
+  const { data } = await supabase
+    .from("fiscal_documents")
+    .select("id")
+    .in("id", ids)
+    .eq("status", "integrado_totvs")
+    .limit(1);
+  if (data && data.length > 0) {
+    throw new Error("Existem NF-e já integradas na TOTVS na seleção. Elas não podem ser alteradas ou excluídas.");
+  }
+}

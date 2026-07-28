@@ -320,6 +320,19 @@ function NfeIntegracao() {
             )}
             Sincronizar notas
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleBaixarLote}
+            disabled={selecionados.size === 0 || baixandoLote}
+            title={selecionados.size === 0 ? "Selecione ao menos uma NF-e" : undefined}
+          >
+            {baixandoLote ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Baixar XMLs (Lote){selecionados.size > 0 ? ` (${selecionados.size})` : ""}
+          </Button>
         </div>
       </div>
 

@@ -381,13 +381,13 @@ function NfeIntegracao() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
                         <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                       </TableCell>
                     </TableRow>
                   ) : paginados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
                         Nenhum documento sincronizado.
                       </TableCell>
                     </TableRow>
@@ -482,7 +482,7 @@ function NfeIntegracao() {
                         </TableRow>
                         {expandida === doc.id && (
                           <TableRow key={`${doc.id}-det`} className="bg-slate-50">
-                            <TableCell colSpan={9}>
+                            <TableCell colSpan={10}>
                               <div className="grid gap-1 p-2 text-xs text-slate-600">
                                 <div>
                                   <span className="font-semibold">Protocolo:</span>{" "}

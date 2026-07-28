@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,6 +6,7 @@ import {
   Loader2,
   Download,
   FileCheck2,
+  FileDown,
   AlertTriangle,
   ChevronDown,
   ChevronRight,
@@ -13,7 +14,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -59,6 +62,8 @@ import {
   type TipoEventoManifestacao,
 } from "@/services/apfiscalService";
 import { STATUS_LABEL, TIPOS_EVENTO_MANIFESTACAO, type StatusDocumentoFiscal } from "@/lib/apfiscal/types";
+import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
+
 
 export const Route = createFileRoute("/_authenticated/nfe-integracao")({
   component: NfeIntegracao,
@@ -99,15 +104,6 @@ function fmtData(v: string | null) {
   return new Date(v).toLocaleString("pt-BR");
 }
 
-function baixarArquivo(nome: string, conteudo: string) {
-  const url = URL.createObjectURL(new Blob([conteudo], { type: "application/xml" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nome;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function NfeIntegracao() {
   const queryClient = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("todas");
@@ -122,6 +118,9 @@ function NfeIntegracao() {
   const [justificativa, setJustificativa] = useState("");
   const [filtroHist, setFiltroHist] = useState<"todos" | "sucesso" | "erro">("todos");
   const [histPage, setHistPage] = useState(1);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [baixandoLote, setBaixandoLote] = useState(false);
+
 
   const empresaFiltro = companyId === "todas" ? null : companyId;
 
@@ -160,6 +159,22 @@ function NfeIntegracao() {
 
   const paginados = filtrados.slice((page - 1) * pageSize, page * pageSize);
   const histPaginado = historico.slice((histPage - 1) * pageSize, histPage * pageSize);
+
+  const todosMarcados = paginados.length > 0 && paginados.every((d) => selecionados.has(d.id));
+  const algunsMarcados = selecionados.size > 0 && !todosMarcados;
+
+  useEffect(() => {
+    setSelecionados((prev) => {
+      if (prev.size === 0) return prev;
+      const visiveis = new Set(filtrados.map((d) => d.id));
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (visiveis.has(id)) next.add(id);
+      });
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filtrados]);
+
 
   const handleSincronizar = async () => {
     if (!empresaFiltro) {
@@ -207,11 +222,59 @@ function NfeIntegracao() {
   const handleBaixar = async (doc: DocumentoFiscal, tipo: "resumido" | "completo") => {
     try {
       const r = await baixarXml(doc.id, tipo);
-      baixarArquivo(`${r.chave}-${tipo}.xml`, r.xml);
+      baixarXmlUnico(`${r.chave}-${tipo}.xml`, r.xml);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao baixar XML.");
     }
   };
+
+  const alternarTodos = () => {
+    if (todosMarcados) setSelecionados(new Set());
+    else setSelecionados(new Set(paginados.map((d) => d.id)));
+  };
+
+  const alternarLinha = (id: string) => {
+    setSelecionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBaixarLote = async () => {
+    const docs = filtrados.filter((d) => selecionados.has(d.id));
+    if (docs.length === 0) return;
+    setBaixandoLote(true);
+    try {
+      const arquivos: { nome: string; conteudo: string }[] = [];
+      let falhas = 0;
+      for (const doc of docs) {
+        const tipo: "resumido" | "completo" =
+          doc.xml_completo_path ? "completo" : "resumido";
+        if (!doc.xml_completo_path && !doc.xml_resumido_path) {
+          falhas += 1;
+          continue;
+        }
+        try {
+          const r = await baixarXml(doc.id, tipo);
+          arquivos.push({ nome: `${r.chave}-${tipo}.xml`, conteudo: r.xml });
+        } catch {
+          falhas += 1;
+        }
+      }
+      if (arquivos.length === 0) {
+        toast.error("Nenhum XML disponível para as notas selecionadas.");
+        return;
+      }
+      await baixarXmlsZip(arquivos, `nfe-integracao-${new Date().toISOString().slice(0, 10)}.zip`);
+      toast.success(`${arquivos.length} XML(s) compactado(s) em ZIP.`);
+      if (falhas) toast.warning(`${falhas} nota(s) sem XML disponível.`);
+    } finally {
+      setBaixandoLote(false);
+    }
+  };
+
 
   const podeConfirmar =
     tipoEvento !== "210240" || justificativa.trim().length >= 15;
@@ -257,6 +320,19 @@ function NfeIntegracao() {
             )}
             Sincronizar notas
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleBaixarLote}
+            disabled={selecionados.size === 0 || baixandoLote}
+            title={selecionados.size === 0 ? "Selecione ao menos uma NF-e" : undefined}
+          >
+            {baixandoLote ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            Baixar XMLs (Lote){selecionados.size > 0 ? ` (${selecionados.size})` : ""}
+          </Button>
         </div>
       </div>
 
@@ -284,6 +360,13 @@ function NfeIntegracao() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={todosMarcados ? true : algunsMarcados ? "indeterminate" : false}
+                        onCheckedChange={alternarTodos}
+                        aria-label="Selecionar todas"
+                      />
+                    </TableHead>
                     <TableHead className="w-8" />
                     <TableHead>NSU</TableHead>
                     <TableHead>Chave</TableHead>
@@ -298,20 +381,27 @@ function NfeIntegracao() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
                         <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                       </TableCell>
                     </TableRow>
                   ) : paginados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-10 text-center text-slate-500">
+                      <TableCell colSpan={10} className="py-10 text-center text-slate-500">
                         Nenhum documento sincronizado.
                       </TableCell>
                     </TableRow>
                   ) : (
                     paginados.map((doc) => (
                       <>
-                        <TableRow key={doc.id}>
+                        <TableRow key={doc.id} data-state={selecionados.has(doc.id) ? "selected" : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selecionados.has(doc.id)}
+                              onCheckedChange={() => alternarLinha(doc.id)}
+                              aria-label={`Selecionar NF-e ${doc.chave}`}
+                            />
+                          </TableCell>
                           <TableCell>
                             <button
                               onClick={() => setExpandida(expandida === doc.id ? null : doc.id)}
@@ -399,7 +489,7 @@ function NfeIntegracao() {
                         </TableRow>
                         {expandida === doc.id && (
                           <TableRow key={`${doc.id}-det`} className="bg-slate-50">
-                            <TableCell colSpan={9}>
+                            <TableCell colSpan={10}>
                               <div className="grid gap-1 p-2 text-xs text-slate-600">
                                 <div>
                                   <span className="font-semibold">Protocolo:</span>{" "}

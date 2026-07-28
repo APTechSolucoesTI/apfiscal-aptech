@@ -45,6 +45,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { deleteFiscalDocuments } from "@/lib/fiscal-documents.functions";
 import { importNfeXml } from "@/lib/nfe-import.functions";
 import { toast } from "sonner";
+import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
+
 
 
 export const Route = createFileRoute("/_authenticated/documents/nfe/")({
@@ -163,6 +165,51 @@ function NFeList() {
     bulkDelMut.mutate(Array.from(selectedIds));
   }
 
+  async function buscarXmls(ids: string[]) {
+    const { data, error } = await supabase
+      .from("fiscal_documents")
+      .select("id, numero, chave_acesso, xml_content")
+      .in("id", ids);
+    if (error) throw error;
+    return (data ?? []).filter((d) => !!d.xml_content) as {
+      id: string;
+      numero: string | null;
+      chave_acesso: string | null;
+      xml_content: string;
+    }[];
+  }
+
+  const bulkXmlMut = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const found = await buscarXmls(ids);
+      if (found.length === 0) throw new Error("Nenhuma das notas selecionadas possui XML armazenado.");
+      await baixarXmlsZip(
+        found.map((d) => ({
+          nome: `${d.chave_acesso ?? d.numero ?? d.id}.xml`,
+          conteudo: d.xml_content,
+        })),
+        `nfe-xmls-${new Date().toISOString().slice(0, 10)}.zip`,
+      );
+      return { baixados: found.length, total: ids.length };
+    },
+    onSuccess: ({ baixados, total }) => {
+      toast.success(`${baixados} XML(s) compactado(s) em ZIP.`);
+      if (baixados < total) toast.warning(`${total - baixados} nota(s) sem XML armazenado.`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  async function handleDownloadOne(doc: Row) {
+    try {
+      const found = await buscarXmls([doc.id]);
+      if (found.length === 0) throw new Error("Esta NF-e não possui XML armazenado.");
+      baixarXmlUnico(`${found[0].chave_acesso ?? found[0].numero ?? doc.id}.xml`, found[0].xml_content);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao baixar XML.");
+    }
+  }
+
+
   const importMut = useMutation({
     mutationFn: async (files: File[]) => {
       const results: Array<{ name: string; ok: boolean; duplicated?: boolean; message: string }> = [];
@@ -241,12 +288,14 @@ function NFeList() {
             <Eye className="h-4 w-4" />
           </Link>
         </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML">
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600" title="Baixar XML" onClick={() => handleDownloadOne(doc)}>
           <Download className="h-4 w-4" />
         </Button>
       </div>
     ) },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ], []);
+
 
   const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("nfe", columns);
   const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
@@ -270,10 +319,18 @@ function NFeList() {
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" /> Exportar CSV
           </Button>
-          <Button variant="outline">
-            <FileDown className="mr-2 h-4 w-4" /> Baixar XMLs (Lote)
+          <Button
+
+            variant="outline"
+            onClick={() => bulkXmlMut.mutate(Array.from(selectedIds))}
+            disabled={selectedIds.size === 0 || bulkXmlMut.isPending}
+            title={selectedIds.size === 0 ? "Selecione ao menos uma NF-e" : undefined}
+          >
+            {bulkXmlMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+            Baixar XMLs (Lote){selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
           </Button>
         </div>
+
 
       </div>
 

@@ -394,7 +394,14 @@ function NfeIntegracao() {
                   ) : (
                     paginados.map((doc) => (
                       <>
-                        <TableRow key={doc.id}>
+                        <TableRow key={doc.id} data-state={selecionados.has(doc.id) ? "selected" : undefined}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selecionados.has(doc.id)}
+                              onCheckedChange={() => alternarLinha(doc.id)}
+                              aria-label={`Selecionar NF-e ${doc.chave}`}
+                            />
+                          </TableCell>
                           <TableCell>
                             <button
                               onClick={() => setExpandida(expandida === doc.id ? null : doc.id)}

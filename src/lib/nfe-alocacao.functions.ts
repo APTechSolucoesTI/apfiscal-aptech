@@ -1,6 +1,28 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { distribuirCabecalhoParaItens, recalcularAlocacaoCabecalho, type CentroCustoAlocacao } from "./nfe-alocacao";
+import { reavaliarApontamentos } from "./nfe-status.functions";
+import { podeEditarApontamentos } from "./nfe-status";
+
+async function assertEditavel(context: any, documentId: string) {
+  const { data: doc } = await (context.supabase as any)
+    .from("fiscal_documents").select("status").eq("id", documentId).maybeSingle();
+  if (!doc) throw new Error("NF-e não encontrada");
+  if (!podeEditarApontamentos(doc.status)) {
+    throw new Error(
+      doc.status === "integrado_totvs"
+        ? "NF-e já integrada na TOTVS: os apontamentos não podem mais ser alterados."
+        : "Esta NF-e precisa ser aprovada antes de realizar os apontamentos.",
+    );
+  }
+}
+
+async function documentIdFromItem(context: any, itemId: string) {
+  const { data } = await (context.supabase as any)
+    .from("fiscal_document_items").select("document_id").eq("id", itemId).maybeSingle();
+  if (!data) throw new Error("Item não encontrado");
+  return data.document_id as string;
+}
 
 // ---------- Plano de Contas (NF-e) ----------
 
@@ -8,6 +30,7 @@ export const setPlanoContasCabecalho = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { documentId: string; planoContasId: string | null; sobrescreverItens: boolean }) => data)
   .handler(async ({ data, context }) => {
+    await assertEditavel(context, data.documentId);
     const { error } = await context.supabase
       .from("fiscal_documents")
       .update({ plano_contas_id: data.planoContasId } as any)
@@ -23,6 +46,7 @@ export const setPlanoContasCabecalho = createServerFn({ method: "POST" })
     }
     const { error: e2 } = await itemsQ;
     if (e2) throw new Error(e2.message);
+    await reavaliarApontamentos(context, data.documentId);
     return { ok: true };
   });
 
@@ -30,11 +54,14 @@ export const setPlanoContasItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { itemId: string; planoContasId: string | null }) => data)
   .handler(async ({ data, context }) => {
+    const docId = await documentIdFromItem(context, data.itemId);
+    await assertEditavel(context, docId);
     const { error } = await context.supabase
       .from("fiscal_document_items")
       .update({ plano_contas_id: data.planoContasId, plano_contas_alterado_manualmente: true } as any)
       .eq("id", data.itemId);
     if (error) throw new Error(error.message);
+    await reavaliarApontamentos(context, docId);
     return { ok: true };
   });
 
@@ -44,6 +71,7 @@ export const setLocalEstoqueCabecalho = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { documentId: string; localEstoqueId: string | null; sobrescreverItens: boolean }) => data)
   .handler(async ({ data, context }) => {
+    await assertEditavel(context, data.documentId);
     const { error } = await (context.supabase as any)
       .from("fiscal_documents")
       .update({ local_estoque_id: data.localEstoqueId })
@@ -58,6 +86,7 @@ export const setLocalEstoqueCabecalho = createServerFn({ method: "POST" })
     }
     const { error: e2 } = await itemsQ;
     if (e2) throw new Error(e2.message);
+    await reavaliarApontamentos(context, data.documentId);
     return { ok: true };
   });
 
@@ -65,6 +94,8 @@ export const setLocalEstoqueItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { itemId: string; localEstoqueId: string | null }) => data)
   .handler(async ({ data, context }) => {
+    const docId = await documentIdFromItem(context, data.itemId);
+    await assertEditavel(context, docId);
     const { error } = await (context.supabase as any)
       .from("fiscal_document_items")
       .update({
@@ -73,6 +104,7 @@ export const setLocalEstoqueItem = createServerFn({ method: "POST" })
       })
       .eq("id", data.itemId);
     if (error) throw new Error(error.message);
+    await reavaliarApontamentos(context, docId);
     return { ok: true };
   });
 
@@ -102,6 +134,7 @@ export const setAlocacoesItem = createServerFn({ method: "POST" })
     const { data: item } = await (context.supabase as any)
       .from("fiscal_document_items").select("id, document_id, valor_bruto").eq("id", data.itemId).maybeSingle();
     if (!item) throw new Error("Item não encontrado");
+    await assertEditavel(context, item.document_id);
     const soma = data.alocacoes.reduce((s, a) => s + Number(a.valor || 0), 0);
     if (soma > Number(item.valor_bruto || 0) + 0.005) {
       throw new Error(`Soma dos centros de custo (R$ ${soma.toFixed(2)}) excede o valor do item (R$ ${Number(item.valor_bruto).toFixed(2)})`);
@@ -119,6 +152,7 @@ export const setAlocacoesItem = createServerFn({ method: "POST" })
     }
     // Recalcula cabeçalho consolidado
     await recalcularECommitCabecalho(context, item.document_id);
+    await reavaliarApontamentos(context, item.document_id);
     return { ok: true };
   });
 

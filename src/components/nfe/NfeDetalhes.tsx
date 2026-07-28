@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
 import { NfeItemLinkDialog } from "./NfeItemLinkDialog";
 import { NfeFinanceiro } from "./NfeFinanceiro";
-import { statusConfig, podeEditarApontamentos } from "@/lib/nfe-status";
+import { statusConfig, podeEditarApontamentos, podeVincularProduto, motivoBloqueioVinculo } from "@/lib/nfe-status";
 import { NfeStatusTimeline } from "./NfeStatusTimeline";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -368,6 +368,8 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                         )}
                         {items.map((item) => {
                           const pendente = item.status_vinculo !== "vinculado";
+                          const vinculoLiberado = podeVincularProduto(doc.status);
+                          const motivoBloqueio = motivoBloqueioVinculo(doc.status);
                           return (
                           <tr key={item.id} className={`border-b hover:bg-muted/50 cursor-pointer transition-colors ${pendente ? "bg-amber-50/40" : ""}`} onClick={() => setSelectedItem(item)}>
                             <td className="px-4 py-4 text-xs text-muted-foreground">{item.numero_item}</td>
@@ -389,15 +391,23 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                             <td className="px-4 py-4 text-right">
                               {pendente ? (
                                 <Button size="sm" variant="outline" className="h-8"
-                                  onClick={(e) => { e.stopPropagation(); setLinkItemId(item.id); }}>
+                                  disabled={!vinculoLiberado}
+                                  title={!vinculoLiberado ? motivoBloqueio : undefined}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!vinculoLiberado) { toast.error(motivoBloqueio); return; }
+                                    setLinkItemId(item.id);
+                                  }}>
                                   <Link2 className="h-3.5 w-3.5 mr-1" /> Vincular
                                 </Button>
                               ) : (
                                 <div className="inline-flex items-center gap-1">
                                   <Button size="sm" variant="ghost" className="h-8 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
-                                    disabled={unlinkMut.isPending}
+                                    disabled={unlinkMut.isPending || !vinculoLiberado}
+                                    title={!vinculoLiberado ? motivoBloqueio : undefined}
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      if (!vinculoLiberado) { toast.error(motivoBloqueio); return; }
                                       if (confirm("Desvincular este item do produto? O item voltará para o status pendente.")) {
                                         unlinkMut.mutate(item.id);
                                       }

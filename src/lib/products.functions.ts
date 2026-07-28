@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertVinculoPermitidoPorItem } from "./nfe-vinculo-guard";
 
 export type ProdutoInput = {
   id?: string;
@@ -210,6 +211,7 @@ export const linkNfeItemToProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { itemId: string; produtoId: string }) => data)
   .handler(async ({ data, context }) => {
+    await assertVinculoPermitidoPorItem(context.supabase, data.itemId);
     const { data: item, error: iErr } = await context.supabase
       .from("fiscal_document_items")
       .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, emitente_nome, companies(organization_id))")
@@ -294,6 +296,7 @@ export const unlinkNfeItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { itemId: string }) => data)
   .handler(async ({ data, context }) => {
+    await assertVinculoPermitidoPorItem(context.supabase, data.itemId);
     const { error } = await context.supabase
       .from("fiscal_document_items")
       .update({ product_id: null, status_vinculo: "pendente" })
@@ -412,6 +415,7 @@ export const createProductAndLinkItem = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data, context }) => {
+    await assertVinculoPermitidoPorItem(context.supabase, data.itemId);
     const { data: item, error: iErr } = await context.supabase
       .from("fiscal_document_items")
       .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, companies(organization_id))")

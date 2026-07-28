@@ -2,7 +2,6 @@ import {
   LayoutDashboard, 
   Building2, 
   FileText, 
-  ShieldAlert, 
   Bell, 
   Settings, 
   LogOut,
@@ -74,11 +73,6 @@ const menuItems = [
     title: "Monitoramento",
     icon: Activity,
     url: "/monitoring",
-  },
-  {
-    title: "Gestão de Risco",
-    icon: ShieldAlert,
-    url: "/risk",
   },
   {
     title: "Notificações",

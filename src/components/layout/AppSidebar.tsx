@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 const menuItems = [
   {

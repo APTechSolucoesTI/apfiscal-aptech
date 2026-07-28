@@ -160,6 +160,7 @@ export const setAlocacoesCabecalho = createServerFn({ method: "POST" })
       const { error } = await (context.supabase as any).from("nfe_centro_custo").insert(cabRows);
       if (error) throw new Error(error.message);
     }
+    await reavaliarApontamentos(context, data.documentId);
     return { ok: true };
   });
 

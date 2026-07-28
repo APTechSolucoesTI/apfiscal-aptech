@@ -358,9 +358,40 @@ function NFeList() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <Button variant="outline" size="sm">
-                <Filter className="mr-2 h-4 w-4" /> Filtros
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant={dataInicio || dataFim ? "default" : "outline"} size="sm">
+                    <Filter className="mr-2 h-4 w-4" /> Filtros
+                    {(dataInicio || dataFim) && <span className="ml-1 text-xs">(1)</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Período de emissão</p>
+                    <p className="text-xs text-slate-500">Filtra a coluna Emissão entre as datas.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="dt-ini" className="text-xs">De</Label>
+                      <Input id="dt-ini" type="date" value={dataInicio} max={dataFim || undefined} onChange={(e) => setDataInicio(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="dt-fim" className="text-xs">Até</Label>
+                      <Input id="dt-fim" type="date" value={dataFim} min={dataInicio || undefined} onChange={(e) => setDataFim(e.target.value)} />
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    disabled={!dataInicio && !dataFim}
+                    onClick={() => { setDataInicio(""); setDataFim(""); }}
+                  >
+                    Limpar filtro
+                  </Button>
+                </PopoverContent>
+              </Popover>
+
               <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </div>
             <div className="flex items-center gap-4 text-sm text-slate-500">

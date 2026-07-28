@@ -204,11 +204,59 @@ function NfeIntegracao() {
   const handleBaixar = async (doc: DocumentoFiscal, tipo: "resumido" | "completo") => {
     try {
       const r = await baixarXml(doc.id, tipo);
-      baixarArquivo(`${r.chave}-${tipo}.xml`, r.xml);
+      baixarXmlUnico(`${r.chave}-${tipo}.xml`, r.xml);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao baixar XML.");
     }
   };
+
+  const alternarTodos = () => {
+    if (todosMarcados) setSelecionados(new Set());
+    else setSelecionados(new Set(paginados.map((d) => d.id)));
+  };
+
+  const alternarLinha = (id: string) => {
+    setSelecionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBaixarLote = async () => {
+    const docs = filtrados.filter((d) => selecionados.has(d.id));
+    if (docs.length === 0) return;
+    setBaixandoLote(true);
+    try {
+      const arquivos: { nome: string; conteudo: string }[] = [];
+      let falhas = 0;
+      for (const doc of docs) {
+        const tipo: "resumido" | "completo" =
+          doc.xml_completo_path ? "completo" : "resumido";
+        if (!doc.xml_completo_path && !doc.xml_resumido_path) {
+          falhas += 1;
+          continue;
+        }
+        try {
+          const r = await baixarXml(doc.id, tipo);
+          arquivos.push({ nome: `${r.chave}-${tipo}.xml`, conteudo: r.xml });
+        } catch {
+          falhas += 1;
+        }
+      }
+      if (arquivos.length === 0) {
+        toast.error("Nenhum XML disponível para as notas selecionadas.");
+        return;
+      }
+      await baixarXmlsZip(arquivos, `nfe-integracao-${new Date().toISOString().slice(0, 10)}.zip`);
+      toast.success(`${arquivos.length} XML(s) compactado(s) em ZIP.`);
+      if (falhas) toast.warning(`${falhas} nota(s) sem XML disponível.`);
+    } finally {
+      setBaixandoLote(false);
+    }
+  };
+
 
   const podeConfirmar =
     tipoEvento !== "210240" || justificativa.trim().length >= 15;

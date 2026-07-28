@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
 const menuItems = [
   {
@@ -117,6 +118,32 @@ export function AppSidebar() {
     router.navigate({ to: "/" });
   };
 
+  const { data: integracao } = useQuery({
+    queryKey: ["status-integracao-sidebar"],
+    queryFn: async () => {
+      const [total, integradas] = await Promise.all([
+        supabase
+          .from("fiscal_documents")
+          .select("id", { count: "exact", head: true }),
+        supabase
+          .from("fiscal_documents")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "integrado_totvs"),
+      ]);
+      const totalCount = total.count ?? 0;
+      const integradasCount = integradas.count ?? 0;
+      return {
+        total: totalCount,
+        integradas: integradasCount,
+        percentual: totalCount > 0 ? Math.round((integradasCount / totalCount) * 100) : 0,
+      };
+    },
+    staleTime: 60_000,
+  });
+
+  const percentual = integracao?.percentual ?? 0;
+
+
   return (
     <Sidebar className="border-r border-slate-200">
       <SidebarHeader className="h-16 flex items-center px-6 border-b border-slate-100 bg-white">
@@ -187,12 +214,18 @@ export function AppSidebar() {
         <div className="p-3 mb-4 rounded-xl bg-slate-50 border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="h-4 w-4 text-green-600" />
-            <span className="text-xs font-semibold text-slate-700">Status Compliance</span>
+            <span className="text-xs font-semibold text-slate-700">Status de Integração</span>
+            <span className="ml-auto text-xs font-semibold text-slate-700">{percentual}%</span>
           </div>
           <div className="w-full bg-slate-200 rounded-full h-1.5">
-            <div className="bg-green-500 h-1.5 rounded-full w-[85%]"></div>
+            <div
+              className="bg-green-500 h-1.5 rounded-full transition-all"
+              style={{ width: `${percentual}%` }}
+            ></div>
           </div>
-          <p className="text-[10px] mt-2 text-slate-500 italic">85% das notas manifestadas no prazo legal</p>
+          <p className="text-[10px] mt-2 text-slate-500 italic">
+            {integracao?.integradas ?? 0} de {integracao?.total ?? 0} NF-e integradas no TOTVS
+          </p>
         </div>
 
         <button 

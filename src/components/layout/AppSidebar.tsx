@@ -2,7 +2,6 @@ import {
   LayoutDashboard, 
   Building2, 
   FileText, 
-  ShieldAlert, 
   Bell, 
   Settings, 
   LogOut,

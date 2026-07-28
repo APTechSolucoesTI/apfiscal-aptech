@@ -102,25 +102,34 @@ function NFeList() {
     },
   });
 
-  const rows: Row[] = useMemo(
-    () =>
-      docs
-        .filter((d) => {
-          const q = search.toLowerCase();
-          if (!q) return true;
-          return (
-            (d.numero ?? "").toLowerCase().includes(q) ||
-            (d.emitente_nome ?? "").toLowerCase().includes(q) ||
-            (d.chave_acesso ?? "").toLowerCase().includes(q)
-          );
-        })
-        .map((d) => ({
-          ...d,
-          data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
-          valor_num: Number(d.valor_total ?? 0),
-        })),
-    [docs, search],
-  );
+  const rows: Row[] = useMemo(() => {
+    const de = dataInicio ? new Date(`${dataInicio}T00:00:00`).getTime() : null;
+    const ate = dataFim ? new Date(`${dataFim}T23:59:59`).getTime() : null;
+    return docs
+      .filter((d) => {
+        const q = search.toLowerCase();
+        if (!q) return true;
+        return (
+          (d.numero ?? "").toLowerCase().includes(q) ||
+          (d.emitente_nome ?? "").toLowerCase().includes(q) ||
+          (d.chave_acesso ?? "").toLowerCase().includes(q)
+        );
+      })
+      .filter((d) => {
+        if (!de && !ate) return true;
+        if (!d.data_emissao) return false;
+        const t = new Date(d.data_emissao).getTime();
+        if (de && t < de) return false;
+        if (ate && t > ate) return false;
+        return true;
+      })
+      .map((d) => ({
+        ...d,
+        data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
+        valor_num: Number(d.valor_total ?? 0),
+      }));
+  }, [docs, search, dataInicio, dataFim]);
+
 
   const { items: sortedDocs, requestSort } = useSortableData(rows);
 

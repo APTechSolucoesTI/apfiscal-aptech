@@ -126,6 +126,7 @@ export const setAlocacoesCabecalho = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { documentId: string; alocacoes: CentroCustoAlocacao[]; propagarParaItens: boolean }) => data)
   .handler(async ({ data, context }) => {
+    await assertEditavel(context, data.documentId);
     const { data: doc } = await (context.supabase as any)
       .from("fiscal_documents").select("id, valor_total").eq("id", data.documentId).maybeSingle();
     if (!doc) throw new Error("NF-e não encontrada");

@@ -102,15 +102,6 @@ function fmtData(v: string | null) {
   return new Date(v).toLocaleString("pt-BR");
 }
 
-function baixarArquivo(nome: string, conteudo: string) {
-  const url = URL.createObjectURL(new Blob([conteudo], { type: "application/xml" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = nome;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function NfeIntegracao() {
   const queryClient = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("todas");
@@ -125,6 +116,9 @@ function NfeIntegracao() {
   const [justificativa, setJustificativa] = useState("");
   const [filtroHist, setFiltroHist] = useState<"todos" | "sucesso" | "erro">("todos");
   const [histPage, setHistPage] = useState(1);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [baixandoLote, setBaixandoLote] = useState(false);
+
 
   const empresaFiltro = companyId === "todas" ? null : companyId;
 

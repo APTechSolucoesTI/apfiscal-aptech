@@ -291,8 +291,126 @@ function NfeIntegracao() {
   };
 
 
+  const columns: Col[] = useMemo(
+    () => [
+      { key: "nsu", label: "NSU", sortKey: "nsu", className: "font-mono text-xs", render: (doc) => doc.nsu },
+      { key: "chave", label: "Chave", sortKey: "chave", className: "font-mono text-xs", render: (doc) => doc.chave },
+      {
+        key: "emitente",
+        label: "Emitente",
+        sortKey: "emitente_nome",
+        render: (doc) => (
+          <>
+            <div className="text-sm font-medium text-slate-800">{doc.emitente_nome ?? "—"}</div>
+            <div className="text-xs text-slate-500">{doc.emitente_cnpj ?? ""}</div>
+          </>
+        ),
+      },
+      { key: "emissao", label: "Emissão", sortKey: "data_num", className: "text-sm whitespace-nowrap", render: (doc) => fmtData(doc.data_emissao) },
+      { key: "valor", label: "Valor", sortKey: "valor_num", headClassName: "text-right", className: "text-right text-sm", render: (doc) => fmtMoeda(doc.valor_nota) },
+      { key: "tipo", label: "Tipo", sortKey: "tipo_documento", className: "text-sm", render: (doc) => doc.tipo_documento ?? "NF-e" },
+      {
+        key: "situacao",
+        label: "Situação",
+        sortKey: "status",
+        render: (doc) =>
+          doc.status === "erro" ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className={STATUS_STYLE[doc.status]}>
+                    <AlertTriangle className="mr-1 h-3 w-3" />
+                    {STATUS_LABEL[doc.status]}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  {doc.mensagem_sefaz || "Erro sem detalhamento da SEFAZ."}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <Badge variant="outline" className={STATUS_STYLE[doc.status]}>
+              {doc.status === "aguardando_xml_completo" && (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              )}
+              {STATUS_LABEL[doc.status]}
+            </Badge>
+          ),
+      },
+      { key: "protocolo", label: "Protocolo", sortKey: "protocolo", className: "font-mono text-xs", render: (doc) => doc.protocolo || "—" },
+      { key: "atualizado", label: "Atualizado em", sortKey: "updated_at", className: "text-sm whitespace-nowrap", render: (doc) => fmtData(doc.updated_at) },
+      {
+        key: "actions",
+        label: "Ações",
+        alwaysVisible: true,
+        headClassName: "text-right",
+        className: "text-right",
+        render: (doc) => (
+          <div className="flex justify-end gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAlvo(doc);
+                setTipoEvento("210210");
+                setJustificativa("");
+              }}
+            >
+              <FileCheck2 className="mr-1 h-3.5 w-3.5" />
+              Ciência
+            </Button>
+            {doc.xml_resumido_path && (
+              <Button size="sm" variant="outline" onClick={() => handleBaixar(doc, "resumido")}>
+                <Download className="mr-1 h-3.5 w-3.5" />
+                Resumido
+              </Button>
+            )}
+            {doc.status === "completa" && doc.xml_completo_path && (
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => handleBaixar(doc, "completo")}
+              >
+                <Download className="mr-1 h-3.5 w-3.5" />
+                Completo
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } =
+    useColumnPreferences("nfe-integracao", columns);
+  const visibleCols = useMemo(
+    () => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean),
+    [visibleColumns, columns],
+  );
+  const orderedCols = useMemo(
+    () => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean),
+    [allColumns, columns],
+  );
+  const colSpan = visibleCols.length + 2;
+
+  const paginados = useMemo(
+    () => ordenados.slice((page - 1) * pageSize, page * pageSize),
+    [ordenados, page, pageSize],
+  );
+  const histPaginado = historico.slice((histPage - 1) * pageSize, histPage * pageSize);
+
+  const todosMarcados = paginados.length > 0 && paginados.every((d) => selecionados.has(d.id));
+  const algunsMarcados = selecionados.size > 0 && !todosMarcados;
+
+  useEffect(() => {
+    setPage(1);
+  }, [busca, pageSize, ordenados.length]);
+
   const podeConfirmar =
     tipoEvento !== "210240" || justificativa.trim().length >= 15;
+
 
   return (
     <div className="space-y-6">

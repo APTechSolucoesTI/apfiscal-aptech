@@ -82,6 +82,8 @@ function statusStyle(status: string | null) {
 function NFeList() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importOpen, setImportOpen] = useState(false);
   const [importFiles, setImportFiles] = useState<File[]>([]);

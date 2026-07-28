@@ -319,8 +319,8 @@ function NFeList() {
           <Button variant="outline">
             <Download className="mr-2 h-4 w-4" /> Exportar CSV
           </Button>
-          <Button variant="outline">
           <Button
+
             variant="outline"
             onClick={() => bulkXmlMut.mutate(Array.from(selectedIds))}
             disabled={selectedIds.size === 0 || bulkXmlMut.isPending}

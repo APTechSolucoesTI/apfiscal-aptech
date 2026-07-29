@@ -69,6 +69,8 @@ type FiscalDoc = {
   valor_total: number | null;
   status: NfeStatus | null;
   data_emissao: string | null;
+  company_id: string | null;
+  companies?: { razao_social: string | null; nome_fantasia: string | null } | null;
 };
 
 type Row = FiscalDoc & {

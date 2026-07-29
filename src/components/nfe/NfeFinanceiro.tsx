@@ -24,6 +24,25 @@ import { consolidarTipoCompra, labelTipoCompra, type TipoCompra } from "@/lib/nf
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+function ProgressoApontamento({ apontados, total, faltanteLabel }: { apontados: number; total: number; faltanteLabel: string }) {
+  const pct = total > 0 ? (apontados / total) * 100 : 0;
+  const faltantes = Math.max(0, total - apontados);
+  return (
+    <div className="space-y-1 max-w-xl">
+      <div className="flex items-center justify-between text-xs text-slate-600">
+        <span>Progresso do apontamento</span>
+        <b>{apontados}/{total} itens apontados</b>
+      </div>
+      <Progress value={pct} className="h-2" />
+      {faltantes > 0 && (
+        <p className="text-xs font-medium text-amber-700">
+          Existem {faltantes} item(ns) sem {faltanteLabel} apontado. Realize o apontamento antes de prosseguir.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; items: any[]; readOnly?: boolean }) {
   const qc = useQueryClient();
   const companyId = doc.company_id as string;
@@ -213,6 +232,19 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
   );
   const progressoTC = consolidacaoTC.total > 0 ? (consolidacaoTC.apontados / consolidacaoTC.total) * 100 : 0;
 
+  const totalItens = items.length;
+  const apontadosPC = useMemo(() => items.filter((it) => !!it.plano_contas_id).length, [items]);
+  const apontadosLE = useMemo(() => items.filter((it) => !!it.local_estoque_id).length, [items]);
+  const apontadosCC = useMemo(
+    () => items.filter((it) => {
+      const vTot = Number(it.valor_bruto || 0);
+      const soma = somaAlocacoes(itemAllocs[it.id] ?? []);
+      return vTot > 0 ? soma >= vTot - 0.005 : soma > 0;
+    }).length,
+    [items, itemAllocs],
+  );
+
+
   const ccOptions = (ccs as any[]);
   const leOptions = (locais as any[]).filter((l) => l.tipo === "analitico");
 
@@ -254,6 +286,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
               ))}
             </SelectContent>
           </Select>
+          <ProgressoApontamento apontados={apontadosPC} total={totalItens} faltanteLabel="Plano de Contas" />
           <p className="text-xs text-slate-500">Ao alterar, o Plano de Contas é propagado para todos os itens (exceto os alterados manualmente).</p>
         </CardContent>
       </Card>
@@ -347,6 +380,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
               ))}
             </SelectContent>
           </Select>
+          <ProgressoApontamento apontados={apontadosLE} total={totalItens} faltanteLabel="Local de Estoque" />
           <p className="text-xs text-slate-500">Somente locais analíticos (99.999) podem ser usados. Ao alterar, o Local de Estoque é propagado para todos os itens (exceto os alterados manualmente).</p>
         </CardContent>
       </Card>
@@ -361,6 +395,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
+          <ProgressoApontamento apontados={apontadosCC} total={totalItens} faltanteLabel="rateio de Centro de Custo" />
           {cabAllocs.map((a, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <Select value={a.centro_custo_id} onValueChange={(v) => setCabAllocs((p) => p.map((x, i) => i === idx ? { ...x, centro_custo_id: v } : x))}>

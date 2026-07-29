@@ -76,6 +76,7 @@ type FiscalDoc = {
 type Row = FiscalDoc & {
   data_num: number;
   valor_num: number;
+  empresa_nome: string;
 };
 
 type Col = ColumnDef & { sortKey?: keyof Row; className?: string; headClassName?: string; render: (r: Row) => ReactNode };
@@ -89,22 +90,34 @@ function NFeList() {
   const [importOpen, setImportOpen] = useState(false);
   const [importFiles, setImportFiles] = useState<File[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [companyId, setCompanyId] = useState<string>("todas");
   const [aprovarId, setAprovarId] = useState<string | null>(null);
   const removeMany = useServerFn(deleteFiscalDocuments);
   const importXml = useServerFn(importNfeXml);
   const marcarIntegrado = useServerFn(marcarIntegradoTotvs);
 
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies-min"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, cnpj, razao_social, nome_fantasia")
+        .order("razao_social");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["fiscal_documents", "nfe"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fiscal_documents")
-        .select("id, numero, serie, chave_acesso, emitente_cnpj, emitente_nome, valor_total, status, data_emissao")
+        .select("id, numero, serie, chave_acesso, emitente_cnpj, emitente_nome, valor_total, status, data_emissao, company_id, companies(razao_social, nome_fantasia)")
         .eq("tipo", "nfe")
         .order("data_emissao", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as FiscalDoc[];
+      return (data ?? []) as unknown as FiscalDoc[];
     },
   });
 
@@ -122,6 +135,7 @@ function NFeList() {
         );
       })
       .filter((d) => (statusFilter === "todos" ? true : (d.status ?? "pendente_confirmacao") === statusFilter))
+      .filter((d) => (companyId === "todas" ? true : d.company_id === companyId))
       .filter((d) => {
         if (!de && !ate) return true;
         if (!d.data_emissao) return false;
@@ -134,8 +148,9 @@ function NFeList() {
         ...d,
         data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
         valor_num: Number(d.valor_total ?? 0),
+        empresa_nome: d.companies?.nome_fantasia || d.companies?.razao_social || "",
       }));
-  }, [docs, search, dataInicio, dataFim, statusFilter]);
+  }, [docs, search, dataInicio, dataFim, statusFilter, companyId]);
 
 
   const { items: sortedDocs, requestSort } = useSortableData(rows);

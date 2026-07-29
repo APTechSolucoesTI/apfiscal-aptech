@@ -8,13 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Loader2, BookOpen, Wallet, Save, Warehouse } from "lucide-react";
+import { Plus, Trash2, Loader2, BookOpen, Wallet, Save, Warehouse, Tags, RotateCcw } from "lucide-react";
 import { listPlanoContas } from "@/lib/plano-contas.functions";
 import { listCentrosCusto } from "@/lib/centros-custo.functions";
 import { listLocaisEstoque } from "@/lib/locais-estoque.functions";
-import { getAlocacaoNfe, setPlanoContasCabecalho, setPlanoContasItem, setAlocacoesCabecalho, setAlocacoesItem, setLocalEstoqueCabecalho, setLocalEstoqueItem } from "@/lib/nfe-alocacao.functions";
+import { listTiposCompra } from "@/lib/tipos-compra.functions";
+import { getAlocacaoNfe, setPlanoContasCabecalho, setPlanoContasItem, setAlocacoesCabecalho, setAlocacoesItem, setLocalEstoqueCabecalho, setLocalEstoqueItem, setTipoCompraCabecalho, setTipoCompraItem, restaurarTipoCompraItem } from "@/lib/nfe-alocacao.functions";
 import { recalcularAlocacaoCabecalho, somaAlocacoes, type CentroCustoAlocacao } from "@/lib/nfe-alocacao";
+import { consolidarTipoCompra, labelTipoCompra, type TipoCompra } from "@/lib/nfe-tipo-compra";
+
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 

@@ -2,7 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, ShieldCheck, Zap, BarChart3, Clock, Users, Globe, ArrowRight } from "lucide-react";
+import { Check, ShieldCheck, Zap, BarChart3, Clock, Users, Globe } from "lucide-react";
+import heroBg from "@/assets/hero-fiscal.jpg";
+import ctaBg from "@/assets/cta-fiscal.jpg";
+
 
 export const Route = createFileRoute("/")({
   component: Index,

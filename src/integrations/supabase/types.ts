@@ -508,6 +508,8 @@ export type Database = {
       }
       fiscal_document_items: {
         Row: {
+          apontado_em: string | null
+          apontado_por: string | null
           cest: string | null
           cfop: string | null
           codigo: string | null
@@ -530,6 +532,8 @@ export type Database = {
           quantidade_comercial: number | null
           quantidade_tributavel: number | null
           status_vinculo: string
+          tipo_compra_alterado_manualmente: boolean
+          tipo_compra_id: string | null
           unidade_comercial: string | null
           unidade_tributavel: string | null
           valor_bruto: number | null
@@ -542,6 +546,8 @@ export type Database = {
           valor_unitario_tributavel: number | null
         }
         Insert: {
+          apontado_em?: string | null
+          apontado_por?: string | null
           cest?: string | null
           cfop?: string | null
           codigo?: string | null
@@ -564,6 +570,8 @@ export type Database = {
           quantidade_comercial?: number | null
           quantidade_tributavel?: number | null
           status_vinculo?: string
+          tipo_compra_alterado_manualmente?: boolean
+          tipo_compra_id?: string | null
           unidade_comercial?: string | null
           unidade_tributavel?: string | null
           valor_bruto?: number | null
@@ -576,6 +584,8 @@ export type Database = {
           valor_unitario_tributavel?: number | null
         }
         Update: {
+          apontado_em?: string | null
+          apontado_por?: string | null
           cest?: string | null
           cfop?: string | null
           codigo?: string | null
@@ -598,6 +608,8 @@ export type Database = {
           quantidade_comercial?: number | null
           quantidade_tributavel?: number | null
           status_vinculo?: string
+          tipo_compra_alterado_manualmente?: boolean
+          tipo_compra_id?: string | null
           unidade_comercial?: string | null
           unidade_tributavel?: string | null
           valor_bruto?: number | null
@@ -638,6 +650,13 @@ export type Database = {
             referencedRelation: "produtos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fiscal_document_items_tipo_compra_id_fkey"
+            columns: ["tipo_compra_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_compra"
+            referencedColumns: ["id"]
+          },
         ]
       }
       fiscal_documents: {
@@ -676,6 +695,7 @@ export type Database = {
           status_updated_at: string
           status_updated_by: string | null
           tipo: Database["public"]["Enums"]["document_type"]
+          tipo_compra_id: string | null
           tipo_operacao: string | null
           totais: Json | null
           transporte: Json | null
@@ -724,6 +744,7 @@ export type Database = {
           status_updated_at?: string
           status_updated_by?: string | null
           tipo: Database["public"]["Enums"]["document_type"]
+          tipo_compra_id?: string | null
           tipo_operacao?: string | null
           totais?: Json | null
           transporte?: Json | null
@@ -772,6 +793,7 @@ export type Database = {
           status_updated_at?: string
           status_updated_by?: string | null
           tipo?: Database["public"]["Enums"]["document_type"]
+          tipo_compra_id?: string | null
           tipo_operacao?: string | null
           totais?: Json | null
           transporte?: Json | null
@@ -805,6 +827,13 @@ export type Database = {
             columns: ["plano_contas_id"]
             isOneToOne: false
             referencedRelation: "plano_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_documents_tipo_compra_id_fkey"
+            columns: ["tipo_compra_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_compra"
             referencedColumns: ["id"]
           },
         ]
@@ -1648,6 +1677,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tipos_compra: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          created_at: string
+          descricao: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          created_at?: string
+          descricao: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          created_at?: string
+          descricao?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

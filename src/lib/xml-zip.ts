@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 
-export type XmlArquivo = { nome: string; conteudo: string };
+export type XmlArquivo = { nome: string; conteudo: string | Blob };
 
 function nomeSeguro(nome: string) {
   return nome.replace(/[^\w.\-]+/g, "_");

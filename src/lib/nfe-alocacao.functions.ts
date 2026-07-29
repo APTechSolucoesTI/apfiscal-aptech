@@ -222,3 +222,78 @@ async function recalcularECommitCabecalho(context: any, documentId: string) {
     );
   }
 }
+
+// ---------- Tipo de Compra (NF-e) ----------
+
+export const setTipoCompraCabecalho = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { documentId: string; tipoCompraId: string | null; sobrescreverItens: boolean }) => data)
+  .handler(async ({ data, context }) => {
+    await assertEditavel(context, data.documentId);
+    const { error } = await (context.supabase as any)
+      .from("fiscal_documents")
+      .update({ tipo_compra_id: data.tipoCompraId })
+      .eq("id", data.documentId);
+    if (error) throw new Error(error.message);
+
+    // Propaga para os itens (exceto os alterados manualmente, salvo sobrescrita explícita)
+    let itemsQ = (context.supabase as any)
+      .from("fiscal_document_items")
+      .update({
+        tipo_compra_id: data.tipoCompraId,
+        tipo_compra_alterado_manualmente: false,
+        apontado_por: context.userId,
+        apontado_em: new Date().toISOString(),
+      })
+      .eq("document_id", data.documentId);
+    if (!data.sobrescreverItens) {
+      itemsQ = itemsQ.eq("tipo_compra_alterado_manualmente", false);
+    }
+    const { error: e2 } = await itemsQ;
+    if (e2) throw new Error(e2.message);
+    await reavaliarApontamentos(context, data.documentId);
+    return { ok: true };
+  });
+
+export const setTipoCompraItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { itemId: string; tipoCompraId: string | null }) => data)
+  .handler(async ({ data, context }) => {
+    const docId = await documentIdFromItem(context, data.itemId);
+    await assertEditavel(context, docId);
+    const { error } = await (context.supabase as any)
+      .from("fiscal_document_items")
+      .update({
+        tipo_compra_id: data.tipoCompraId,
+        tipo_compra_alterado_manualmente: true,
+        apontado_por: context.userId,
+        apontado_em: new Date().toISOString(),
+      })
+      .eq("id", data.itemId);
+    if (error) throw new Error(error.message);
+    await reavaliarApontamentos(context, docId);
+    return { ok: true };
+  });
+
+/** Remove a flag manual do item e reaplica o Tipo de Compra do cabeçalho. */
+export const restaurarTipoCompraItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { itemId: string }) => data)
+  .handler(async ({ data, context }) => {
+    const docId = await documentIdFromItem(context, data.itemId);
+    await assertEditavel(context, docId);
+    const { data: doc } = await (context.supabase as any)
+      .from("fiscal_documents").select("tipo_compra_id").eq("id", docId).maybeSingle();
+    const { error } = await (context.supabase as any)
+      .from("fiscal_document_items")
+      .update({
+        tipo_compra_id: doc?.tipo_compra_id ?? null,
+        tipo_compra_alterado_manualmente: false,
+        apontado_por: context.userId,
+        apontado_em: new Date().toISOString(),
+      })
+      .eq("id", data.itemId);
+    if (error) throw new Error(error.message);
+    await reavaliarApontamentos(context, docId);
+    return { ok: true };
+  });

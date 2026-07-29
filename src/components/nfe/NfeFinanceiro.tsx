@@ -23,6 +23,9 @@ import { consolidarTipoCompra, labelTipoCompra, type TipoCompra } from "@/lib/nf
 
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const round2 = (v: number) => Math.round((Number(v) || 0) * 100) / 100;
+const pctDe = (valor: number, base: number) => (base > 0 ? (Number(valor || 0) / base) * 100 : 0);
+type ModoRateio = "valor" | "percentual";
 
 function ProgressoApontamento({ apontados, total, faltanteLabel }: { apontados: number; total: number; faltanteLabel: string }) {
   const pct = total > 0 ? (apontados / total) * 100 : 0;
@@ -93,6 +96,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
 
   const [cabAllocs, setCabAllocs] = useState<CentroCustoAlocacao[]>([]);
   const [itemAllocs, setItemAllocs] = useState<Record<string, CentroCustoAlocacao[]>>({});
+  const [modoRateio, setModoRateio] = useState<ModoRateio>("valor");
 
   useEffect(() => {
     if (!alocacao) return;
@@ -388,10 +392,31 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2"><Wallet className="h-4 w-4 text-primary" /><CardTitle className="text-lg">Rateio de Centros de Custo — Cabeçalho</CardTitle></div>
-          <div className="text-sm">
-            <span className="text-slate-500">Total alocado:</span> <b>{fmt(totalAlocadoCab)}</b> {" / "}
-            <span className="text-slate-500">Total NF-e:</span> <b>{fmt(valorTotal)}</b> {" / "}
-            <span className="text-slate-500">Restante:</span> <b className={restante < 0 ? "text-red-600" : ""}>{fmt(restante)}</b>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={modoRateio === "valor" ? "default" : "outline"}
+                onClick={() => setModoRateio("valor")}
+              >
+                R$ Valor
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={modoRateio === "percentual" ? "default" : "outline"}
+                onClick={() => setModoRateio("percentual")}
+              >
+                % Percentual
+              </Button>
+            </div>
+            <div className="text-sm">
+              <span className="text-slate-500">Total alocado:</span> <b>{fmt(totalAlocadoCab)}</b>{" "}
+              <span className="text-slate-500">({pctDe(totalAlocadoCab, valorTotal).toFixed(2)}%)</span> {" / "}
+              <span className="text-slate-500">Total NF-e:</span> <b>{fmt(valorTotal)}</b> {" / "}
+              <span className="text-slate-500">Restante:</span> <b className={restante < 0 ? "text-red-600" : ""}>{fmt(restante)}</b>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -404,19 +429,29 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
                   {ccOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.codigo} · {c.descricao}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Input
-                type="number" step="0.01" min={0} className="w-40 text-right"
-                value={a.valor}
-                onChange={(e) => {
-                  const v = Number(e.target.value || 0);
-                  setCabAllocs((p) => p.map((x, i) => i === idx ? { ...x, valor: v } : x));
-                }}
-              />
+              <div className="relative w-40">
+                <Input
+                  type="number" step="0.01" min={0} className="text-right pr-8"
+                  value={modoRateio === "percentual" ? round2(pctDe(a.valor, valorTotal)) : a.valor}
+                  onChange={(e) => {
+                    const raw = Number(e.target.value || 0);
+                    const v = modoRateio === "percentual" ? round2((raw / 100) * valorTotal) : raw;
+                    setCabAllocs((p) => p.map((x, i) => i === idx ? { ...x, valor: v } : x));
+                  }}
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                  {modoRateio === "percentual" ? "%" : "R$"}
+                </span>
+              </div>
+              <span className="w-28 text-right text-xs text-slate-500">
+                {modoRateio === "percentual" ? fmt(a.valor) : `${round2(pctDe(a.valor, valorTotal)).toFixed(2)}%`}
+              </span>
               <Button size="icon" variant="ghost" onClick={() => setCabAllocs((p) => p.filter((_, i) => i !== idx))}>
                 <Trash2 className="h-4 w-4 text-red-600" />
               </Button>
             </div>
           ))}
+
           <div className="flex gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={addCabRow}><Plus className="h-4 w-4 mr-1" /> Adicionar Centro de Custo</Button>
             <Button size="sm" onClick={() => saveCabMut.mutate(false)} disabled={saveCabMut.isPending || totalAlocadoCab > valorTotal + 0.005}>
@@ -518,21 +553,31 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
                         {ccOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.codigo} · {c.descricao}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input
-                      type="number" step="0.01" min={0} max={vTot} className="w-40 text-right"
-                      value={a.valor}
-                      onChange={(e) => {
-                        let v = Number(e.target.value || 0);
-                        const outros = (itemAllocs[it.id] ?? []).reduce((s, x, i) => s + (i === idx ? 0 : Number(x.valor || 0)), 0);
-                        if (v + outros > vTot) v = Math.max(0, vTot - outros);
-                        setItemAllocs((p) => ({ ...p, [it.id]: (p[it.id] ?? []).map((x, i) => i === idx ? { ...x, valor: v } : x) }));
-                      }}
-                      onBlur={() => {
-                        if (somaItem < vTot - 0.005) {
-                          toast.warning(`Item "${it.descricao}" tem ${fmt(vTot - somaItem)} do valor total ainda sem Centro de Custo alocado.`);
-                        }
-                      }}
-                    />
+                    <div className="relative w-40">
+                      <Input
+                        type="number" step="0.01" min={0} className="text-right pr-8"
+                        value={modoRateio === "percentual" ? round2(pctDe(a.valor, vTot)) : a.valor}
+                        onChange={(e) => {
+                          const raw = Number(e.target.value || 0);
+                          let v = modoRateio === "percentual" ? round2((raw / 100) * vTot) : raw;
+                          const outros = (itemAllocs[it.id] ?? []).reduce((s, x, i) => s + (i === idx ? 0 : Number(x.valor || 0)), 0);
+                          if (v + outros > vTot) v = Math.max(0, round2(vTot - outros));
+                          setItemAllocs((p) => ({ ...p, [it.id]: (p[it.id] ?? []).map((x, i) => i === idx ? { ...x, valor: v } : x) }));
+                        }}
+                        onBlur={() => {
+                          if (somaItem < vTot - 0.005) {
+                            toast.warning(`Item "${it.descricao}" tem ${fmt(vTot - somaItem)} do valor total ainda sem Centro de Custo alocado.`);
+                          }
+                        }}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                        {modoRateio === "percentual" ? "%" : "R$"}
+                      </span>
+                    </div>
+                    <span className="w-28 text-right text-xs text-slate-500">
+                      {modoRateio === "percentual" ? fmt(a.valor) : `${round2(pctDe(a.valor, vTot)).toFixed(2)}%`}
+                    </span>
+
                     <Button size="icon" variant="ghost" onClick={() => setItemAllocs((p) => ({ ...p, [it.id]: (p[it.id] ?? []).filter((_, i) => i !== idx) }))}>
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>

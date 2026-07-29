@@ -553,21 +553,31 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
                         {ccOptions.map((c) => <SelectItem key={c.id} value={c.id}>{c.codigo} · {c.descricao}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input
-                      type="number" step="0.01" min={0} max={vTot} className="w-40 text-right"
-                      value={a.valor}
-                      onChange={(e) => {
-                        let v = Number(e.target.value || 0);
-                        const outros = (itemAllocs[it.id] ?? []).reduce((s, x, i) => s + (i === idx ? 0 : Number(x.valor || 0)), 0);
-                        if (v + outros > vTot) v = Math.max(0, vTot - outros);
-                        setItemAllocs((p) => ({ ...p, [it.id]: (p[it.id] ?? []).map((x, i) => i === idx ? { ...x, valor: v } : x) }));
-                      }}
-                      onBlur={() => {
-                        if (somaItem < vTot - 0.005) {
-                          toast.warning(`Item "${it.descricao}" tem ${fmt(vTot - somaItem)} do valor total ainda sem Centro de Custo alocado.`);
-                        }
-                      }}
-                    />
+                    <div className="relative w-40">
+                      <Input
+                        type="number" step="0.01" min={0} className="text-right pr-8"
+                        value={modoRateio === "percentual" ? round2(pctDe(a.valor, vTot)) : a.valor}
+                        onChange={(e) => {
+                          const raw = Number(e.target.value || 0);
+                          let v = modoRateio === "percentual" ? round2((raw / 100) * vTot) : raw;
+                          const outros = (itemAllocs[it.id] ?? []).reduce((s, x, i) => s + (i === idx ? 0 : Number(x.valor || 0)), 0);
+                          if (v + outros > vTot) v = Math.max(0, round2(vTot - outros));
+                          setItemAllocs((p) => ({ ...p, [it.id]: (p[it.id] ?? []).map((x, i) => i === idx ? { ...x, valor: v } : x) }));
+                        }}
+                        onBlur={() => {
+                          if (somaItem < vTot - 0.005) {
+                            toast.warning(`Item "${it.descricao}" tem ${fmt(vTot - somaItem)} do valor total ainda sem Centro de Custo alocado.`);
+                          }
+                        }}
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                        {modoRateio === "percentual" ? "%" : "R$"}
+                      </span>
+                    </div>
+                    <span className="w-28 text-right text-xs text-slate-500">
+                      {modoRateio === "percentual" ? fmt(a.valor) : `${round2(pctDe(a.valor, vTot)).toFixed(2)}%`}
+                    </span>
+
                     <Button size="icon" variant="ghost" onClick={() => setItemAllocs((p) => ({ ...p, [it.id]: (p[it.id] ?? []).filter((_, i) => i !== idx) }))}>
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>

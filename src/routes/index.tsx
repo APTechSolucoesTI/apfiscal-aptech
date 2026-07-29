@@ -2,7 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, ShieldCheck, Zap, BarChart3, Clock, Users, Globe, ArrowRight } from "lucide-react";
+import { Check, ShieldCheck, Zap, BarChart3, Clock, Users, Globe } from "lucide-react";
+import heroBg from "@/assets/hero-fiscal.jpg";
+import ctaBg from "@/assets/cta-fiscal.jpg";
+
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -92,25 +95,50 @@ function Index() {
       </nav>
 
       {/* Hero Section */}
-      <section className="px-6 py-20 lg:py-32 bg-gradient-to-b from-blue-50 to-white text-center">
-        <Badge className="mb-4 px-3 py-1 bg-accent text-accent-foreground hover:bg-accent border-none">
-          Compliance Fiscal Inteligente
-        </Badge>
-        <h1 className="text-4xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">
-          Nunca mais perca uma <span className="text-primary">Nota Fiscal</span> emitida contra sua empresa.
-        </h1>
-        <p className="mt-6 text-xl text-slate-600 max-w-2xl mx-auto">
-          Capture automaticamente NF-e, NFS-e e CT-e. Monitore manifestações, organize XMLs e evite fraudes com o APFiscal.
-        </p>
-        <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
-          <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8">
-            <Link to="/register">Criar Conta Gratuita</Link>
-          </Button>
-          <Button asChild variant="outline" size="lg" className="text-lg px-8">
-            <Link to="/login">Acessar Área do Cliente</Link>
-          </Button>
+      <section className="relative overflow-hidden px-6 py-24 lg:py-36 text-center">
+        <img
+          src={heroBg}
+          alt=""
+          aria-hidden="true"
+          width={1920}
+          height={1088}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/70 to-white" />
+        <div className="relative z-10">
+          <Badge className="mb-4 px-3 py-1 bg-accent text-accent-foreground hover:bg-accent border-none">
+            Compliance Fiscal Inteligente
+          </Badge>
+          <h1 className="text-4xl lg:text-6xl font-extrabold text-slate-900 tracking-tight max-w-4xl mx-auto leading-tight">
+            Nunca mais perca uma <span className="text-primary">Nota Fiscal</span> emitida contra sua empresa.
+          </h1>
+          <p className="mt-6 text-xl text-slate-700 max-w-2xl mx-auto">
+            Capture automaticamente NF-e, NFS-e e CT-e. Monitore manifestações, organize XMLs e evite fraudes com o APFiscal.
+          </p>
+          <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+            <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8 shadow-lg shadow-primary/20">
+              <Link to="/register">Criar Conta Gratuita</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="text-lg px-8 bg-white/70 backdrop-blur">
+              <Link to="/login">Acessar Área do Cliente</Link>
+            </Button>
+          </div>
+          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
+            {[
+              { v: "+500", l: "CNPJs monitorados" },
+              { v: "99,9%", l: "Disponibilidade" },
+              { v: "5 anos", l: "Guarda de XMLs" },
+              { v: "24/7", l: "Captura automática" },
+            ].map((s) => (
+              <div key={s.l} className="rounded-xl bg-white/70 backdrop-blur border border-white/60 p-4 shadow-sm">
+                <div className="text-2xl font-bold text-primary">{s.v}</div>
+                <div className="text-xs text-slate-600 mt-1">{s.l}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
+
 
       {/* Features Grid */}
       <section id="recursos" className="px-6 py-24 bg-white">
@@ -176,15 +204,28 @@ function Index() {
       </section>
 
       {/* CTA Footer */}
-      <section className="px-6 py-20 bg-primary text-primary-foreground text-center">
-        <h2 className="text-3xl font-bold mb-6">Pronto para automatizar seu fiscal?</h2>
-        <p className="text-blue-100 mb-10 max-w-xl mx-auto">
-          Junte-se a centenas de empresas que já eliminam erros manuais e multas com o APFiscal.
-        </p>
-        <Button asChild size="lg" className="bg-background text-primary hover:bg-secondary px-10">
-          <Link to="/register">Começar Agora</Link>
-        </Button>
+      <section className="relative overflow-hidden px-6 py-24 text-center">
+        <img
+          src={ctaBg}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          width={1920}
+          height={912}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-primary/80" />
+        <div className="relative z-10 text-primary-foreground">
+          <h2 className="text-3xl lg:text-4xl font-bold mb-6">Pronto para automatizar seu fiscal?</h2>
+          <p className="text-primary-foreground/80 mb-10 max-w-xl mx-auto">
+            Junte-se a centenas de empresas que já eliminam erros manuais e multas com o APFiscal.
+          </p>
+          <Button asChild size="lg" className="bg-background text-primary hover:bg-secondary px-10 shadow-xl">
+            <Link to="/register">Começar Agora</Link>
+          </Button>
+        </div>
       </section>
+
 
       {/* Real Footer */}
       <footer className="px-6 py-12 border-t bg-white">

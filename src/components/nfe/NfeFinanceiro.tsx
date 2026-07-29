@@ -213,6 +213,19 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
   );
   const progressoTC = consolidacaoTC.total > 0 ? (consolidacaoTC.apontados / consolidacaoTC.total) * 100 : 0;
 
+  const totalItens = items.length;
+  const apontadosPC = useMemo(() => items.filter((it) => !!it.plano_contas_id).length, [items]);
+  const apontadosLE = useMemo(() => items.filter((it) => !!it.local_estoque_id).length, [items]);
+  const apontadosCC = useMemo(
+    () => items.filter((it) => {
+      const vTot = Number(it.valor_bruto || 0);
+      const soma = somaAlocacoes(itemAllocs[it.id] ?? []);
+      return vTot > 0 ? soma >= vTot - 0.005 : soma > 0;
+    }).length,
+    [items, itemAllocs],
+  );
+
+
   const ccOptions = (ccs as any[]);
   const leOptions = (locais as any[]).filter((l) => l.tipo === "analitico");
 

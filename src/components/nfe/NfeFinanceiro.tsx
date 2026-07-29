@@ -24,6 +24,25 @@ import { consolidarTipoCompra, labelTipoCompra, type TipoCompra } from "@/lib/nf
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+function ProgressoApontamento({ apontados, total, faltanteLabel }: { apontados: number; total: number; faltanteLabel: string }) {
+  const pct = total > 0 ? (apontados / total) * 100 : 0;
+  const faltantes = Math.max(0, total - apontados);
+  return (
+    <div className="space-y-1 max-w-xl">
+      <div className="flex items-center justify-between text-xs text-slate-600">
+        <span>Progresso do apontamento</span>
+        <b>{apontados}/{total} itens apontados</b>
+      </div>
+      <Progress value={pct} className="h-2" />
+      {faltantes > 0 && (
+        <p className="text-xs font-medium text-amber-700">
+          Existem {faltantes} item(ns) sem {faltanteLabel} apontado. Realize o apontamento antes de prosseguir.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; items: any[]; readOnly?: boolean }) {
   const qc = useQueryClient();
   const companyId = doc.company_id as string;

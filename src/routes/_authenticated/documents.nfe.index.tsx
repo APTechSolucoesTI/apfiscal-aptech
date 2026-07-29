@@ -322,6 +322,9 @@ function NFeList() {
       </div>
     ) },
     { key: "cnpj", label: "CNPJ Emitente", headClassName: "text-slate-500 font-semibold", className: "font-mono text-xs text-slate-600", render: (doc) => doc.emitente_cnpj ?? "-" },
+    { key: "empresa", label: "Empresa", sortKey: "empresa_nome", headClassName: "text-slate-500 font-semibold", className: "text-sm text-slate-600", render: (doc) => (
+      <span className="block max-w-[220px] truncate">{doc.empresa_nome || "-"}</span>
+    ) },
     { key: "valor", label: "Valor", sortKey: "valor_num", headClassName: "text-slate-500 font-semibold", className: "font-semibold text-slate-900 text-sm", render: (doc) => Number(doc.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) },
     { key: "status", label: "Status", headClassName: "text-slate-500 font-semibold", render: (doc) => {
       const st = statusConfig(doc.status);

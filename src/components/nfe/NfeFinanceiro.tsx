@@ -96,6 +96,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
 
   const [cabAllocs, setCabAllocs] = useState<CentroCustoAlocacao[]>([]);
   const [itemAllocs, setItemAllocs] = useState<Record<string, CentroCustoAlocacao[]>>({});
+  const [modoRateio, setModoRateio] = useState<ModoRateio>("valor");
 
   useEffect(() => {
     if (!alocacao) return;

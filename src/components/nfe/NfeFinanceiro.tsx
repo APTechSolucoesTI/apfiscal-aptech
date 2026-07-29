@@ -443,6 +443,36 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
                       </Select>
                     </div>
                     {it.local_estoque_alterado_manualmente && <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">estoque manual</Badge>}
+                    <div className="w-64">
+                      <Select
+                        value={it.tipo_compra_id ?? "__none__"}
+                        onValueChange={(v) => setTCItemMut.mutate({ itemId: it.id, tipoCompraId: v === "__none__" ? null : v })}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo de Compra do item" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— herdar do cabeçalho —</SelectItem>
+                          {(tiposCompra as TipoCompra[]).map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.codigo} - {t.descricao}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {it.tipo_compra_alterado_manualmente && (
+                      <>
+                        <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200">tipo manual</Badge>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => restaurarTCMut.mutate(it.id)}>
+                                <RotateCcw className="h-4 w-4 text-slate-500" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Restaurar padrão do cabeçalho</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </>
+                    )}
+
                   </div>
                 </div>
                 {rateio.map((a, idx) => (

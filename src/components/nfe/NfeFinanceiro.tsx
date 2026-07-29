@@ -192,8 +192,28 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
     setLEHeaderMut.mutate({ localEstoqueId: newId, sobrescreverItens: false });
   }
 
+  function alterarTCCabecalho(newId: string | null) {
+    const algumItemManual = items.some((it) => it.tipo_compra_alterado_manualmente);
+    if (algumItemManual) {
+      setConfirmSobrescreverTC(newId ?? "");
+      return;
+    }
+    setTCHeaderMut.mutate({ tipoCompraId: newId, sobrescreverItens: false });
+  }
+
+  const tcById = useMemo(
+    () => new Map((tiposCompra as TipoCompra[]).map((t) => [t.id, t])),
+    [tiposCompra],
+  );
+  const consolidacaoTC = useMemo(
+    () => consolidarTipoCompra(items.map((it) => ({ id: it.id, tipo_compra_id: it.tipo_compra_id ?? null }))),
+    [items],
+  );
+  const progressoTC = consolidacaoTC.total > 0 ? (consolidacaoTC.apontados / consolidacaoTC.total) * 100 : 0;
+
   const ccOptions = (ccs as any[]);
   const leOptions = (locais as any[]).filter((l) => l.tipo === "analitico");
+
 
   function addCabRow() { setCabAllocs((p) => [...p, { centro_custo_id: (ccOptions[0]?.id ?? ""), valor: 0 }]); }
   function addItemRow(itemId: string) {

@@ -204,18 +204,30 @@ function NFeList() {
   const bulkXmlMut = useMutation({
     mutationFn: async (ids: string[]) => {
       const found = await buscarXmls(ids);
-      if (found.length === 0) throw new Error("Nenhuma das notas selecionadas possui XML armazenado.");
-      await baixarXmlsZip(
-        found.map((d) => ({
-          nome: `${d.chave_acesso ?? d.numero ?? d.id}.xml`,
-          conteudo: d.xml_content,
-        })),
-        `nfe-xmls-${new Date().toISOString().slice(0, 10)}.zip`,
-      );
-      return { baixados: found.length, total: ids.length };
+      const arquivos = found.map((d) => ({
+        nome: `${d.chave_acesso ?? d.numero ?? d.id}.xml`,
+        conteudo: d.xml_content as string | Blob,
+      }));
+
+      let pdfs = 0;
+      for (const id of ids) {
+        try {
+          const det = await getNfeDetails({ data: { id } });
+          if (!det?.document) continue;
+          const { pdf, filename } = buildDanfePdf(det.document, det.items ?? []);
+          arquivos.push({ nome: filename, conteudo: pdf.output("blob") as Blob });
+          pdfs++;
+        } catch {
+          // ignora notas sem dados suficientes para a DANFE
+        }
+      }
+
+      if (arquivos.length === 0) throw new Error("Nenhuma das notas selecionadas possui XML ou DANFE disponível.");
+      await baixarXmlsZip(arquivos, `nfe-xmls-${new Date().toISOString().slice(0, 10)}.zip`);
+      return { baixados: found.length, pdfs, total: ids.length };
     },
-    onSuccess: ({ baixados, total }) => {
-      toast.success(`${baixados} XML(s) compactado(s) em ZIP.`);
+    onSuccess: ({ baixados, pdfs, total }) => {
+      toast.success(`${baixados} XML(s) e ${pdfs} DANFE(s) compactados em ZIP.`);
       if (baixados < total) toast.warning(`${total - baixados} nota(s) sem XML armazenado.`);
     },
     onError: (e: Error) => toast.error(e.message),

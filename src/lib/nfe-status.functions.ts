@@ -94,7 +94,15 @@ export async function reavaliarApontamentos(context: any, documentId: string): P
     .select("id", { count: "exact", head: true })
     .eq("document_id", documentId);
 
-  const completo = !!doc.plano_contas_id && !!doc.local_estoque_id && (count ?? 0) > 0;
+  // Todos os itens precisam ter Tipo de Compra apontado
+  const { count: itensSemTipo } = await (context.supabase as any)
+    .from("fiscal_document_items")
+    .select("id", { count: "exact", head: true })
+    .eq("document_id", documentId)
+    .is("tipo_compra_id", null);
+
+  const completo =
+    !!doc.plano_contas_id && !!doc.local_estoque_id && (count ?? 0) > 0 && (itensSemTipo ?? 0) === 0;
   const alvo: NfeStatus = completo ? "pronta_para_integracao" : "aprovada";
   if (alvo !== doc.status) {
     await updateStatus(
@@ -102,10 +110,13 @@ export async function reavaliarApontamentos(context: any, documentId: string): P
       documentId,
       alvo,
       completo
-        ? "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque e Centro de Custo)"
-        : "Apontamentos obrigatórios incompletos",
+        ? "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
+        : (itensSemTipo ?? 0) > 0
+          ? `Existem ${itensSemTipo} item(ns) sem Tipo de Compra apontado.`
+          : "Apontamentos obrigatórios incompletos",
     );
   }
+
   return alvo;
 }
 

@@ -70,6 +70,8 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
 
   const [confirmSobrescrever, setConfirmSobrescrever] = useState<string | null>(null);
   const [confirmSobrescreverLE, setConfirmSobrescreverLE] = useState<string | null>(null);
+  const [confirmSobrescreverTC, setConfirmSobrescreverTC] = useState<string | null>(null);
+
   const [cabAllocs, setCabAllocs] = useState<CentroCustoAlocacao[]>([]);
   const [itemAllocs, setItemAllocs] = useState<Record<string, CentroCustoAlocacao[]>>({});
 

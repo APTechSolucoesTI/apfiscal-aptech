@@ -380,6 +380,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
               ))}
             </SelectContent>
           </Select>
+          <ProgressoApontamento apontados={apontadosLE} total={totalItens} faltanteLabel="Local de Estoque" />
           <p className="text-xs text-slate-500">Somente locais analíticos (99.999) podem ser usados. Ao alterar, o Local de Estoque é propagado para todos os itens (exceto os alterados manualmente).</p>
         </CardContent>
       </Card>

@@ -564,7 +564,27 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmSobrescreverTC !== null} onOpenChange={(o) => !o && setConfirmSobrescreverTC(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sobrescrever alterações manuais?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso substituirá o Tipo de Compra já definido manualmente em algum item. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const id = confirmSobrescreverTC;
+              setConfirmSobrescreverTC(null);
+              setTCHeaderMut.mutate({ tipoCompraId: id === "" ? null : id, sobrescreverItens: true });
+            }}>Sobrescrever</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </fieldset>
+
     </div>
   );
 }

@@ -123,6 +123,9 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
       qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+
 
   const setTCHeaderMut = useMutation({
     mutationFn: (v: { tipoCompraId: string | null; sobrescreverItens: boolean }) =>

@@ -40,6 +40,10 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
   const setPCItemFn = useServerFn(setPlanoContasItem);
   const setCabFn = useServerFn(setAlocacoesCabecalho);
   const setItemFn = useServerFn(setAlocacoesItem);
+  const listTCFn = useServerFn(listTiposCompra);
+  const setTCHeaderFn = useServerFn(setTipoCompraCabecalho);
+  const setTCItemFn = useServerFn(setTipoCompraItem);
+  const restaurarTCFn = useServerFn(restaurarTipoCompraItem);
 
   const { data: planos = [] } = useQuery({
     queryKey: ["plano-contas-lanc", companyId],
@@ -53,6 +57,12 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
     queryKey: ["locais-estoque-ativos", companyId],
     queryFn: () => listLEFn({ data: { companyId, apenasAtivos: true } }),
   });
+  const { data: tiposCompra = [] } = useQuery<TipoCompra[]>({
+    queryKey: ["tipos-compra"],
+    queryFn: () => listTCFn() as any,
+    staleTime: 60 * 60 * 1000,
+  });
+
   const { data: alocacao } = useQuery({
     queryKey: ["nfe-alocacao", documentId],
     queryFn: () => getAlocFn({ data: { documentId } }),

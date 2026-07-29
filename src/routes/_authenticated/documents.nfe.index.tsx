@@ -445,6 +445,18 @@ function NFeList() {
                 </PopoverContent>
               </Popover>
 
+              <Select value={companyId} onValueChange={setCompanyId}>
+                <SelectTrigger className="w-[260px] bg-white border-slate-200">
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as empresas</SelectItem>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome_fantasia || c.razao_social}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[210px] bg-white border-slate-200">
                   <SelectValue placeholder="Status" />

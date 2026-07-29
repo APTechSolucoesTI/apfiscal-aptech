@@ -395,6 +395,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
+          <ProgressoApontamento apontados={apontadosCC} total={totalItens} faltanteLabel="rateio de Centro de Custo" />
           {cabAllocs.map((a, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <Select value={a.centro_custo_id} onValueChange={(v) => setCabAllocs((p) => p.map((x, i) => i === idx ? { ...x, centro_custo_id: v } : x))}>

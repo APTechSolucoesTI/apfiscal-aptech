@@ -23,6 +23,9 @@ import { consolidarTipoCompra, labelTipoCompra, type TipoCompra } from "@/lib/nf
 
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const round2 = (v: number) => Math.round((Number(v) || 0) * 100) / 100;
+const pctDe = (valor: number, base: number) => (base > 0 ? (Number(valor || 0) / base) * 100 : 0);
+type ModoRateio = "valor" | "percentual";
 
 function ProgressoApontamento({ apontados, total, faltanteLabel }: { apontados: number; total: number; faltanteLabel: string }) {
   const pct = total > 0 ? (apontados / total) * 100 : 0;

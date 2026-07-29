@@ -123,7 +123,35 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
       qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
     },
     onError: (e: Error) => toast.error(e.message),
+
+  const setTCHeaderMut = useMutation({
+    mutationFn: (v: { tipoCompraId: string | null; sobrescreverItens: boolean }) =>
+      setTCHeaderFn({ data: { documentId, tipoCompraId: v.tipoCompraId, sobrescreverItens: v.sobrescreverItens } }),
+    onSuccess: () => {
+      toast.success("Tipo de Compra atualizado no cabeçalho e propagado para os itens.");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
+
+  const setTCItemMut = useMutation({
+    mutationFn: (v: { itemId: string; tipoCompraId: string | null }) => setTCItemFn({ data: v }),
+    onSuccess: () => {
+      toast.success("Tipo de Compra do item atualizado (marcado como alteração manual).");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const restaurarTCMut = useMutation({
+    mutationFn: (itemId: string) => restaurarTCFn({ data: { itemId } }),
+    onSuccess: () => {
+      toast.success("Tipo de Compra do item restaurado para o padrão do cabeçalho.");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   const saveCabMut = useMutation({
     mutationFn: (propagar: boolean) => setCabFn({ data: { documentId, alocacoes: cabAllocs, propagarParaItens: propagar } }),

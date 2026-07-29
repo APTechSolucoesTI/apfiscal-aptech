@@ -69,11 +69,14 @@ type FiscalDoc = {
   valor_total: number | null;
   status: NfeStatus | null;
   data_emissao: string | null;
+  company_id: string | null;
+  companies?: { razao_social: string | null; nome_fantasia: string | null } | null;
 };
 
 type Row = FiscalDoc & {
   data_num: number;
   valor_num: number;
+  empresa_nome: string;
 };
 
 type Col = ColumnDef & { sortKey?: keyof Row; className?: string; headClassName?: string; render: (r: Row) => ReactNode };
@@ -87,22 +90,34 @@ function NFeList() {
   const [importOpen, setImportOpen] = useState(false);
   const [importFiles, setImportFiles] = useState<File[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [companyId, setCompanyId] = useState<string>("todas");
   const [aprovarId, setAprovarId] = useState<string | null>(null);
   const removeMany = useServerFn(deleteFiscalDocuments);
   const importXml = useServerFn(importNfeXml);
   const marcarIntegrado = useServerFn(marcarIntegradoTotvs);
 
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies-min"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, cnpj, razao_social, nome_fantasia")
+        .order("razao_social");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["fiscal_documents", "nfe"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fiscal_documents")
-        .select("id, numero, serie, chave_acesso, emitente_cnpj, emitente_nome, valor_total, status, data_emissao")
+        .select("id, numero, serie, chave_acesso, emitente_cnpj, emitente_nome, valor_total, status, data_emissao, company_id, companies(razao_social, nome_fantasia)")
         .eq("tipo", "nfe")
         .order("data_emissao", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as FiscalDoc[];
+      return (data ?? []) as unknown as FiscalDoc[];
     },
   });
 
@@ -120,6 +135,7 @@ function NFeList() {
         );
       })
       .filter((d) => (statusFilter === "todos" ? true : (d.status ?? "pendente_confirmacao") === statusFilter))
+      .filter((d) => (companyId === "todas" ? true : d.company_id === companyId))
       .filter((d) => {
         if (!de && !ate) return true;
         if (!d.data_emissao) return false;
@@ -132,8 +148,9 @@ function NFeList() {
         ...d,
         data_num: d.data_emissao ? new Date(d.data_emissao).getTime() : 0,
         valor_num: Number(d.valor_total ?? 0),
+        empresa_nome: d.companies?.nome_fantasia || d.companies?.razao_social || "",
       }));
-  }, [docs, search, dataInicio, dataFim, statusFilter]);
+  }, [docs, search, dataInicio, dataFim, statusFilter, companyId]);
 
 
   const { items: sortedDocs, requestSort } = useSortableData(rows);
@@ -305,6 +322,9 @@ function NFeList() {
       </div>
     ) },
     { key: "cnpj", label: "CNPJ Emitente", headClassName: "text-slate-500 font-semibold", className: "font-mono text-xs text-slate-600", render: (doc) => doc.emitente_cnpj ?? "-" },
+    { key: "empresa", label: "Empresa", sortKey: "empresa_nome", headClassName: "text-slate-500 font-semibold", className: "text-sm text-slate-600", render: (doc) => (
+      <span className="block max-w-[220px] truncate">{doc.empresa_nome || "-"}</span>
+    ) },
     { key: "valor", label: "Valor", sortKey: "valor_num", headClassName: "text-slate-500 font-semibold", className: "font-semibold text-slate-900 text-sm", render: (doc) => Number(doc.valor_total ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) },
     { key: "status", label: "Status", headClassName: "text-slate-500 font-semibold", render: (doc) => {
       const st = statusConfig(doc.status);
@@ -424,6 +444,18 @@ function NFeList() {
                   </Button>
                 </PopoverContent>
               </Popover>
+
+              <Select value={companyId} onValueChange={setCompanyId}>
+                <SelectTrigger className="w-[260px] bg-white border-slate-200">
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as empresas</SelectItem>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome_fantasia || c.razao_social}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[210px] bg-white border-slate-200">

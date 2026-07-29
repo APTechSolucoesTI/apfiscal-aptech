@@ -259,6 +259,80 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
       </Card>
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Tags className="h-4 w-4 text-primary" />
+            <CardTitle className="text-lg">Tipo de Compra (cabeçalho)</CardTitle>
+          </div>
+          <div className="flex items-center gap-3">
+            {consolidacaoTC.multiplos ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Badge variant="outline" className="cursor-pointer bg-violet-50 text-violet-700 border-violet-200">
+                    Múltiplos tipos
+                  </Badge>
+                </PopoverTrigger>
+                <PopoverContent className="w-72">
+                  <p className="text-xs font-semibold uppercase text-slate-500 mb-2">Distribuição por item</p>
+                  <ul className="text-sm space-y-1">
+                    {consolidacaoTC.distribuicao.map((d) => (
+                      <li key={d.tipo_compra_id ?? "__none__"}>
+                        {d.quantidade} {d.quantidade === 1 ? "item" : "itens"} ·{" "}
+                        {d.tipo_compra_id ? labelTipoCompra(tcById.get(d.tipo_compra_id)) : "sem Tipo de Compra"}
+                      </li>
+                    ))}
+                  </ul>
+                </PopoverContent>
+              </Popover>
+            ) : consolidacaoTC.unico ? (
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                {labelTipoCompra(tcById.get(consolidacaoTC.unico))}
+              </Badge>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="max-w-xl">
+                  <Select
+                    disabled={readOnly}
+                    value={doc.tipo_compra_id ?? "__none__"}
+                    onValueChange={(v) => alterarTCCabecalho(v === "__none__" ? null : v)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione um Tipo de Compra" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— sem tipo de compra —</SelectItem>
+                      {(tiposCompra as TipoCompra[]).map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.codigo} - {t.descricao}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TooltipTrigger>
+              {readOnly && <TooltipContent>{aviso}</TooltipContent>}
+            </Tooltip>
+          </TooltipProvider>
+          <div className="space-y-1 max-w-xl">
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>Progresso do apontamento</span>
+              <b>{consolidacaoTC.apontados}/{consolidacaoTC.total} itens apontados</b>
+            </div>
+            <Progress value={progressoTC} className="h-2" />
+          </div>
+          {consolidacaoTC.faltantes > 0 && (
+            <p className="text-xs font-medium text-amber-700">
+              Existem {consolidacaoTC.faltantes} item(ns) sem Tipo de Compra apontado. Realize o apontamento antes de prosseguir.
+            </p>
+          )}
+          <p className="text-xs text-slate-500">Ao alterar, o Tipo de Compra é propagado para todos os itens (exceto os alterados manualmente).</p>
+        </CardContent>
+      </Card>
+
+
+
+      <Card>
         <CardHeader className="flex flex-row items-center gap-2">
           <Warehouse className="h-4 w-4 text-primary" />
           <CardTitle className="text-lg">Local de Estoque (cabeçalho)</CardTitle>

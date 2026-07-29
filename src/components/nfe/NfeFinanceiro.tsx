@@ -286,6 +286,7 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
               ))}
             </SelectContent>
           </Select>
+          <ProgressoApontamento apontados={apontadosPC} total={totalItens} faltanteLabel="Plano de Contas" />
           <p className="text-xs text-slate-500">Ao alterar, o Plano de Contas é propagado para todos os itens (exceto os alterados manualmente).</p>
         </CardContent>
       </Card>

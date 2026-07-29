@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 
-export type XmlArquivo = { nome: string; conteudo: string };
+export type XmlArquivo = { nome: string; conteudo: string | Blob };
 
 function nomeSeguro(nome: string) {
   return nome.replace(/[^\w.\-]+/g, "_");
@@ -14,7 +14,7 @@ export async function baixarXmlsZip(arquivos: XmlArquivo[], nomeZip = "nfe-xmls.
     let nome = nomeSeguro(arq.nome);
     const n = usados.get(nome) ?? 0;
     usados.set(nome, n + 1);
-    if (n > 0) nome = nome.replace(/(\.xml)?$/i, `_${n}.xml`);
+    if (n > 0) nome = nome.replace(/(\.[^.]+)?$/i, (ext) => `_${n}${ext || ""}`);
     zip.file(nome, arq.conteudo);
   }
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });

@@ -8,13 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Loader2, BookOpen, Wallet, Save, Warehouse } from "lucide-react";
+import { Plus, Trash2, Loader2, BookOpen, Wallet, Save, Warehouse, Tags, RotateCcw } from "lucide-react";
 import { listPlanoContas } from "@/lib/plano-contas.functions";
 import { listCentrosCusto } from "@/lib/centros-custo.functions";
 import { listLocaisEstoque } from "@/lib/locais-estoque.functions";
-import { getAlocacaoNfe, setPlanoContasCabecalho, setPlanoContasItem, setAlocacoesCabecalho, setAlocacoesItem, setLocalEstoqueCabecalho, setLocalEstoqueItem } from "@/lib/nfe-alocacao.functions";
+import { listTiposCompra } from "@/lib/tipos-compra.functions";
+import { getAlocacaoNfe, setPlanoContasCabecalho, setPlanoContasItem, setAlocacoesCabecalho, setAlocacoesItem, setLocalEstoqueCabecalho, setLocalEstoqueItem, setTipoCompraCabecalho, setTipoCompraItem, restaurarTipoCompraItem } from "@/lib/nfe-alocacao.functions";
 import { recalcularAlocacaoCabecalho, somaAlocacoes, type CentroCustoAlocacao } from "@/lib/nfe-alocacao";
+import { consolidarTipoCompra, labelTipoCompra, type TipoCompra } from "@/lib/nfe-tipo-compra";
+
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -34,6 +40,10 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
   const setPCItemFn = useServerFn(setPlanoContasItem);
   const setCabFn = useServerFn(setAlocacoesCabecalho);
   const setItemFn = useServerFn(setAlocacoesItem);
+  const listTCFn = useServerFn(listTiposCompra);
+  const setTCHeaderFn = useServerFn(setTipoCompraCabecalho);
+  const setTCItemFn = useServerFn(setTipoCompraItem);
+  const restaurarTCFn = useServerFn(restaurarTipoCompraItem);
 
   const { data: planos = [] } = useQuery({
     queryKey: ["plano-contas-lanc", companyId],
@@ -47,6 +57,12 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
     queryKey: ["locais-estoque-ativos", companyId],
     queryFn: () => listLEFn({ data: { companyId, apenasAtivos: true } }),
   });
+  const { data: tiposCompra = [] } = useQuery<TipoCompra[]>({
+    queryKey: ["tipos-compra"],
+    queryFn: () => listTCFn() as any,
+    staleTime: 60 * 60 * 1000,
+  });
+
   const { data: alocacao } = useQuery({
     queryKey: ["nfe-alocacao", documentId],
     queryFn: () => getAlocFn({ data: { documentId } }),
@@ -54,6 +70,8 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
 
   const [confirmSobrescrever, setConfirmSobrescrever] = useState<string | null>(null);
   const [confirmSobrescreverLE, setConfirmSobrescreverLE] = useState<string | null>(null);
+  const [confirmSobrescreverTC, setConfirmSobrescreverTC] = useState<string | null>(null);
+
   const [cabAllocs, setCabAllocs] = useState<CentroCustoAlocacao[]>([]);
   const [itemAllocs, setItemAllocs] = useState<Record<string, CentroCustoAlocacao[]>>({});
 
@@ -109,6 +127,37 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
     onError: (e: Error) => toast.error(e.message),
   });
 
+
+
+  const setTCHeaderMut = useMutation({
+    mutationFn: (v: { tipoCompraId: string | null; sobrescreverItens: boolean }) =>
+      setTCHeaderFn({ data: { documentId, tipoCompraId: v.tipoCompraId, sobrescreverItens: v.sobrescreverItens } }),
+    onSuccess: () => {
+      toast.success("Tipo de Compra atualizado no cabeçalho e propagado para os itens.");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setTCItemMut = useMutation({
+    mutationFn: (v: { itemId: string; tipoCompraId: string | null }) => setTCItemFn({ data: v }),
+    onSuccess: () => {
+      toast.success("Tipo de Compra do item atualizado (marcado como alteração manual).");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const restaurarTCMut = useMutation({
+    mutationFn: (itemId: string) => restaurarTCFn({ data: { itemId } }),
+    onSuccess: () => {
+      toast.success("Tipo de Compra do item restaurado para o padrão do cabeçalho.");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
   const saveCabMut = useMutation({
     mutationFn: (propagar: boolean) => setCabFn({ data: { documentId, alocacoes: cabAllocs, propagarParaItens: propagar } }),
     onSuccess: () => {
@@ -145,8 +194,28 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
     setLEHeaderMut.mutate({ localEstoqueId: newId, sobrescreverItens: false });
   }
 
+  function alterarTCCabecalho(newId: string | null) {
+    const algumItemManual = items.some((it) => it.tipo_compra_alterado_manualmente);
+    if (algumItemManual) {
+      setConfirmSobrescreverTC(newId ?? "");
+      return;
+    }
+    setTCHeaderMut.mutate({ tipoCompraId: newId, sobrescreverItens: false });
+  }
+
+  const tcById = useMemo(
+    () => new Map((tiposCompra as TipoCompra[]).map((t) => [t.id, t])),
+    [tiposCompra],
+  );
+  const consolidacaoTC = useMemo(
+    () => consolidarTipoCompra(items.map((it) => ({ id: it.id, tipo_compra_id: it.tipo_compra_id ?? null }))),
+    [items],
+  );
+  const progressoTC = consolidacaoTC.total > 0 ? (consolidacaoTC.apontados / consolidacaoTC.total) * 100 : 0;
+
   const ccOptions = (ccs as any[]);
   const leOptions = (locais as any[]).filter((l) => l.tipo === "analitico");
+
 
   function addCabRow() { setCabAllocs((p) => [...p, { centro_custo_id: (ccOptions[0]?.id ?? ""), valor: 0 }]); }
   function addItemRow(itemId: string) {
@@ -188,6 +257,80 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
           <p className="text-xs text-slate-500">Ao alterar, o Plano de Contas é propagado para todos os itens (exceto os alterados manualmente).</p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Tags className="h-4 w-4 text-primary" />
+            <CardTitle className="text-lg">Tipo de Compra (cabeçalho)</CardTitle>
+          </div>
+          <div className="flex items-center gap-3">
+            {consolidacaoTC.multiplos ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Badge variant="outline" className="cursor-pointer bg-violet-50 text-violet-700 border-violet-200">
+                    Múltiplos tipos
+                  </Badge>
+                </PopoverTrigger>
+                <PopoverContent className="w-72">
+                  <p className="text-xs font-semibold uppercase text-slate-500 mb-2">Distribuição por item</p>
+                  <ul className="text-sm space-y-1">
+                    {consolidacaoTC.distribuicao.map((d) => (
+                      <li key={d.tipo_compra_id ?? "__none__"}>
+                        {d.quantidade} {d.quantidade === 1 ? "item" : "itens"} ·{" "}
+                        {d.tipo_compra_id ? labelTipoCompra(tcById.get(d.tipo_compra_id)) : "sem Tipo de Compra"}
+                      </li>
+                    ))}
+                  </ul>
+                </PopoverContent>
+              </Popover>
+            ) : consolidacaoTC.unico ? (
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                {labelTipoCompra(tcById.get(consolidacaoTC.unico))}
+              </Badge>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="max-w-xl">
+                  <Select
+                    disabled={readOnly}
+                    value={doc.tipo_compra_id ?? "__none__"}
+                    onValueChange={(v) => alterarTCCabecalho(v === "__none__" ? null : v)}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecione um Tipo de Compra" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— sem tipo de compra —</SelectItem>
+                      {(tiposCompra as TipoCompra[]).map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.codigo} - {t.descricao}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TooltipTrigger>
+              {readOnly && <TooltipContent>{aviso}</TooltipContent>}
+            </Tooltip>
+          </TooltipProvider>
+          <div className="space-y-1 max-w-xl">
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>Progresso do apontamento</span>
+              <b>{consolidacaoTC.apontados}/{consolidacaoTC.total} itens apontados</b>
+            </div>
+            <Progress value={progressoTC} className="h-2" />
+          </div>
+          {consolidacaoTC.faltantes > 0 && (
+            <p className="text-xs font-medium text-amber-700">
+              Existem {consolidacaoTC.faltantes} item(ns) sem Tipo de Compra apontado. Realize o apontamento antes de prosseguir.
+            </p>
+          )}
+          <p className="text-xs text-slate-500">Ao alterar, o Tipo de Compra é propagado para todos os itens (exceto os alterados manualmente).</p>
+        </CardContent>
+      </Card>
+
+
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-2">
@@ -300,6 +443,36 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
                       </Select>
                     </div>
                     {it.local_estoque_alterado_manualmente && <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">estoque manual</Badge>}
+                    <div className="w-64">
+                      <Select
+                        value={it.tipo_compra_id ?? "__none__"}
+                        onValueChange={(v) => setTCItemMut.mutate({ itemId: it.id, tipoCompraId: v === "__none__" ? null : v })}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tipo de Compra do item" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">— herdar do cabeçalho —</SelectItem>
+                          {(tiposCompra as TipoCompra[]).map((t) => (
+                            <SelectItem key={t.id} value={t.id}>{t.codigo} - {t.descricao}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {it.tipo_compra_alterado_manualmente && (
+                      <>
+                        <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200">tipo manual</Badge>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => restaurarTCMut.mutate(it.id)}>
+                                <RotateCcw className="h-4 w-4 text-slate-500" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Restaurar padrão do cabeçalho</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </>
+                    )}
+
                   </div>
                 </div>
                 {rateio.map((a, idx) => (
@@ -391,7 +564,27 @@ export function NfeFinanceiro({ doc, items, readOnly = false }: { doc: any; item
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmSobrescreverTC !== null} onOpenChange={(o) => !o && setConfirmSobrescreverTC(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sobrescrever alterações manuais?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso substituirá o Tipo de Compra já definido manualmente em algum item. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const id = confirmSobrescreverTC;
+              setConfirmSobrescreverTC(null);
+              setTCHeaderMut.mutate({ tipoCompraId: id === "" ? null : id, sobrescreverItens: true });
+            }}>Sobrescrever</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </fieldset>
+
     </div>
   );
 }

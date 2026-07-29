@@ -204,15 +204,28 @@ function Index() {
       </section>
 
       {/* CTA Footer */}
-      <section className="px-6 py-20 bg-primary text-primary-foreground text-center">
-        <h2 className="text-3xl font-bold mb-6">Pronto para automatizar seu fiscal?</h2>
-        <p className="text-blue-100 mb-10 max-w-xl mx-auto">
-          Junte-se a centenas de empresas que já eliminam erros manuais e multas com o APFiscal.
-        </p>
-        <Button asChild size="lg" className="bg-background text-primary hover:bg-secondary px-10">
-          <Link to="/register">Começar Agora</Link>
-        </Button>
+      <section className="relative overflow-hidden px-6 py-24 text-center">
+        <img
+          src={ctaBg}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          width={1920}
+          height={912}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-primary/80" />
+        <div className="relative z-10 text-primary-foreground">
+          <h2 className="text-3xl lg:text-4xl font-bold mb-6">Pronto para automatizar seu fiscal?</h2>
+          <p className="text-primary-foreground/80 mb-10 max-w-xl mx-auto">
+            Junte-se a centenas de empresas que já eliminam erros manuais e multas com o APFiscal.
+          </p>
+          <Button asChild size="lg" className="bg-background text-primary hover:bg-secondary px-10 shadow-xl">
+            <Link to="/register">Começar Agora</Link>
+          </Button>
+        </div>
       </section>
+
 
       {/* Real Footer */}
       <footer className="px-6 py-12 border-t bg-white">

@@ -45,8 +45,8 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
   const handleSalvar = async () => {
     setSalvando(true);
     try {
-      await salvarIntegracao({ companyId, apiKey: apiKey.trim() || null, ativo, baseUrl: baseUrl.trim() || null });
-      setApiKey("");
+      await salvarIntegracao({ companyId, apiKey: apiKey.trim() || null, ativo, baseUrl: BASE_URL_PADRAO });
+      setBaseUrl(BASE_URL_PADRAO);
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-integracao", companyId] });
       toast.success("Integração fiscal atualizada.");
     } catch (e) {

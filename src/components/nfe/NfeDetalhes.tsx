@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2, Eye, Link2, Unlink } from "lucide-react";
+import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2, Eye, Link2, Unlink, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
@@ -14,7 +14,7 @@ import { NfeStatusTimeline } from "./NfeStatusTimeline";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
-import { unlinkNfeItem } from "@/lib/products.functions";
+import { unlinkNfeItem, linkNfeItemToProduct } from "@/lib/products.functions";
 import { generateDanfePdfBlobUrl } from "@/lib/danfe-pdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";
@@ -93,6 +93,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
   const fetchFn = useServerFn(getNfeDetails);
   const unlinkFn = useServerFn(unlinkNfeItem);
+  const linkFn = useServerFn(linkNfeItemToProduct);
   const qc = useQueryClient();
   const unlinkMut = useMutation({
     mutationFn: (itemId: string) => unlinkFn({ data: { itemId } }),
@@ -102,6 +103,15 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const linkSugMut = useMutation({
+    mutationFn: (v: { itemId: string; produtoId: string }) => linkFn({ data: { itemId: v.itemId, produtoId: v.produtoId } }),
+    onSuccess: () => {
+      toast.success("Item vinculado ao produto sugerido");
+      qc.invalidateQueries({ queryKey: ["nfe-details", nfeId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   useEffect(() => {
     return () => {
@@ -138,6 +148,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const doc = data.document as any;
   const items = data.items as any[];
   const events = data.events as any[];
+  const sugestoes = ((data as any).suggestions ?? {}) as Record<string, { produto_id: string; codigo_interno: string; descricao: string; unidade: string | null; ncm: string | null }>;
   const emit = (doc.emitente ?? {}) as any;
   const dest = (doc.destinatario ?? {}) as any;
   const totais = (doc.totais ?? {}) as any;
@@ -353,6 +364,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                           <th className="px-4 py-3">Código</th>
                           <th className="px-4 py-3">Descrição</th>
                           <th className="px-4 py-3">Vínculo</th>
+                          <th className="px-4 py-3 min-w-[260px]">Produto Vinculado / Sugestão</th>
                           <th className="px-4 py-3">NCM</th>
                           <th className="px-4 py-3">CFOP</th>
                           <th className="px-4 py-3">UN</th>
@@ -364,12 +376,14 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                       </thead>
                       <tbody>
                         {items.length === 0 && (
-                          <tr><td colSpan={11} className="text-center py-8 text-muted-foreground">Nenhum item cadastrado.</td></tr>
+                          <tr><td colSpan={12} className="text-center py-8 text-muted-foreground">Nenhum item cadastrado.</td></tr>
                         )}
                         {items.map((item) => {
                           const pendente = item.status_vinculo !== "vinculado";
                           const vinculoLiberado = podeVincularProduto(doc.status);
                           const motivoBloqueio = motivoBloqueioVinculo(doc.status);
+                          const produto = item.produtos as any | null;
+                          const sugestao = pendente ? sugestoes[item.id] : null;
                           return (
                           <tr key={item.id} className={`border-b hover:bg-muted/50 cursor-pointer transition-colors ${pendente ? "bg-amber-50/40" : ""}`} onClick={() => setSelectedItem(item)}>
                             <td className="px-4 py-4 text-xs text-muted-foreground">{item.numero_item}</td>
@@ -380,6 +394,39 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                 <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200">Pendente de Vínculo</Badge>
                               ) : (
                                 <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Vinculado</Badge>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 align-top">
+                              {!pendente && produto ? (
+                                <div className="text-xs space-y-0.5">
+                                  <p className="font-mono text-green-800">{produto.codigo_interno}</p>
+                                  <p className="font-medium text-foreground">{produto.descricao}</p>
+                                  <p className="text-muted-foreground">
+                                    UN {produto.unidade ?? "-"} · NCM {produto.ncm ?? "-"}
+                                    {produto.ean_gtin ? ` · EAN ${produto.ean_gtin}` : ""}
+                                  </p>
+                                </div>
+                              ) : sugestao ? (
+                                <div className="rounded border border-blue-200 bg-blue-50 p-2 text-xs space-y-1">
+                                  <div className="flex items-center gap-1 text-blue-800 font-semibold uppercase text-[10px]">
+                                    <Sparkles className="h-3 w-3" /> Sugestão de vínculo
+                                  </div>
+                                  <p className="font-mono text-blue-900">{sugestao.codigo_interno}</p>
+                                  <p className="font-medium text-foreground">{sugestao.descricao}</p>
+                                  <p className="text-muted-foreground">UN {sugestao.unidade ?? "-"} · NCM {sugestao.ncm ?? "-"}</p>
+                                  <Button size="sm" variant="outline" className="h-7 mt-1 border-blue-300 text-blue-800 hover:bg-blue-100"
+                                    disabled={linkSugMut.isPending || !vinculoLiberado}
+                                    title={!vinculoLiberado ? motivoBloqueio : undefined}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!vinculoLiberado) { toast.error(motivoBloqueio); return; }
+                                      linkSugMut.mutate({ itemId: item.id, produtoId: sugestao.produto_id });
+                                    }}>
+                                    <Link2 className="h-3 w-3 mr-1" /> Aceitar sugestão
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </td>
                             <td className="px-4 py-4">{item.ncm ?? "-"}</td>
@@ -421,6 +468,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                           </tr>
                           );
                         })}
+
                       </tbody>
                     </table>
                   </div>

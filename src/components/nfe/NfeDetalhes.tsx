@@ -14,7 +14,7 @@ import { NfeStatusTimeline } from "./NfeStatusTimeline";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getNfeDetails } from "@/lib/fiscal-documents.functions";
-import { unlinkNfeItem } from "@/lib/products.functions";
+import { unlinkNfeItem, linkNfeItemToProduct } from "@/lib/products.functions";
 import { generateDanfePdfBlobUrl } from "@/lib/danfe-pdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";

@@ -363,6 +363,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                           <th className="px-4 py-3">Código</th>
                           <th className="px-4 py-3">Descrição</th>
                           <th className="px-4 py-3">Vínculo</th>
+                          <th className="px-4 py-3 min-w-[260px]">Produto Vinculado / Sugestão</th>
                           <th className="px-4 py-3">NCM</th>
                           <th className="px-4 py-3">CFOP</th>
                           <th className="px-4 py-3">UN</th>
@@ -374,12 +375,14 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                       </thead>
                       <tbody>
                         {items.length === 0 && (
-                          <tr><td colSpan={11} className="text-center py-8 text-muted-foreground">Nenhum item cadastrado.</td></tr>
+                          <tr><td colSpan={12} className="text-center py-8 text-muted-foreground">Nenhum item cadastrado.</td></tr>
                         )}
                         {items.map((item) => {
                           const pendente = item.status_vinculo !== "vinculado";
                           const vinculoLiberado = podeVincularProduto(doc.status);
                           const motivoBloqueio = motivoBloqueioVinculo(doc.status);
+                          const produto = item.produtos as any | null;
+                          const sugestao = pendente ? sugestoes[item.id] : null;
                           return (
                           <tr key={item.id} className={`border-b hover:bg-muted/50 cursor-pointer transition-colors ${pendente ? "bg-amber-50/40" : ""}`} onClick={() => setSelectedItem(item)}>
                             <td className="px-4 py-4 text-xs text-muted-foreground">{item.numero_item}</td>
@@ -390,6 +393,39 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                 <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200">Pendente de Vínculo</Badge>
                               ) : (
                                 <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Vinculado</Badge>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 align-top">
+                              {!pendente && produto ? (
+                                <div className="text-xs space-y-0.5">
+                                  <p className="font-mono text-green-800">{produto.codigo_interno}</p>
+                                  <p className="font-medium text-foreground">{produto.descricao}</p>
+                                  <p className="text-muted-foreground">
+                                    UN {produto.unidade ?? "-"} · NCM {produto.ncm ?? "-"}
+                                    {produto.ean_gtin ? ` · EAN ${produto.ean_gtin}` : ""}
+                                  </p>
+                                </div>
+                              ) : sugestao ? (
+                                <div className="rounded border border-blue-200 bg-blue-50 p-2 text-xs space-y-1">
+                                  <div className="flex items-center gap-1 text-blue-800 font-semibold uppercase text-[10px]">
+                                    <Sparkles className="h-3 w-3" /> Sugestão de vínculo
+                                  </div>
+                                  <p className="font-mono text-blue-900">{sugestao.codigo_interno}</p>
+                                  <p className="font-medium text-foreground">{sugestao.descricao}</p>
+                                  <p className="text-muted-foreground">UN {sugestao.unidade ?? "-"} · NCM {sugestao.ncm ?? "-"}</p>
+                                  <Button size="sm" variant="outline" className="h-7 mt-1 border-blue-300 text-blue-800 hover:bg-blue-100"
+                                    disabled={linkSugMut.isPending || !vinculoLiberado}
+                                    title={!vinculoLiberado ? motivoBloqueio : undefined}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!vinculoLiberado) { toast.error(motivoBloqueio); return; }
+                                      linkSugMut.mutate({ itemId: item.id, produtoId: sugestao.produto_id });
+                                    }}>
+                                    <Link2 className="h-3 w-3 mr-1" /> Aceitar sugestão
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </td>
                             <td className="px-4 py-4">{item.ncm ?? "-"}</td>
@@ -431,6 +467,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                           </tr>
                           );
                         })}
+
                       </tbody>
                     </table>
                   </div>

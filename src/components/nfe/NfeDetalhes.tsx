@@ -148,7 +148,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const doc = data.document as any;
   const items = data.items as any[];
   const events = data.events as any[];
-  const sugestoes = ((data as any).suggestions ?? {}) as Record<string, { produto_id: string; codigo_interno: string; descricao: string; unidade: string | null; ncm: string | null }>;
+  const sugestoes = ((data as any).suggestions ?? {}) as Record<string, { produto_id: string; codigo_interno: string; descricao: string; unidade: string | null; ncm: string | null; origem?: "fornecedor" | "similaridade"; score?: number }>;
   const emit = (doc.emitente ?? {}) as any;
   const dest = (doc.destinatario ?? {}) as any;
   const totais = (doc.totais ?? {}) as any;
@@ -409,8 +409,12 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                               ) : sugestao ? (
                                 <div className="rounded border border-blue-200 bg-blue-50 p-2 text-xs space-y-1">
                                   <div className="flex items-center gap-1 text-blue-800 font-semibold uppercase text-[10px]">
-                                    <Sparkles className="h-3 w-3" /> Sugestão de vínculo
+                                    <Sparkles className="h-3 w-3" />
+                                    {sugestao.origem === "similaridade"
+                                      ? `Sugestão por similaridade${sugestao.score ? ` (${Math.round(sugestao.score * 100)}%)` : ""}`
+                                      : "Sugestão de vínculo"}
                                   </div>
+
                                   <p className="font-mono text-blue-900">{sugestao.codigo_interno}</p>
                                   <p className="font-medium text-foreground">{sugestao.descricao}</p>
                                   <p className="text-muted-foreground">UN {sugestao.unidade ?? "-"} · NCM {sugestao.ncm ?? "-"}</p>

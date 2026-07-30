@@ -53,13 +53,20 @@ export const salvarIntegracaoEmpresa = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { encryptApiKey, last4 } = await import("./apfiscal/crypto.server");
 
+    const { data: atual } = await supabaseAdmin
+      .from("empresa_integracoes_fiscais")
+      .select("api_key_encrypted")
+      .eq("company_id", data.companyId)
+      .maybeSingle();
+
     const patch: Record<string, unknown> = {
       organization_id: organizationId,
       company_id: data.companyId,
       ativo: data.ativo,
-      base_url: data.baseUrl?.trim() || null,
+      base_url: data.baseUrl?.trim() || process.env.APFISCAL_BASE_URL || null,
     };
-    const key = data.apiKey?.trim();
+    // Chave informada > chave já cadastrada > chave padrão do servidor (nova empresa).
+    const key = data.apiKey?.trim() || (atual?.api_key_encrypted ? null : process.env.APFISCAL_DEFAULT_API_KEY);
     if (key) {
       patch.api_key_encrypted = await encryptApiKey(key);
       patch.api_key_last4 = last4(key);

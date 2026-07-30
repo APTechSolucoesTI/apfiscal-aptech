@@ -91,23 +91,15 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
             <Input
               id="apfiscal-base-url"
               type="url"
-              inputMode="url"
-              maxLength={300}
+              readOnly
+              disabled
               autoComplete="off"
-              placeholder="https://api.suaempresa.com.br/apfiscal"
               value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
+              className="bg-slate-50 text-slate-600"
             />
             <p className="text-xs text-slate-500">
-              Endereço de conexão exclusivo desta empresa. Deixe em branco para usar a URL padrão do servidor.
+              Endereço padrão da API fiscal, definido pelo sistema e não editável.
             </p>
-            {/^https?:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?(\/|$)/.test(baseUrl.trim()) && (
-              <p className="text-xs font-medium text-amber-600">
-                Atenção: URLs com endereço IP direto são bloqueadas pela rede do servidor (erro 1003) e a
-                sincronização falhará. Use um domínio, de preferência com HTTPS.
-              </p>
-            )}
-
           </div>
 
           <div className="grid gap-2">
@@ -116,10 +108,12 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
               <Input
                 id="apfiscal-key"
                 type="password"
+                readOnly
+                disabled
                 autoComplete="off"
-                placeholder={data?.configurada ? `••••••••${data.apiKeyLast4 ?? ""}` : "Cole a chave da empresa"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={data?.configurada ? `••••••••${data.apiKeyLast4 ?? ""}` : "Configurada pelo administrador"}
+                value=""
+                className="bg-slate-50"
               />
               {data?.configurada && (
                 <Badge variant="outline" className="whitespace-nowrap text-slate-600">
@@ -129,9 +123,10 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
               )}
             </div>
             <p className="text-xs text-slate-500">
-              A chave é criptografada no servidor e nunca retorna ao navegador. Deixe em branco para manter a atual.
+              A chave é gerenciada pelo servidor, criptografada e não editável nesta tela.
             </p>
           </div>
+
 
           <div className="flex items-center justify-between rounded-md border p-3">
             <div>

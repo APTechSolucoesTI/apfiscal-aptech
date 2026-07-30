@@ -362,10 +362,18 @@ export type Database = {
       }
       empresa_integracoes_fiscais: {
         Row: {
+          apfiscal_empresa_id: number | null
+          apfiscal_system_unit_id: number | null
           api_key_encrypted: string | null
           api_key_last4: string | null
           ativo: boolean
           base_url: string | null
+          certificado_arquivo_path: string | null
+          certificado_atualizado_em: string | null
+          certificado_dias_restantes: number | null
+          certificado_validade_fim: string | null
+          certificado_validade_inicio: string | null
+          certificado_vencido: boolean | null
           company_id: string
           created_at: string
           id: string
@@ -374,10 +382,18 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          apfiscal_empresa_id?: number | null
+          apfiscal_system_unit_id?: number | null
           api_key_encrypted?: string | null
           api_key_last4?: string | null
           ativo?: boolean
           base_url?: string | null
+          certificado_arquivo_path?: string | null
+          certificado_atualizado_em?: string | null
+          certificado_dias_restantes?: number | null
+          certificado_validade_fim?: string | null
+          certificado_validade_inicio?: string | null
+          certificado_vencido?: boolean | null
           company_id: string
           created_at?: string
           id?: string
@@ -386,10 +402,18 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          apfiscal_empresa_id?: number | null
+          apfiscal_system_unit_id?: number | null
           api_key_encrypted?: string | null
           api_key_last4?: string | null
           ativo?: boolean
           base_url?: string | null
+          certificado_arquivo_path?: string | null
+          certificado_atualizado_em?: string | null
+          certificado_dias_restantes?: number | null
+          certificado_validade_fim?: string | null
+          certificado_validade_inicio?: string | null
+          certificado_vencido?: boolean | null
           company_id?: string
           created_at?: string
           id?: string

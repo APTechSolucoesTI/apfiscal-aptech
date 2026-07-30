@@ -148,7 +148,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const doc = data.document as any;
   const items = data.items as any[];
   const events = data.events as any[];
-  const sugestoes = ((data as any).suggestions ?? {}) as Record<string, { produto_id: string; codigo_interno: string; descricao: string; unidade: string | null; ncm: string | null }>;
+  const sugestoes = ((data as any).suggestions ?? {}) as Record<string, { produto_id: string; codigo_interno: string; descricao: string; unidade: string | null; ncm: string | null; origem?: "fornecedor" | "similaridade"; score?: number }>;
   const emit = (doc.emitente ?? {}) as any;
   const dest = (doc.destinatario ?? {}) as any;
   const totais = (doc.totais ?? {}) as any;

@@ -10,13 +10,36 @@ export const getIntegracaoEmpresa = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data, context }): Promise<IntegracaoResumo> => {
-    await assertCompanyAccess(context.supabase, data.companyId);
+    const { organizationId } = await assertCompanyAccess(context.supabase, data.companyId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: rec } = await supabaseAdmin
+    let { data: rec } = await supabaseAdmin
       .from("empresa_integracoes_fiscais")
       .select("ativo, ultimo_nsu, api_key_last4, api_key_encrypted, base_url")
       .eq("company_id", data.companyId)
       .maybeSingle();
+
+    // Provisiona automaticamente a integração da nova empresa com os valores padrão do servidor.
+    if (!rec && process.env.APFISCAL_DEFAULT_API_KEY) {
+      const { encryptApiKey, last4 } = await import("./apfiscal/crypto.server");
+      const key = process.env.APFISCAL_DEFAULT_API_KEY;
+      const { data: criado } = await supabaseAdmin
+        .from("empresa_integracoes_fiscais")
+        .upsert(
+          {
+            organization_id: organizationId,
+            company_id: data.companyId,
+            ativo: false,
+            base_url: process.env.APFISCAL_BASE_URL || null,
+            api_key_encrypted: await encryptApiKey(key),
+            api_key_last4: last4(key),
+          } as never,
+          { onConflict: "company_id" },
+        )
+        .select("ativo, ultimo_nsu, api_key_last4, api_key_encrypted, base_url")
+        .maybeSingle();
+      rec = criado ?? null;
+    }
+
     return {
       ativo: rec?.ativo ?? false,
       ultimoNsu: Number(rec?.ultimo_nsu ?? 0),
@@ -53,13 +76,20 @@ export const salvarIntegracaoEmpresa = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { encryptApiKey, last4 } = await import("./apfiscal/crypto.server");
 
+    const { data: atual } = await supabaseAdmin
+      .from("empresa_integracoes_fiscais")
+      .select("api_key_encrypted")
+      .eq("company_id", data.companyId)
+      .maybeSingle();
+
     const patch: Record<string, unknown> = {
       organization_id: organizationId,
       company_id: data.companyId,
       ativo: data.ativo,
-      base_url: data.baseUrl?.trim() || null,
+      base_url: data.baseUrl?.trim() || process.env.APFISCAL_BASE_URL || null,
     };
-    const key = data.apiKey?.trim();
+    // Chave informada > chave já cadastrada > chave padrão do servidor (nova empresa).
+    const key = data.apiKey?.trim() || (atual?.api_key_encrypted ? null : process.env.APFISCAL_DEFAULT_API_KEY);
     if (key) {
       patch.api_key_encrypted = await encryptApiKey(key);
       patch.api_key_last4 = last4(key);

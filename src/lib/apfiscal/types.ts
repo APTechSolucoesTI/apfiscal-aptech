@@ -63,12 +63,31 @@ export type ErroApfiscal = {
   payload?: unknown;
 };
 
+export type CertificadoResumo = {
+  validadeInicio: string | null;
+  validadeFim: string | null;
+  diasRestantes: number | null;
+  vencido: boolean | null;
+  atualizadoEm: string;
+};
+
+export type ResultadoCertificadoUpload = {
+  ok: boolean;
+  mensagem: string;
+  ativa: boolean;
+  validadeInicio: string | null;
+  validadeFim: string | null;
+  diasRestantes: number | null;
+  vencido: boolean | null;
+};
+
 export type IntegracaoResumo = {
   ativo: boolean;
   ultimoNsu: number;
   apiKeyLast4: string | null;
   configurada: boolean;
   baseUrl: string | null;
+  certificado: CertificadoResumo | null;
 };
 
 export const STATUS_LABEL: Record<StatusDocumentoFiscal, string> = {

@@ -3,6 +3,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
   baixarXmlDocumento,
+  enviarCertificadoFiscal,
   getIntegracaoEmpresa,
   manifestarDocumentoFiscal,
   salvarIntegracaoEmpresa,
@@ -10,14 +11,18 @@ import {
   testarConexaoApfiscal,
 } from "@/lib/apfiscal.functions";
 import type {
+  CertificadoResumo,
   DocumentoFiscal,
   HistoricoIntegracao,
   IntegracaoResumo,
+  ResultadoCertificadoUpload,
   ResultadoSincronizacao,
   TipoEventoManifestacao,
 } from "@/lib/apfiscal/types";
 
 export type {
+  CertificadoResumo,
+  ResultadoCertificadoUpload,
   DocumentoFiscal,
   HistoricoIntegracao,
   IntegracaoResumo,
@@ -44,6 +49,18 @@ export function testarConexao(input: {
   baseUrl?: string | null;
 }): Promise<{ ok: boolean; mensagem: string }> {
   return testarConexaoApfiscal({ data: input });
+}
+
+export function enviarCertificado(input: {
+  companyId: string;
+  senha: string;
+  arquivo: File;
+}): Promise<ResultadoCertificadoUpload> {
+  const form = new FormData();
+  form.append("companyId", input.companyId);
+  form.append("senha", input.senha);
+  form.append("certificado", input.arquivo, input.arquivo.name);
+  return enviarCertificadoFiscal({ data: form });
 }
 
 export function sincronizar(companyId: string): Promise<ResultadoSincronizacao> {

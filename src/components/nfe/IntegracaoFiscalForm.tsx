@@ -8,12 +8,13 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { carregarIntegracao, salvarIntegracao, testarConexao } from "@/services/apfiscalService";
+import { CertificadoDigitalForm } from "./CertificadoDigitalForm";
 
-type Props = { companyId: string | null };
+type Props = { companyId: string | null; cnpj?: string | null };
 
 const BASE_URL_PADRAO = "https://apifiscal.aptechinfo.com.br:90/rotas/";
 
-export function IntegracaoFiscalForm({ companyId }: Props) {
+export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
   const queryClient = useQueryClient();
   const [apiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState(BASE_URL_PADRAO);
@@ -86,6 +87,13 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
         </div>
       ) : (
         <>
+          <CertificadoDigitalForm
+            companyId={companyId}
+            cnpj={cnpj ?? null}
+            certificado={data?.certificado ?? null}
+            integracaoAtiva={Boolean(data?.ativo)}
+          />
+
           <div className="grid gap-2">
             <Label htmlFor="apfiscal-base-url">URL base da API (APFISCAL_BASE_URL)</Label>
             <Input

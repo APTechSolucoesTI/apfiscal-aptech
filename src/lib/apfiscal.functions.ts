@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertCompanyAccess } from "./apfiscal/auth.server";
-import type { IntegracaoResumo, ResultadoSincronizacao } from "./apfiscal/types";
+import type {
+  IntegracaoResumo,
+  ResultadoCertificadoUpload,
+  ResultadoSincronizacao,
+} from "./apfiscal/types";
 
 export const getIntegracaoEmpresa = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -14,7 +18,9 @@ export const getIntegracaoEmpresa = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let { data: rec } = await supabaseAdmin
       .from("empresa_integracoes_fiscais")
-      .select("ativo, ultimo_nsu, api_key_last4, api_key_encrypted, base_url")
+      .select(
+        "ativo, ultimo_nsu, api_key_last4, api_key_encrypted, base_url, certificado_validade_inicio, certificado_validade_fim, certificado_dias_restantes, certificado_vencido, certificado_atualizado_em",
+      )
       .eq("company_id", data.companyId)
       .maybeSingle();
 
@@ -35,7 +41,9 @@ export const getIntegracaoEmpresa = createServerFn({ method: "POST" })
           } as never,
           { onConflict: "company_id" },
         )
-        .select("ativo, ultimo_nsu, api_key_last4, api_key_encrypted, base_url")
+        .select(
+          "ativo, ultimo_nsu, api_key_last4, api_key_encrypted, base_url, certificado_validade_inicio, certificado_validade_fim, certificado_dias_restantes, certificado_vencido, certificado_atualizado_em",
+        )
         .maybeSingle();
       rec = criado ?? null;
     }
@@ -46,7 +54,42 @@ export const getIntegracaoEmpresa = createServerFn({ method: "POST" })
       apiKeyLast4: rec?.api_key_last4 ?? null,
       configurada: Boolean(rec?.api_key_encrypted),
       baseUrl: rec?.base_url ?? null,
+      certificado: rec?.certificado_atualizado_em
+        ? {
+            validadeInicio: rec.certificado_validade_inicio ?? null,
+            validadeFim: rec.certificado_validade_fim ?? null,
+            diasRestantes: rec.certificado_dias_restantes ?? null,
+            vencido: rec.certificado_vencido ?? null,
+            atualizadoEm: rec.certificado_atualizado_em,
+          }
+        : null,
     };
+  });
+
+export const enviarCertificadoFiscal = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: FormData) => {
+    if (!(data instanceof FormData)) throw new Error("Envio inválido do certificado.");
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<ResultadoCertificadoUpload> => {
+    const companyId = String(data.get("companyId") ?? "");
+    const senha = String(data.get("senha") ?? "");
+    const arquivo = data.get("certificado");
+    if (!companyId) throw new Error("Empresa é obrigatória.");
+    if (!(arquivo instanceof File)) throw new Error("Nenhum certificado foi enviado.");
+
+    const { organizationId } = await assertCompanyAccess(context.supabase, companyId);
+    const { data: empresa, error } = await context.supabase
+      .from("companies")
+      .select("cnpj")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!empresa?.cnpj) throw new Error("Cadastre o CNPJ da empresa antes de enviar o certificado.");
+
+    const { enviarCertificado } = await import("./apfiscal/certificado.server");
+    return enviarCertificado({ organizationId, companyId, cnpj: empresa.cnpj, senha, arquivo });
   });
 
 export const salvarIntegracaoEmpresa = createServerFn({ method: "POST" })

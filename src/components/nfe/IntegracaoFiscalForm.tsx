@@ -11,10 +11,12 @@ import { carregarIntegracao, salvarIntegracao, testarConexao } from "@/services/
 
 type Props = { companyId: string | null };
 
+const BASE_URL_PADRAO = "https://apifiscal.aptechinfo.com.br:90/rotas/";
+
 export function IntegracaoFiscalForm({ companyId }: Props) {
   const queryClient = useQueryClient();
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
+  const [apiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState(BASE_URL_PADRAO);
   const [ativo, setAtivo] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [testando, setTestando] = useState(false);
@@ -28,7 +30,7 @@ export function IntegracaoFiscalForm({ companyId }: Props) {
   useEffect(() => {
     if (data) {
       setAtivo(data.ativo);
-      setBaseUrl(data.baseUrl ?? "");
+      setBaseUrl(data.baseUrl?.trim() || BASE_URL_PADRAO);
     }
   }, [data]);
 

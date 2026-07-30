@@ -652,7 +652,7 @@ function Companies() {
                   </TabsContent>
 
                   <TabsContent value="integracao" className="mt-0 space-y-6">
-                    <IntegracaoFiscalForm companyId={editingId} />
+                    <IntegracaoFiscalForm companyId={editingId} cnpj={cnpj} />
                   </TabsContent>
                 </div>
               </ScrollArea>

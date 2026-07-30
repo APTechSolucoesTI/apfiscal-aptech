@@ -93,6 +93,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
   const fetchFn = useServerFn(getNfeDetails);
   const unlinkFn = useServerFn(unlinkNfeItem);
+  const linkFn = useServerFn(linkNfeItemToProduct);
   const qc = useQueryClient();
   const unlinkMut = useMutation({
     mutationFn: (itemId: string) => unlinkFn({ data: { itemId } }),
@@ -102,6 +103,15 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const linkSugMut = useMutation({
+    mutationFn: (v: { itemId: string; produtoId: string }) => linkFn({ data: { itemId: v.itemId, produtoId: v.produtoId } }),
+    onSuccess: () => {
+      toast.success("Item vinculado ao produto sugerido");
+      qc.invalidateQueries({ queryKey: ["nfe-details", nfeId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
 
   useEffect(() => {
     return () => {

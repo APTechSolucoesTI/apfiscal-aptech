@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2, Eye, Link2, Unlink } from "lucide-react";
+import { Copy, Download, Mail, XCircle, Clock, ChevronRight, Truck, CreditCard, Info, History, Code, User, Building2, Loader2, Eye, Link2, Unlink, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NfeItemDrawer } from "./NfeItemDrawer";
@@ -148,6 +148,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const doc = data.document as any;
   const items = data.items as any[];
   const events = data.events as any[];
+  const sugestoes = ((data as any).suggestions ?? {}) as Record<string, { produto_id: string; codigo_interno: string; descricao: string; unidade: string | null; ncm: string | null }>;
   const emit = (doc.emitente ?? {}) as any;
   const dest = (doc.destinatario ?? {}) as any;
   const totais = (doc.totais ?? {}) as any;

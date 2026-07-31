@@ -33,6 +33,7 @@ import { Route as AuthenticatedDocumentsNfseRouteImport } from './routes/_authen
 import { Route as AuthenticatedDocumentsCteRouteImport } from './routes/_authenticated/documents.cte'
 import { Route as AuthenticatedDocumentsNfeIndexRouteImport } from './routes/_authenticated/documents.nfe.index'
 import { Route as ApiPublicHooksApfiscalXmlRetryRouteImport } from './routes/api/public/hooks/apfiscal-xml-retry'
+import { Route as AuthenticatedDocumentsNfeAnaliseRouteImport } from './routes/_authenticated/documents.nfe.analise'
 import { Route as AuthenticatedDocumentsNfeNfeIdRouteImport } from './routes/_authenticated/documents.nfe.$nfeId'
 
 const RegisterRoute = RegisterRouteImport.update({
@@ -167,6 +168,12 @@ const ApiPublicHooksApfiscalXmlRetryRoute =
     path: '/api/public/hooks/apfiscal-xml-retry',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedDocumentsNfeAnaliseRoute =
+  AuthenticatedDocumentsNfeAnaliseRouteImport.update({
+    id: '/nfe/analise',
+    path: '/nfe/analise',
+    getParentRoute: () => AuthenticatedDocumentsRoute,
+  } as any)
 const AuthenticatedDocumentsNfeNfeIdRoute =
   AuthenticatedDocumentsNfeNfeIdRouteImport.update({
     id: '/nfe/$nfeId',
@@ -197,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
+  '/documents/nfe/analise': typeof AuthenticatedDocumentsNfeAnaliseRoute
   '/api/public/hooks/apfiscal-xml-retry': typeof ApiPublicHooksApfiscalXmlRetryRoute
   '/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
@@ -223,6 +231,7 @@ export interface FileRoutesByTo {
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
+  '/documents/nfe/analise': typeof AuthenticatedDocumentsNfeAnaliseRoute
   '/api/public/hooks/apfiscal-xml-retry': typeof ApiPublicHooksApfiscalXmlRetryRoute
   '/documents/nfe': typeof AuthenticatedDocumentsNfeIndexRoute
 }
@@ -251,6 +260,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/settings/plano-contas': typeof AuthenticatedSettingsPlanoContasRoute
   '/_authenticated/documents/nfe/$nfeId': typeof AuthenticatedDocumentsNfeNfeIdRoute
+  '/_authenticated/documents/nfe/analise': typeof AuthenticatedDocumentsNfeAnaliseRoute
   '/api/public/hooks/apfiscal-xml-retry': typeof ApiPublicHooksApfiscalXmlRetryRoute
   '/_authenticated/documents/nfe/': typeof AuthenticatedDocumentsNfeIndexRoute
 }
@@ -279,6 +289,7 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/plano-contas'
     | '/documents/nfe/$nfeId'
+    | '/documents/nfe/analise'
     | '/api/public/hooks/apfiscal-xml-retry'
     | '/documents/nfe/'
   fileRoutesByTo: FileRoutesByTo
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/settings/members'
     | '/settings/plano-contas'
     | '/documents/nfe/$nfeId'
+    | '/documents/nfe/analise'
     | '/api/public/hooks/apfiscal-xml-retry'
     | '/documents/nfe'
   id:
@@ -332,6 +344,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/members'
     | '/_authenticated/settings/plano-contas'
     | '/_authenticated/documents/nfe/$nfeId'
+    | '/_authenticated/documents/nfe/analise'
     | '/api/public/hooks/apfiscal-xml-retry'
     | '/_authenticated/documents/nfe/'
   fileRoutesById: FileRoutesById
@@ -514,6 +527,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksApfiscalXmlRetryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/documents/nfe/analise': {
+      id: '/_authenticated/documents/nfe/analise'
+      path: '/nfe/analise'
+      fullPath: '/documents/nfe/analise'
+      preLoaderRoute: typeof AuthenticatedDocumentsNfeAnaliseRouteImport
+      parentRoute: typeof AuthenticatedDocumentsRoute
+    }
     '/_authenticated/documents/nfe/$nfeId': {
       id: '/_authenticated/documents/nfe/$nfeId'
       path: '/nfe/$nfeId'
@@ -528,6 +548,7 @@ interface AuthenticatedDocumentsRouteChildren {
   AuthenticatedDocumentsCteRoute: typeof AuthenticatedDocumentsCteRoute
   AuthenticatedDocumentsNfseRoute: typeof AuthenticatedDocumentsNfseRoute
   AuthenticatedDocumentsNfeNfeIdRoute: typeof AuthenticatedDocumentsNfeNfeIdRoute
+  AuthenticatedDocumentsNfeAnaliseRoute: typeof AuthenticatedDocumentsNfeAnaliseRoute
   AuthenticatedDocumentsNfeIndexRoute: typeof AuthenticatedDocumentsNfeIndexRoute
 }
 
@@ -536,6 +557,8 @@ const AuthenticatedDocumentsRouteChildren: AuthenticatedDocumentsRouteChildren =
     AuthenticatedDocumentsCteRoute: AuthenticatedDocumentsCteRoute,
     AuthenticatedDocumentsNfseRoute: AuthenticatedDocumentsNfseRoute,
     AuthenticatedDocumentsNfeNfeIdRoute: AuthenticatedDocumentsNfeNfeIdRoute,
+    AuthenticatedDocumentsNfeAnaliseRoute:
+      AuthenticatedDocumentsNfeAnaliseRoute,
     AuthenticatedDocumentsNfeIndexRoute: AuthenticatedDocumentsNfeIndexRoute,
   }
 

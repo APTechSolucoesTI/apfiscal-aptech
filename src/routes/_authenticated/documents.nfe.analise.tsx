@@ -70,7 +70,7 @@ type ItemRow = {
   } | null;
 };
 
-type Registro = Record<string, string> & { __valor: number; __qtd: number };
+type Registro = Record<string, string | number> & { __valor: number; __qtd: number };
 
 const DIMENSOES = [
   { key: "empresa", label: "Empresa" },
@@ -170,7 +170,7 @@ function TabelaDinamicaNfe() {
         vinculo: i.status_vinculo === "vinculado" ? "Vinculado" : "Pendente",
         __valor: valor,
         __qtd: Number(i.quantidade_comercial ?? 0),
-      } as Registro;
+      } satisfies Registro;
     });
   }, [itens]);
 
@@ -185,8 +185,8 @@ function TabelaDinamicaNfe() {
       medida === "valor" ? r.__valor : medida === "quantidade" ? r.__qtd : 1;
 
     for (const r of registros) {
-      const l = r[linha] ?? SEM;
-      const c = coluna === "__none" ? "Total" : r[coluna] ?? SEM;
+      const l = String(r[linha] ?? SEM);
+      const c = coluna === "__none" ? "Total" : String(r[coluna] ?? SEM);
       const v = valorDe(r);
       colunas.add(c);
       if (!linhas.has(l)) linhas.set(l, new Map());

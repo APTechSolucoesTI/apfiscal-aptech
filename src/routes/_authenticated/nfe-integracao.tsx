@@ -306,6 +306,19 @@ function NfeIntegracao() {
           </>
         ),
       },
+      {
+        key: "empresa",
+        label: "Empresa",
+        sortKey: "company_id",
+        render: (doc) => {
+          const c = companies.find((e) => e.id === doc.company_id);
+          return (
+            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 truncate max-w-[180px]">
+              {c ? (c.nome_fantasia || c.razao_social) : "—"}
+            </Badge>
+          );
+        }
+      },
       { key: "emissao", label: "Emissão", sortKey: "data_num", className: "text-sm whitespace-nowrap", render: (doc) => fmtData(doc.data_emissao) },
       { key: "valor", label: "Valor", sortKey: "valor_num", headClassName: "text-right", className: "text-right text-sm", render: (doc) => fmtMoeda(doc.valor_nota) },
       { key: "tipo", label: "Tipo", sortKey: "tipo_documento", className: "text-sm", render: (doc) => doc.tipo_documento ?? "NF-e" },

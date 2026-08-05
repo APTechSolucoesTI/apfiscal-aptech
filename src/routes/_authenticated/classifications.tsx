@@ -10,6 +10,7 @@ import {
 import { getOrgSettings } from "@/lib/organization.functions";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -219,8 +220,10 @@ function ClassificationCrud({ tabela }: { tabela: ClassificationTable }) {
               <TableRow key={r.id}>
                 <TableCell className="font-mono text-xs">{r.codigo}</TableCell>
                 <TableCell>{r.descricao}</TableCell>
-                <TableCell className="text-xs text-slate-500">
-                  {r.company_id ? ((companies as any[]).find((c) => c.id === r.company_id)?.razao_social ?? "—") : "🌐 Global"}
+                <TableCell className="text-xs">
+                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">
+                    {r.company_id ? ((companies as any[]).find((c) => c.id === r.company_id)?.razao_social ?? "—") : "🌐 Global"}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>

@@ -261,7 +261,7 @@ function CentrosCustoPage() {
           <span className="font-mono text-sm w-28 shrink-0">{n.row.codigo}</span>
           <span className="flex-1 truncate">{n.row.descricao}</span>
           <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 max-w-[180px] truncate">
-            {companyName(n.row.company_id ?? null)}
+            {n.row.company_id ? (companies.find((c: any) => c.id === n.row.company_id)?.razao_social ?? "—") : "🌐 Global"}
           </Badge>
           <Badge variant="outline" className={analitico ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-amber-50 text-amber-700 border-amber-200"}>
             {analitico ? "Analítico" : "Sintético"}

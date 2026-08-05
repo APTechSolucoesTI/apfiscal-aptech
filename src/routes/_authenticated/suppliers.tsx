@@ -190,7 +190,7 @@ function SuppliersPage() {
         {f.nome_fantasia && <div className="text-xs text-slate-500">{f.nome_fantasia}</div>}
       </>
     ) },
-    { key: "empresa", label: "Empresa", className: "text-xs", render: (f) => f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="secondary">Global</Badge> },
+    { key: "empresa", label: "Empresa", className: "text-xs", render: (f) => f.company_id ? (f.companies?.razao_social ?? "—") : <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200">🌐 Global</Badge> },
     { key: "email", label: "E-mail", className: "text-xs text-slate-600", render: (f) => f.email ?? "—" },
     { key: "telefone", label: "Telefone", className: "text-xs text-slate-600", render: (f) => f.telefone ?? "—" },
     { key: "cidade_uf", label: "Cidade / UF", className: "text-xs text-slate-600", render: (f) => [f.municipio, f.uf].filter(Boolean).join(" / ") || "—" },

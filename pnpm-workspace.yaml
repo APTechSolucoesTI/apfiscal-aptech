@@ -1,0 +1,23 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  core-js: true
+  libxmljs2: true
+  unrs-resolver: true
+  xsd-schema-validator: false
+
+minimumReleaseAgeExclude:
+  - '@rolldown/binding-darwin-x64@1.2.5'
+  - '@rolldown/binding-linux-arm64-gnu@1.2.5'
+
+onlyBuiltDependencies:
+  - '@nestjs/core'
+  - core-js
+  - libxmljs2
+  - sharp
+  - unrs-resolver
+
+# O NFeWizard usa este pacote apenas para a validação XSD opcional. O script de
+# instalação exige um JDK e não é necessário para as operações de distribuição.

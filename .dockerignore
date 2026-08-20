@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+**/node_modules
+**/.next/cache
+**/dist
+**/coverage
+**/*.log
+logs
+certificados
+xml-temporario
+.agents
+.vscode
+.idea

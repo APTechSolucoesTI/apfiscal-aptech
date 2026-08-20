@@ -1,0 +1,61 @@
+services:
+  apfiscal-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      SUPABASE_URL: ${SUPABASE_URL:?obrigatoria}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?obrigatoria}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?obrigatoria}
+      CERTIFICATE_ENCRYPTION_KEY: ${CERTIFICATE_ENCRYPTION_KEY:?obrigatoria}
+      NFE_ENVIRONMENT: ${NFE_ENVIRONMENT:-1}
+      NFE_TIMEOUT_MS: ${NFE_TIMEOUT_MS:-30000}
+      APFISCAL_BASE_URL: ${APFISCAL_BASE_URL:-}
+      APFISCAL_DEFAULT_API_KEY: ${APFISCAL_DEFAULT_API_KEY:-}
+      APFISCAL_CADASTRO_TOKEN: ${APFISCAL_CADASTRO_TOKEN:-}
+      APFISCAL_ENC_KEY: ${APFISCAL_ENC_KEY:-}
+      PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?obrigatoria}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [apfiscal]
+
+  apfiscal-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?obrigatoria}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?obrigatoria}
+    restart: unless-stopped
+    depends_on:
+      apfiscal-api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      INTERNAL_API_URL: http://apfiscal-api:3001
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?obrigatoria}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?obrigatoria}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?obrigatoria}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [apfiscal]
+
+networks:
+  apfiscal:
+    driver: bridge

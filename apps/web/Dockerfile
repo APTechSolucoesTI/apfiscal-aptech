@@ -3,7 +3,10 @@ FROM node:24-alpine AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-RUN corepack enable
+# O cache do Corepack não é compartilhado automaticamente entre estágios.
+# Instalamos a versão declarada no package.json na camada base para que o
+# estágio builder não dependa de novo download durante o deploy.
+RUN corepack enable && corepack install --global pnpm@11.22.0
 
 WORKDIR /app
 
@@ -37,6 +40,8 @@ RUN pnpm --filter @apfiscal/shared build && \
 
 FROM node:24-alpine AS runner
 
+ARG SWC_HELPERS_VERSION=0.5.23
+
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
@@ -46,22 +51,17 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Standalone gerado pelo Next
+# O standalone contém o runtime e as dependências rastreadas pelo Next.
+# Não copie o node_modules inteiro depois dele: o layout de links do pnpm pode
+# sobrepor arquivos do artefato e quebrar imports ESM no container final.
 COPY --from=builder --chown=nextjs:nodejs \
     /app/apps/web/.next/standalone ./
 
-# IMPORTANTE:
-# Next 16 + Node 24 pode deixar dependências ESM fora do standalone.
-# Levamos o virtual store completo do pnpm para garantir que os módulos
-# usados durante o build existam também no runtime.
+# O tracer do Next inclui os helpers CJS, mas o require hook do Next 16 também
+# carrega helpers ESM. Copiamos esse diretório do virtual store fixado no lock.
 COPY --from=builder --chown=nextjs:nodejs \
-    /app/node_modules ./node_modules
-
-COPY --from=builder --chown=nextjs:nodejs \
-    /app/apps/web/node_modules ./apps/web/node_modules
-
-COPY --from=builder --chown=nextjs:nodejs \
-    /app/packages/shared ./packages/shared
+    /app/node_modules/.pnpm/@swc+helpers@${SWC_HELPERS_VERSION}/node_modules/@swc/helpers/esm \
+    ./node_modules/.pnpm/@swc+helpers@${SWC_HELPERS_VERSION}/node_modules/@swc/helpers/esm
 
 COPY --from=builder --chown=nextjs:nodejs \
     /app/apps/web/.next/static ./apps/web/.next/static

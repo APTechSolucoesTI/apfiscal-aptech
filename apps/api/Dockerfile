@@ -1,7 +1,7 @@
 FROM node:24-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+RUN corepack enable && corepack install --global pnpm@11.22.0
 WORKDIR /app
 
 FROM base AS deps

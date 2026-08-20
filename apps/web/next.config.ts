@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
-const internalApiUrl = process.env.INTERNAL_API_URL ?? "http://apfiscal-api:3001";
+const internalApiUrl =
+  process.env.INTERNAL_API_URL ?? "http://apfiscal-api:3001";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -8,8 +9,18 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   agentRules: false,
   serverExternalPackages: ["xlsx"],
+
+  outputFileTracingIncludes: {
+    "*": ["./node_modules/@swc/helpers/esm/**/*"],
+  },
+
   async rewrites() {
-    return [{ source: "/backend/:path*", destination: `${internalApiUrl}/:path*` }];
+    return [
+      {
+        source: "/backend/:path*",
+        destination: `${internalApiUrl}/:path*`,
+      },
+    ];
   },
 };
 

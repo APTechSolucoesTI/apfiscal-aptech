@@ -27,6 +27,12 @@ const tablePermissions: Record<string, { read: string; write: string }> = {
   historico_integracao_fiscal: { read: "nfe.integration.view", write: "nfe.integration.manage" },
 };
 
+// A lista é propositalmente explícita: a sessão APFiscal já foi autenticada
+// pelo guard e esta RPC só opera sobre o próprio auth.uid() do usuário atual.
+const rpcPermissions: Record<string, string | null> = {
+  ensure_user_organization: null,
+};
+
 @Controller("data-proxy")
 export class DataProxyController {
   constructor(private readonly rbac: RbacService) {}
@@ -41,9 +47,16 @@ export class DataProxyController {
       throw new ForbiddenException("Destino do proxy não permitido.");
     }
     const table = target.startsWith("/rest/v1/") ? target.slice("/rest/v1/".length).split(/[?/]/)[0] : "fiscal_documents";
-    const mapping = tablePermissions[table];
-    if (!mapping) throw new ForbiddenException("Recurso de domínio não permitido.");
-    await this.rbac.assertPermission(request.user.id, request.method === "GET" || request.method === "HEAD" ? mapping.read : mapping.write);
+    if (table === "rpc") {
+      const rpcName = target.slice("/rest/v1/rpc/".length).split(/[?/]/)[0];
+      const permission = rpcPermissions[rpcName];
+      if (!rpcName || !(rpcName in rpcPermissions)) throw new ForbiddenException("Função de domínio não permitida.");
+      if (permission) await this.rbac.assertPermission(request.user.id, permission);
+    } else {
+      const mapping = tablePermissions[table];
+      if (!mapping) throw new ForbiddenException("Recurso de domínio não permitido.");
+      await this.rbac.assertPermission(request.user.id, request.method === "GET" || request.method === "HEAD" ? mapping.read : mapping.write);
+    }
 
     const headers = new Headers();
     for (const key of ["accept", "accept-profile", "content-profile", "content-type", "prefer", "range", "range-unit"]) {

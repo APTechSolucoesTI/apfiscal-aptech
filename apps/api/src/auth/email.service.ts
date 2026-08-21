@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
-import nodemailer from "nodemailer";
+import * as nodemailer from "nodemailer";
 
 @Injectable()
 export class EmailService {

@@ -21,7 +21,11 @@ FROM node:24-bookworm-slim AS runner
 ENV NODE_ENV=production
 ENV PORT=3001
 WORKDIR /app
-RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs api
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd --system --gid 1001 nodejs \
+  && useradd --system --uid 1001 --gid nodejs api
 COPY --from=builder --chown=api:nodejs /prod/api/node_modules ./node_modules
 COPY --from=builder --chown=api:nodejs /app/apps/api/dist ./dist
 USER api

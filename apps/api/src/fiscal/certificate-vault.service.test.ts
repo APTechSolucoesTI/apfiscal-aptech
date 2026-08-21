@@ -1,13 +1,17 @@
+import { execFileSync } from "node:child_process";
 import forge from "node-forge";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { CertificateVaultService } from "./certificate-vault.service";
+
+vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 
 const password = "senha-segura";
 let pkcs12Buffer: Buffer;
+let certificate: forge.pki.Certificate;
 
 beforeAll(() => {
   const keys = forge.pki.rsa.generateKeyPair(1024);
-  const certificate = forge.pki.createCertificate();
+  certificate = forge.pki.createCertificate();
   certificate.publicKey = keys.publicKey;
   certificate.serialNumber = "01";
   certificate.validity.notBefore = new Date(Date.now() - 60_000);
@@ -20,6 +24,8 @@ beforeAll(() => {
   const pkcs12 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [certificate], password, { algorithm: "3des" });
   pkcs12Buffer = Buffer.from(forge.asn1.toDer(pkcs12).getBytes(), "binary");
 });
+
+afterEach(() => vi.mocked(execFileSync).mockReset());
 
 describe("CertificateVaultService.inspectPkcs12", () => {
   const vault = new CertificateVaultService();
@@ -35,6 +41,19 @@ describe("CertificateVaultService.inspectPkcs12", () => {
   it("rejeita senha incorreta sem expor detalhes criptográficos", () => {
     expect(() => vault.inspectPkcs12(pkcs12Buffer, "incorreta")).toThrow(
       "Não foi possível abrir o certificado. Confira o arquivo e a senha informada.",
+    );
+  });
+
+  it("usa OpenSSL como fallback para PKCS#12 que o node-forge não consegue ler", () => {
+    vi.mocked(execFileSync).mockReturnValue(forge.pki.certificateToPem(certificate) as never);
+
+    const inspected = vault.inspectPkcs12(Buffer.from("pkcs12-com-criptografia-moderna"), password);
+
+    expect(inspected.subjectCnpj).toBe("12345678000199");
+    expect(execFileSync).toHaveBeenCalledWith(
+      "openssl",
+      expect.arrayContaining(["pkcs12", "-clcerts", "-nokeys"]),
+      expect.objectContaining({ timeout: 10_000 }),
     );
   });
 });

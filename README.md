@@ -9,6 +9,7 @@ apps/web         Next.js 16 (porta 3000, único serviço público)
 apps/api         NestJS 11 (porta 3001, somente rede interna)
 packages/shared  regras e contratos compartilhados
 supabase         migrations versionadas e RLS
+Redis/BullMQ     filas e agendamentos da integração TOTVS
 ```
 
 O navegador acessa somente o domínio do `web`. Requisições para `/backend/*` são encaminhadas pelo Next ao container `apfiscal-api`; a API não deve receber domínio público no Dokploy.
@@ -30,7 +31,9 @@ Comandos de qualidade: `pnpm lint`, `pnpm typecheck`, `pnpm test` e `pnpm build`
 O domínio fiscal vive exclusivamente no schema `apfiscal`, sem reutilizar tabelas de outros produtos que estejam no mesmo PostgreSQL. As migrations ativas são:
 
 - `20260820162134_apfiscal_bootstrap.sql`: cria o schema, 34 tabelas, tipos, índices, triggers, RBAC, RLS, checkpoint/lock fiscal e configura o bucket privado `fiscal-xml`;
-- `20260820162700_apfiscal_harden_function_permissions.sql`: restringe funções `SECURITY DEFINER` e protege o cadastro de fornecedores por organização/empresa.
+- `20260820162700_apfiscal_harden_function_permissions.sql`: restringe funções `SECURITY DEFINER` e protege o cadastro de fornecedores por organização/empresa;
+- `20260821150000_apfiscal_link_fiscal_documents_suppliers.sql`: cria o vínculo interno fornecedor → NF-e e faz backfill por CNPJ/CPF;
+- `20260821153000_apfiscal_totvs_rm_integration.sql`: cria configurações, checkpoints, staging, execuções, idempotência e RBAC do TOTVS RM.
 
 As 24 migrations históricas que originaram o bootstrap foram preservadas em `supabase/legacy-migrations/` apenas para auditoria. Não as aplique: em ambientes novos, somente os arquivos de `supabase/migrations/` são executáveis.
 
@@ -46,7 +49,7 @@ Depois valide no Supabase:
 - a role `authenticator` possui `apfiscal` em `pgrst.db_schemas` e o PostgREST recarregou o schema;
 - RLS está ativa e as policies existem;
 - o bucket `fiscal-xml` é privado;
-- Auth usa a URL pública do web nos redirects permitidos.
+- `PUBLIC_APP_URL` aponta para o web público nos links de confirmação, convite e recuperação emitidos pela autenticação própria do APFiscal.
 
 Não execute reset do banco remoto. Novas alterações devem ser novas migrations.
 
@@ -82,8 +85,15 @@ Use [`.env.example`](./.env.example) como lista do Compose. Os arquivos específ
 | `CERTIFICATE_ENCRYPTION_KEY` | API | 32 bytes em base64; não rotacionar sem recriptografar senhas |
 | `NFE_ENVIRONMENT` | API | `1` produção, `2` homologação |
 | `APFISCAL_*` | API | credenciais opcionais do fallback legado |
+| `REDIS_URL` | API | Redis interno usado pelas filas BullMQ; o Compose já aponta para `apfiscal-redis` |
+| `TOTVS_SQL_HOST`, `TOTVS_SQL_PORT`, `TOTVS_SQL_DATABASE` | API | endereço TCP e banco do TOTVS RM |
+| `TOTVS_SQL_USER`, `TOTVS_SQL_PASSWORD` | API | login SQL dedicado, preferencialmente com permissão somente `SELECT` |
+| `TOTVS_SQL_ENCRYPT`, `TOTVS_SQL_TRUST_SERVER_CERTIFICATE` | API | TLS do SQL Server; aceite certificado não confiável apenas em rede controlada |
+| `TOTVS_COLIGADAS` | API | allowlist numérica, por padrão `1,2` |
+| `TOTVS_WRITES_ENABLED` | API | mantenha `false`; escrita exige SQL real homologado e versionado |
+| `NFE_RECONCILIATION_BATCH_SIZE` | API | quantidade de resumos antigos revisitada por sincronização, padrão `50` |
 
-O Compose repassa `NEXT_PUBLIC_APP_URL` à API como `PUBLIC_APP_URL`, garantindo que convites do Supabase Auth apontem para o domínio público correto.
+O Compose repassa `NEXT_PUBLIC_APP_URL` à API como `PUBLIC_APP_URL`, garantindo que os e-mails da autenticação própria do APFiscal apontem para o domínio público correto. O login não usa Supabase Auth nem aceita usuários de outros sistemas do mesmo Supabase.
 
 Na instalação self-hosted atual, que usa chaves JWT legadas, preencha as duas variáveis `*_PUBLISHABLE_KEY` com a `ANON_KEY` e `SUPABASE_SECRET_KEY` com a `SERVICE_ROLE_KEY`. A chave de serviço permanece somente na API.
 
@@ -100,6 +110,18 @@ Nunca coloque valores reais em `.env.example`, commits, logs ou variáveis do fr
 NFeWizard é o provedor padrão. O certificado A1 fica no bucket privado e a senha é armazenada com AES-256-GCM. A distribuição usa um checkpoint único por empresa/CNPJ, lock transacional e cooldown para os retornos 137/656. O fallback APFiscal só ocorre quando a preparação do NFeWizard falha antes de uma chamada à SEFAZ, evitando duplicidade de consumo e manifestações.
 
 O backend fixa `nfewizard-io@1.1.2` (licença GPL-3.0). A validação XSD opcional que depende de JDK fica desativada na instalação; distribuição, consulta, eventos e validação do PKCS#12 não dependem dela. O mesmo upload A1 tenta provisionar o fallback APFiscal quando as variáveis `APFISCAL_*` estão completas e mantém o NFeWizard operacional caso esse provisionamento externo falhe.
+
+Cada sincronização reconcilia documentos novos e conhecidos. XML completo já armazenado mas ainda não importado passa pelo mesmo importador canônico da importação manual; resumos pendentes são revisitados em lote, sem criar notas duplicadas. O retorno separa documentos descobertos, novos, conhecidos, resumos, XMLs completos, importações, duplicatas, aguardando liberação e erros individuais.
+
+## TOTVS RM
+
+A integração usa SQL Server direto com `mssql` e duas filas BullMQ: `totvs-sync` para leitura RM → APFiscal e `totvs-integration` para NF-e → RM. O Compose inclui um Redis privado e persistente. A agenda padrão é 06:00, 08:00, 12:00, 16:00 e 20:00 em `America/Sao_Paulo`; horários, fuso, janela incremental e associação empresa/coligada ficam em **Configurações → TOTVS RM**.
+
+As consultas de leitura foram transcritas dos dois serviços PHP legados e cobrem representantes, categorias, fornecedores, três tipos de endereço, países, estados, municípios, contatos, transportadoras, centros de custo, condições de pagamento, defaults do fornecedor, produtos (`TPRODUTO` + `TPRODUTODEF`) e plano financeiro (`FTB1`). Somente locais de estoque continuam marcados como aguardando confirmação de schema. Não há SQL inventado.
+
+`TOTVS_WRITES_ENABLED=false` é o padrão e a API possui uma segunda guarda central contra mutações. O payload de integração da NF-e já reúne cabeçalho, fornecedor, itens/produtos, rateios de centro de custo, cobrança e pagamentos, mas nenhuma nota recebe `integrado_totvs` até existir SQL de movimento homologado e uma transação real retornar sucesso. A antiga confirmação manual está bloqueada.
+
+Para liberar leitura, crie no SQL Server um usuário dedicado com acesso apenas `SELECT` às tabelas consultadas, configure as variáveis `TOTVS_SQL_*`, faça o deploy e use **Testar SELECT 1**. Não habilite escrita ao mesmo usuário.
 
 ## Operação e rollback
 

@@ -6,22 +6,19 @@ import { ApfiscalProvider } from "./providers/apfiscal.provider";
 import { NfeWizardProvider } from "./providers/nfewizard.provider";
 import { ProviderPreparationError } from "./provider-preparation.error";
 import { availableFallback, missingProviderMessage, providerConfigured, type ProviderRoutingConfig } from "./provider-routing";
-import { importarNfeXml } from "@/legacy/lib/nfe-import.server";
+import { FiscalDocumentReconciliationService } from "./fiscal-document-reconciliation.service";
 
 type IntegrationConfig = ProviderRoutingConfig & {
   organization_id: string;
   ativo: boolean;
 };
 
-function accessKey(xml: string): string | null {
-  return xml.match(/<chNFe>(\d{44})<\/chNFe>/)?.[1] ?? xml.match(/\bNFe(\d{44})\b/)?.[1] ?? null;
-}
-
 @Injectable()
 export class FiscalSyncService {
   constructor(
     private readonly nfeWizard: NfeWizardProvider,
     private readonly apfiscal: ApfiscalProvider,
+    private readonly reconciliation: FiscalDocumentReconciliationService,
   ) {}
 
   provider(kind: NfeProviderKind): NfeProvider {
@@ -90,37 +87,13 @@ export class FiscalSyncService {
         result = await this.provider(usedProvider).syncDistribution(checkpoint);
       }
 
-      let persisted = 0;
-      let imported = 0;
-      for (const document of result.documents) {
-        const chave = accessKey(document.xml);
-        if (!chave) continue;
-        const isFull = /procNFe|nfeProc/i.test(document.schema);
-        const path = `${companyId}/${document.nsu}-${isFull ? "completa" : "resumida"}-${chave}.xml`;
-        const upload = await supabaseAdmin.storage.from("fiscal-xml").upload(path, Buffer.from(document.xml), { contentType: "application/xml", upsert: true });
-        if (upload.error) throw upload.error;
-        const upsert = await supabaseAdmin.from("documentos_fiscais_integracao").upsert({
-          organization_id: config.organization_id,
-          company_id: companyId,
-          nsu: Number(document.nsu),
-          chave,
-          tipo_documento: document.schema,
-          status: isFull ? "completa" : "resumida",
-          ...(isFull ? { xml_completo_path: path } : { xml_resumido_path: path }),
-        }, { onConflict: "company_id,chave" });
-        if (upsert.error) throw upsert.error;
-        if (isFull) {
-          const canonical = await importarNfeXml(supabaseAdmin, { fileName: path, xml: document.xml });
-          if (canonical.ok) imported++;
-          if (canonical.documentId) {
-            await supabaseAdmin.from("fiscal_documents")
-              .update({ source_provider: usedProvider })
-              .eq("id", canonical.documentId)
-              .is("source_provider", null);
-          }
-        }
-        persisted++;
-      }
+      const counters = await this.reconciliation.reconcile({
+        organizationId: config.organization_id,
+        companyId,
+        providerKind: usedProvider,
+        provider: this.provider(usedProvider),
+        incoming: result.documents,
+      });
 
       const cooldownHours = ["137", "656"].includes(result.cStat) ? 1 : 0;
       const update = await supabaseAdmin.from("fiscal_distribution_state").update({
@@ -145,22 +118,33 @@ export class FiscalSyncService {
           last_nsu_before: checkpoint.lastNsu,
           last_nsu_after: result.lastNsu,
           documents_found: result.documents.length,
-          documents_imported: persisted,
-          canonical_notes_imported: imported,
+          documents_discovered: counters.discovered,
+          new_documents: counters.newDocuments,
+          known_documents: counters.knownDocuments,
+          summaries_downloaded: counters.summariesDownloaded,
+          full_xml_downloaded: counters.fullXmlDownloaded,
+          canonical_notes_imported: counters.notesImported,
+          duplicates: counters.duplicates,
+          waiting_for_full_xml: counters.waitingForFullXml,
+          errors: counters.errors,
         },
       });
       return {
         provider: usedProvider,
         cStat: result.cStat,
         message: result.xMotivo,
-        documents: persisted,
+        documents: counters.discovered,
         lastNsu: result.lastNsu,
-        novosDocumentos: persisted,
-        xmlsResumidosBaixados: result.documents.filter((document) => !/procNFe|nfeProc/i.test(document.schema)).length,
-        xmlsCompletosBaixados: result.documents.filter((document) => /procNFe|nfeProc/i.test(document.schema)).length,
-        notasImportadas: imported,
+        documentosDescobertos: counters.discovered,
+        novosDocumentos: counters.newDocuments,
+        documentosConhecidos: counters.knownDocuments,
+        xmlsResumidosBaixados: counters.summariesDownloaded,
+        xmlsCompletosBaixados: counters.fullXmlDownloaded,
+        notasImportadas: counters.notesImported,
+        duplicatas: counters.duplicates,
+        aguardandoXmlCompleto: counters.waitingForFullXml,
         ultimoNsu: Number(result.lastNsu),
-        erros: [] as Array<{ chave?: string; nsu?: number; mensagem: string }>,
+        erros: counters.errors,
       };
     } catch (error) {
       if (auditOrganizationId) {

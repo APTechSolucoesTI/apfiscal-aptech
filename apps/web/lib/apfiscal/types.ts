@@ -49,10 +49,14 @@ export type HistoricoIntegracao = {
 };
 
 export type ResultadoSincronizacao = {
+  documentosDescobertos: number;
   novosDocumentos: number;
+  documentosConhecidos: number;
   xmlsResumidosBaixados: number;
   xmlsCompletosBaixados: number;
   notasImportadas: number;
+  duplicatas: number;
+  aguardandoXmlCompleto: number;
   ultimoNsu: number;
   erros: { chave?: string; nsu?: number; mensagem: string }[];
 };

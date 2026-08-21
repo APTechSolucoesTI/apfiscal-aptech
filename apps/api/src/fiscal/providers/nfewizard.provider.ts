@@ -104,7 +104,9 @@ export class NfeWizardProvider implements NfeProvider {
 
   async fetchFullXml(companyId: string, accessKey: string): Promise<string> {
     const response = await this.getDocumentByKey(companyId, accessKey);
-    const full = response.documents.find((document) => /procNFe|nfeProc/i.test(document.schema)) ?? response.documents[0];
+    const full = response.documents.find((document) =>
+      /procNFe|nfeProc/i.test(document.schema) || /<\s*(?:\w+:)?nfeProc\b/i.test(document.xml),
+    );
     if (!full) throw new Error("XML completo ainda não foi liberado pela SEFAZ.");
     return full.xml;
   }

@@ -106,23 +106,12 @@ export async function reavaliarApontamentos(context: any, documentId: string): P
   return alvo;
 }
 
-/** Fallback manual até a integração automática com o TOTVS existir. */
+/** Mantido apenas para clientes antigos; confirmação manual não é permitida. */
 export const marcarIntegradoTotvs = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { documentId: string; observacao?: string }) => data)
-  .handler(async ({ data, context }) => {
-    const doc = await getDocOrThrow(context, data.documentId);
-    await assertAprovador(context, doc.companies.organization_id);
-    if (doc.status !== "pronta_para_integracao") {
-      throw new Error("Somente NF-e com status 'Pronto para Integração' pode ser marcada como integrada.");
-    }
-    await updateStatus(
-      context,
-      data.documentId,
-      "integrado_totvs",
-      data.observacao?.trim() || "Integração com a TOTVS confirmada manualmente",
-    );
-    return { ok: true };
+  .handler(() => {
+    throw new Error("A confirmação manual foi desativada. Use a fila TOTVS; o status só muda após sucesso transacional real no RM.");
   });
 
 export const listStatusHistorico = createApiAction({ method: "GET" })

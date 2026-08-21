@@ -18,18 +18,29 @@ import { CertificateVaultService } from "@/fiscal/certificate-vault.service";
 import { FiscalSyncService } from "@/fiscal/fiscal-sync.service";
 import { NfeWizardProvider } from "@/fiscal/providers/nfewizard.provider";
 import { ApfiscalProvider } from "@/fiscal/providers/apfiscal.provider";
+import { FiscalDocumentReconciliationService } from "@/fiscal/fiscal-document-reconciliation.service";
+import { TotvsController } from "@/totvs/totvs.controller";
+import { TotvsSqlServerService } from "@/totvs/totvs-sql-server.service";
+import { TotvsSyncService } from "@/totvs/totvs-sync.service";
+import { TotvsIntegrationService } from "@/totvs/totvs-integration.service";
+import { TotvsQueueService } from "@/totvs/totvs-queue.service";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])],
-  controllers: [HealthController, ActionsController, DataProxyController, MeController, AuthController, AccessProfilesController, UsersController, FiscalIntegrationController],
+  controllers: [HealthController, ActionsController, DataProxyController, MeController, AuthController, AccessProfilesController, UsersController, FiscalIntegrationController, TotvsController],
   providers: [
     AuthService,
     EmailService,
     RbacService,
     CertificateVaultService,
     FiscalSyncService,
+    FiscalDocumentReconciliationService,
     NfeWizardProvider,
     ApfiscalProvider,
+    TotvsSqlServerService,
+    TotvsSyncService,
+    TotvsIntegrationService,
+    TotvsQueueService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },

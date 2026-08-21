@@ -203,8 +203,9 @@ function NfeIntegracao() {
     try {
       const r = await sincronizar(empresaFiltro);
       toast.success(
-        `${r.novosDocumentos} novas notas encontradas, ${r.xmlsResumidosBaixados} XMLs resumidos, ${r.xmlsCompletosBaixados} XMLs completos, ${r.notasImportadas} NF-e importadas.`,
+        `${r.novosDocumentos} nova(s), ${r.documentosConhecidos} conhecida(s), ${r.xmlsCompletosBaixados} XML(s) completo(s) e ${r.notasImportadas} NF-e importada(s).`,
       );
+      if (r.aguardandoXmlCompleto) toast.info(`${r.aguardandoXmlCompleto} nota(s) ainda aguardam liberação do XML completo pela SEFAZ.`);
       if (r.erros.length) toast.warning(`${r.erros.length} ocorrência(s): ${r.erros[0].mensagem}`);
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-documentos"] });
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-historico"] });

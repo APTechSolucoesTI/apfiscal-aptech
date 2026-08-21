@@ -43,6 +43,7 @@ const readActions = new Set([
   "listCentrosCusto", "listClassifications", "listLocaisEstoque", "listPlanoContas",
   "listProducts", "getProduct", "getNextProductCode", "listProductSuppliers",
   "getNfeItemLinkContext", "searchProductsForLink", "listStatusHistorico", "listSuppliers",
+  "listSupplierFiscalDocuments",
   "listTiposCompra", "fetchCompanyByCnpj", "fetchAddressByCep", "baixarXmlDocumento",
 ]);
 

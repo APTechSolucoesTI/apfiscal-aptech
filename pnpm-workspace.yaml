@@ -9,6 +9,7 @@ autoInstallPeers: true
 allowBuilds:
   core-js: true
   libxmljs2: true
+  msgpackr-extract: false
   unrs-resolver: true
   xsd-schema-validator: false
 

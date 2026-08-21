@@ -72,6 +72,7 @@ export const getNfeItemLinkContext = createApiAction("getNfeItemLinkContext");
 export const searchProductsForLink = createApiAction("searchProductsForLink");
 export const createProductAndLinkItem = createApiAction("createProductAndLinkItem");
 export const listSuppliers = createApiAction("listSuppliers");
+export const listSupplierFiscalDocuments = createApiAction("listSupplierFiscalDocuments");
 export const saveSupplier = createApiAction<SupplierInput>("saveSupplier");
 export const deleteSupplier = createApiAction("deleteSupplier");
 export const deleteSuppliers = createApiAction("deleteSuppliers");

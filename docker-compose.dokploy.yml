@@ -1,4 +1,17 @@
 services:
+  apfiscal-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - apfiscal-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [apfiscal]
+
   apfiscal-api:
     build:
       context: .
@@ -6,6 +19,9 @@ services:
     restart: unless-stopped
     expose:
       - "3001"
+    depends_on:
+      apfiscal-redis:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -17,6 +33,7 @@ services:
       CERTIFICATE_ENCRYPTION_KEY: ${CERTIFICATE_ENCRYPTION_KEY:?obrigatoria}
       NFE_ENVIRONMENT: ${NFE_ENVIRONMENT:-1}
       NFE_TIMEOUT_MS: ${NFE_TIMEOUT_MS:-30000}
+      NFE_RECONCILIATION_BATCH_SIZE: ${NFE_RECONCILIATION_BATCH_SIZE:-50}
       APFISCAL_BASE_URL: ${APFISCAL_BASE_URL:-}
       APFISCAL_DEFAULT_API_KEY: ${APFISCAL_DEFAULT_API_KEY:-}
       APFISCAL_CADASTRO_TOKEN: ${APFISCAL_CADASTRO_TOKEN:-}
@@ -28,6 +45,20 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      REDIS_URL: redis://apfiscal-redis:6379/0
+      TOTVS_SQL_HOST: ${TOTVS_SQL_HOST:-}
+      TOTVS_SQL_PORT: ${TOTVS_SQL_PORT:-1433}
+      TOTVS_SQL_DATABASE: ${TOTVS_SQL_DATABASE:-}
+      TOTVS_SQL_USER: ${TOTVS_SQL_USER:-}
+      TOTVS_SQL_PASSWORD: ${TOTVS_SQL_PASSWORD:-}
+      TOTVS_SQL_ENCRYPT: ${TOTVS_SQL_ENCRYPT:-true}
+      TOTVS_SQL_TRUST_SERVER_CERTIFICATE: ${TOTVS_SQL_TRUST_SERVER_CERTIFICATE:-false}
+      TOTVS_SQL_CONNECTION_TIMEOUT_MS: ${TOTVS_SQL_CONNECTION_TIMEOUT_MS:-15000}
+      TOTVS_SQL_REQUEST_TIMEOUT_MS: ${TOTVS_SQL_REQUEST_TIMEOUT_MS:-60000}
+      TOTVS_SQL_POOL_MAX: ${TOTVS_SQL_POOL_MAX:-5}
+      TOTVS_COLIGADAS: ${TOTVS_COLIGADAS:-1,2}
+      TOTVS_INITIAL_SYNC_DATE: ${TOTVS_INITIAL_SYNC_DATE:-2000-01-01T00:00:00.000Z}
+      TOTVS_WRITES_ENABLED: ${TOTVS_WRITES_ENABLED:-false}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 20s
@@ -68,3 +99,6 @@ services:
 networks:
   apfiscal:
     driver: bridge
+
+volumes:
+  apfiscal-redis-data:

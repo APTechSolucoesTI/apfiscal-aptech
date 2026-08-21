@@ -814,6 +814,7 @@ export type Database = {
           status_observacao: string | null
           status_updated_at: string
           status_updated_by: string | null
+          supplier_id: string | null
           tipo: Database["apfiscal"]["Enums"]["document_type"]
           tipo_compra_id: string | null
           tipo_operacao: string | null
@@ -864,6 +865,7 @@ export type Database = {
           status_observacao?: string | null
           status_updated_at?: string
           status_updated_by?: string | null
+          supplier_id?: string | null
           tipo: Database["apfiscal"]["Enums"]["document_type"]
           tipo_compra_id?: string | null
           tipo_operacao?: string | null
@@ -914,6 +916,7 @@ export type Database = {
           status_observacao?: string | null
           status_updated_at?: string
           status_updated_by?: string | null
+          supplier_id?: string | null
           tipo?: Database["apfiscal"]["Enums"]["document_type"]
           tipo_compra_id?: string | null
           tipo_operacao?: string | null
@@ -946,6 +949,12 @@ export type Database = {
             foreignKeyName: "fiscal_documents_plano_contas_id_fkey"
             columns: ["plano_contas_id"]
             referencedRelation: "plano_contas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_documents_supplier_id_fkey"
+            columns: ["supplier_id"]
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
           {
@@ -1531,6 +1540,11 @@ export type Database = {
           created_at: string
           descricao: string
           ean_gtin: string | null
+          erp_code: string | null
+          erp_external_id: string | null
+          erp_metadata: Json
+          erp_synced_at: string | null
+          erp_system: string | null
           familia_id: string | null
           grupo_id: string | null
           id: string
@@ -1549,6 +1563,11 @@ export type Database = {
           created_at?: string
           descricao: string
           ean_gtin?: string | null
+          erp_code?: string | null
+          erp_external_id?: string | null
+          erp_metadata?: Json
+          erp_synced_at?: string | null
+          erp_system?: string | null
           familia_id?: string | null
           grupo_id?: string | null
           id?: string
@@ -1567,6 +1586,11 @@ export type Database = {
           created_at?: string
           descricao?: string
           ean_gtin?: string | null
+          erp_code?: string | null
+          erp_external_id?: string | null
+          erp_metadata?: Json
+          erp_synced_at?: string | null
+          erp_system?: string | null
           familia_id?: string | null
           grupo_id?: string | null
           id?: string
@@ -2107,4 +2131,3 @@ export const Constants = {
     },
   },
 } as const
-

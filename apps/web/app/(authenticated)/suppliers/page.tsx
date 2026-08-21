@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/api-action";
 import { supabase } from "@/integrations/supabase/client";
 import { listSuppliers, saveSupplier, deleteSupplier, deleteSuppliers, type SupplierInput } from "@/lib/client-actions";
+import { listSupplierFiscalDocuments } from "@/lib/client-actions";
 import { getOrgSettings } from "@/lib/client-actions";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -28,7 +29,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Search, Building2, Loader2, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Building2, Loader2, Upload, ReceiptText, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { ImportXlsxDialog, type ImportField } from "@/components/import/ImportXlsxDialog";
 import { onlyDigits as digitsOnly } from "@/lib/br-format";
@@ -62,6 +64,24 @@ const supplierImportFields: ImportField[] = [
   { key: "erp_code", label: "Código no ERP", aliases: ["codigoerp", "erpcode"] },
 ];
 
+type SupplierFiscalDocument = {
+  id: string;
+  numero: string;
+  serie: string | null;
+  chave_acesso: string;
+  data_emissao: string | null;
+  valor_total: number | null;
+  tipo_operacao: string | null;
+  situacao: string | null;
+  status: string | null;
+  company_id: string;
+  companies?: { razao_social: string | null; nome_fantasia: string | null } | null;
+};
+
+function formatCurrency(value: number | null) {
+  return value == null ? "—" : Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 function SuppliersPage() {
   const qc = useQueryClient();
   const [companyId, setCompanyId] = useState<string>("all");
@@ -84,6 +104,7 @@ function SuppliersPage() {
   const isGlobal = orgSettings?.catalog_scope === "global";
 
   const list = useServerFn(listSuppliers);
+  const listFiscalDocuments = useServerFn(listSupplierFiscalDocuments);
   const save = useServerFn(saveSupplier);
   const remove = useServerFn(deleteSupplier);
   const removeMany = useServerFn(deleteSuppliers);
@@ -95,6 +116,12 @@ function SuppliersPage() {
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", companyId],
     queryFn: () => list({ data: { companyId: companyId === "all" ? undefined : companyId } }),
+  });
+
+  const supplierDocuments = useQuery({
+    queryKey: ["supplier-fiscal-documents", form.id],
+    queryFn: () => listFiscalDocuments({ data: { supplierId: form.id! } }) as Promise<SupplierFiscalDocument[]>,
+    enabled: open && Boolean(form.id),
   });
 
   const saveMut = useMutation({
@@ -451,7 +478,7 @@ function SuppliersPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar" : "Novo"} Fornecedor</DialogTitle>
             <DialogDescription>Cadastre um fornecedor vinculado à empresa e opcionalmente ao ERP.</DialogDescription>
@@ -461,6 +488,7 @@ function SuppliersPage() {
               <TabsTrigger value="dados">Dados</TabsTrigger>
               <TabsTrigger value="endereco">Endereço</TabsTrigger>
               <TabsTrigger value="erp">Integração ERP</TabsTrigger>
+              {form.id && <TabsTrigger value="notas">Notas Fiscais</TabsTrigger>}
             </TabsList>
             <TabsContent value="dados" className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -571,6 +599,40 @@ function SuppliersPage() {
                 <div className="col-span-2"><Label>ID externo (UUID/PK do ERP)</Label><Input value={form.erp_external_id ?? ""} onChange={(e) => setForm({ ...form, erp_external_id: e.target.value })} /></div>
               </div>
             </TabsContent>
+            {form.id && (
+              <TabsContent value="notas" className="space-y-4">
+                <div className="flex items-start justify-between gap-4 rounded-lg border bg-slate-50 p-4">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900"><ReceiptText className="h-4 w-4 text-blue-600" />NF-e deste fornecedor</h3>
+                    <p className="mt-1 text-xs text-slate-500">Vínculo interno do documento; cadastros antigos usam CNPJ/CPF normalizado como fallback.</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 bg-white">{supplierDocuments.data?.length ?? 0} nota(s)</Badge>
+                </div>
+                {supplierDocuments.isLoading ? (
+                  <div className="flex min-h-32 items-center justify-center text-sm text-slate-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Carregando notas fiscais…</div>
+                ) : supplierDocuments.isError ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">Não foi possível carregar as NF-e deste fornecedor.</div>
+                ) : (supplierDocuments.data?.length ?? 0) === 0 ? (
+                  <div className="rounded-lg border border-dashed py-10 text-center"><ReceiptText className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-2 text-sm font-medium text-slate-700">Nenhuma NF-e importada</p><p className="mt-1 text-xs text-slate-500">Quando um XML completo for importado, a nota aparecerá aqui.</p></div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border">
+                    <Table className="min-w-[760px]">
+                      <TableHeader><TableRow><TableHead>Número / série</TableHead><TableHead>Emissão</TableHead><TableHead>Empresa</TableHead><TableHead>Valor</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Abrir</TableHead></TableRow></TableHeader>
+                      <TableBody>{supplierDocuments.data?.map((document) => (
+                        <TableRow key={document.id}>
+                          <TableCell><div className="font-medium">{document.numero || "—"}{document.serie ? ` / ${document.serie}` : ""}</div><div className="max-w-44 truncate font-mono text-[11px] text-slate-500" title={document.chave_acesso}>{document.chave_acesso}</div></TableCell>
+                          <TableCell className="whitespace-nowrap text-sm">{document.data_emissao ? new Date(document.data_emissao).toLocaleDateString("pt-BR") : "—"}</TableCell>
+                          <TableCell className="max-w-48 truncate text-sm">{document.companies?.nome_fantasia || document.companies?.razao_social || "—"}</TableCell>
+                          <TableCell className="whitespace-nowrap text-sm font-medium">{formatCurrency(document.valor_total)}</TableCell>
+                          <TableCell><Badge variant="outline">{document.status?.replaceAll("_", " ") || document.situacao || "Importada"}</Badge></TableCell>
+                          <TableCell className="text-right"><Button asChild size="sm" variant="ghost"><Link href={`/documents/nfe/${document.id}`}><ExternalLink className="mr-1 h-3.5 w-3.5" />Detalhes</Link></Button></TableCell>
+                        </TableRow>
+                      ))}</TableBody>
+                    </Table>
+                  </div>
+                )}
+              </TabsContent>
+            )}
           </Tabs>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

@@ -36,6 +36,49 @@ export const listSuppliers = createApiAction({ method: "GET" })
     return rows ?? [];
   });
 
+export const listSupplierFiscalDocuments = createApiAction({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { supplierId: string }) => data)
+  .handler(async ({ data, context }) => {
+    const supplierResult = await context.supabase
+      .from("suppliers")
+      .select("id, organization_id, company_id, cnpj_cpf")
+      .eq("id", data.supplierId)
+      .maybeSingle();
+    if (supplierResult.error) throw new Error(supplierResult.error.message);
+    if (!supplierResult.data) throw new Error("Fornecedor não encontrado ou sem acesso.");
+
+    const supplier = supplierResult.data;
+    const linkedQuery = context.supabase
+      .from("fiscal_documents")
+      .select("id, numero, serie, chave_acesso, data_emissao, valor_total, tipo_operacao, situacao, status, supplier_id, company_id, companies(razao_social, nome_fantasia)")
+      .eq("tipo", "nfe")
+      .eq("supplier_id", supplier.id)
+      .order("data_emissao", { ascending: false });
+    const linked = supplier.company_id
+      ? await linkedQuery.eq("company_id", supplier.company_id)
+      : await linkedQuery;
+
+    if (linked.error) throw new Error(linked.error.message);
+    if ((linked.data?.length ?? 0) > 0) return linked.data ?? [];
+
+    const digits = String(supplier.cnpj_cpf).replace(/\D/g, "");
+    const variants = [digits, supplier.cnpj_cpf];
+    if (digits.length === 14) variants.push(`${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`);
+    if (digits.length === 11) variants.push(`${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`);
+    const fallbackQuery = context.supabase
+      .from("fiscal_documents")
+      .select("id, numero, serie, chave_acesso, data_emissao, valor_total, tipo_operacao, situacao, status, supplier_id, company_id, companies(razao_social, nome_fantasia)")
+      .eq("tipo", "nfe")
+      .in("emitente_cnpj", [...new Set(variants)])
+      .order("data_emissao", { ascending: false });
+    const fallback = supplier.company_id
+      ? await fallbackQuery.eq("company_id", supplier.company_id)
+      : await fallbackQuery;
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ?? [];
+  });
+
 export const saveSupplier = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: SupplierInput) => data)

@@ -167,11 +167,15 @@ export async function importarNfeXml(supabase: ImportClient, data: ImportInput) 
       );
     }
 
-    const { data: existing } = await supabase
+    const orgId = (company as any).organization_id as string;
+    const companyId = (company as any).id as string;
+    const { data: existing, error: existingError } = await supabase
       .from("fiscal_documents")
       .select("id")
+      .eq("company_id", companyId)
       .eq("chave_acesso", nfe.chave)
       .maybeSingle();
+    if (existingError) throw new Error(existingError.message);
     if (existing) {
       return {
         ok: false,
@@ -181,8 +185,6 @@ export async function importarNfeXml(supabase: ImportClient, data: ImportInput) 
       };
     }
 
-    const orgId = (company as any).organization_id as string;
-    const companyId = (company as any).id as string;
     const { data: org } = await supabase
       .from("organizations")
       .select("catalog_scope")
@@ -256,6 +258,7 @@ export async function importarNfeXml(supabase: ImportClient, data: ImportInput) 
       .from("fiscal_documents")
       .insert({
         company_id: companyId,
+        supplier_id: supplierId,
         tipo: "nfe",
         chave_acesso: nfe.chave,
         numero: nfe.numero || "0",

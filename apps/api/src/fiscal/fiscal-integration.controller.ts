@@ -1,11 +1,11 @@
-import { BadRequestException, Body, ConflictException, Controller, Get, NotFoundException, Param, Patch, Post, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { z } from "zod";
 import { RequirePermission } from "@/common/permission.decorator";
 import type { AuthenticatedRequest } from "@/common/request-user";
 import { RbacService } from "@/common/rbac.service";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { CertificateVaultService } from "./certificate-vault.service";
+import { CertificateVaultService, certificateMatchesCompany } from "./certificate-vault.service";
 import { FiscalSyncService } from "./fiscal-sync.service";
 import { enviarCertificado } from "@/legacy/lib/apfiscal/certificado.server";
 
@@ -13,7 +13,7 @@ const providerSchema = z.enum(["nfewizard", "apifiscal"]);
 const settingsSchema = z.object({
   primaryProvider: providerSchema,
   fallbackProvider: providerSchema.nullable().default("apifiscal"),
-  fallbackEnabled: z.boolean().default(true),
+  fallbackEnabled: z.boolean().default(false),
   active: z.boolean().default(true),
 });
 const manifestationSchema = z.object({
@@ -60,14 +60,27 @@ export class FiscalIntegrationController {
   async saveSettings(@Param("companyId") companyId: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
     await this.assertCompany(request, companyId);
     const input = settingsSchema.parse(body);
+    const current = await supabaseAdmin.from("empresa_integracoes_fiscais")
+      .select("api_key_encrypted")
+      .eq("company_id", companyId)
+      .single();
+    if (current.error) throw current.error;
+    const fallbackConfigured = input.fallbackProvider === "apifiscal" && Boolean(current.data.api_key_encrypted);
+    const fallbackEnabled = input.primaryProvider === "nfewizard" && input.fallbackEnabled && fallbackConfigured;
     const update = await supabaseAdmin.from("empresa_integracoes_fiscais").update({
       primary_provider: input.primaryProvider,
       fallback_provider: input.fallbackProvider,
-      fallback_enabled: input.fallbackEnabled,
+      fallback_enabled: fallbackEnabled,
       ativo: input.active,
     }).eq("company_id", companyId);
     if (update.error) throw update.error;
-    return { ok: true };
+    return {
+      ok: true,
+      fallbackEnabled,
+      warning: input.fallbackEnabled && !fallbackConfigured
+        ? "O fallback APFiscal permaneceu desativado porque não possui credenciais."
+        : null,
+    };
   }
 
   @RequirePermission("nfe.integration.manage")
@@ -89,8 +102,8 @@ export class FiscalIntegrationController {
       .eq("company_id", companyId).single();
     if (integration.error) throw integration.error;
     const companyCnpj = company.data.cnpj?.replace(/\D/g, "") ?? "";
-    if (certificate.subjectCnpj && companyCnpj && certificate.subjectCnpj !== companyCnpj) {
-      throw new BadRequestException("O CNPJ do certificado não corresponde à empresa selecionada.");
+    if (!certificateMatchesCompany(certificate.subjectCnpj, companyCnpj)) {
+      throw new BadRequestException("O certificado pertence a outra raiz de CNPJ.");
     }
 
     const path = `certificates/${companyId}/a1.pfx`;
@@ -112,9 +125,8 @@ export class FiscalIntegrationController {
       await supabaseAdmin.storage.from("fiscal-xml").remove([path]);
       throw error;
     }
-    const shouldProvisionApifiscal = integration.data.primary_provider === "apifiscal"
-      || (integration.data.fallback_enabled && integration.data.fallback_provider === "apifiscal");
-    let apifiscal = { configured: false, message: "Fallback APFiscal desativado." };
+    const shouldProvisionApifiscal = integration.data.primary_provider === "apifiscal";
+    let apifiscal = { configured: false, message: "Fallback APFiscal não solicitado." };
 
     if (shouldProvisionApifiscal) {
       const hasApifiscalEnvironment = Boolean(
@@ -202,18 +214,27 @@ export class FiscalIntegrationController {
     if (previous.error) throw previous.error;
     if (previous.data?.response_cstat) return { ...previous.data, idempotent: true };
 
-    const pending = await supabaseAdmin.from("manifestations").insert({
-      fiscal_document_id: document.data.id,
-      tipo: input.event,
-      usuario_id: request.user.id,
-      provider: integration.data.primary_provider,
-      sequence: 1,
-      requested_at: new Date().toISOString(),
-    }).select("id").single();
-    if (pending.error?.code === "23505") {
-      throw new ConflictException("Esta manifestação já está em processamento ou foi enviada.");
+    let pendingId = previous.data?.id;
+    if (!pendingId) {
+      const pending = await supabaseAdmin.from("manifestations").insert({
+        fiscal_document_id: document.data.id,
+        tipo: input.event,
+        usuario_id: request.user.id,
+        provider: integration.data.primary_provider,
+        sequence: 1,
+        requested_at: new Date().toISOString(),
+      }).select("id").single();
+      if (pending.error) throw pending.error;
+      pendingId = pending.data.id;
+    } else {
+      const retry = await supabaseAdmin.from("manifestations").update({
+        usuario_id: request.user.id,
+        provider: integration.data.primary_provider,
+        requested_at: new Date().toISOString(),
+        response_xmotivo: null,
+      }).eq("id", pendingId);
+      if (retry.error) throw retry.error;
     }
-    if (pending.error) throw pending.error;
 
     try {
       const result = await this.syncService.provider(integration.data.primary_provider).manifest({
@@ -225,13 +246,13 @@ export class FiscalIntegrationController {
       const update = await supabaseAdmin.from("manifestations").update({
         response_cstat: result.cStat,
         response_xmotivo: result.xMotivo,
-      }).eq("id", pending.data.id);
+      }).eq("id", pendingId);
       if (update.error) throw update.error;
       return { ...result, idempotent: false };
     } catch (error) {
       await supabaseAdmin.from("manifestations").update({
         response_xmotivo: error instanceof Error ? error.message : "Falha não identificada no envio do evento.",
-      }).eq("id", pending.data.id);
+      }).eq("id", pendingId);
       throw error;
     }
   }

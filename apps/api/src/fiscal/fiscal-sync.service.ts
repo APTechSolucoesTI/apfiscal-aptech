@@ -1,17 +1,16 @@
-import { ConflictException, HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import { ConflictException, HttpException, HttpStatus, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import type { DistributionCheckpoint, NfeProvider, NfeProviderKind } from "@apfiscal/shared";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { ApfiscalProvider } from "./providers/apfiscal.provider";
 import { NfeWizardProvider } from "./providers/nfewizard.provider";
 import { ProviderPreparationError } from "./provider-preparation.error";
+import { availableFallback, missingProviderMessage, providerConfigured, type ProviderRoutingConfig } from "./provider-routing";
 import { importarNfeXml } from "@/legacy/lib/nfe-import.server";
 
-type IntegrationConfig = {
-  primary_provider: NfeProviderKind;
-  fallback_provider: NfeProviderKind | null;
-  fallback_enabled: boolean;
+type IntegrationConfig = ProviderRoutingConfig & {
   organization_id: string;
+  ativo: boolean;
 };
 
 function accessKey(xml: string): string | null {
@@ -31,7 +30,7 @@ export class FiscalSyncService {
 
   private async config(companyId: string): Promise<IntegrationConfig> {
     const result = await supabaseAdmin.from("empresa_integracoes_fiscais")
-      .select("primary_provider, fallback_provider, fallback_enabled, organization_id")
+      .select("primary_provider, fallback_provider, fallback_enabled, organization_id, ativo, certificate_storage_path, certificate_password_encrypted, api_key_encrypted")
       .eq("company_id", companyId).single();
     if (result.error) throw result.error;
     return result.data as IntegrationConfig;
@@ -40,6 +39,8 @@ export class FiscalSyncService {
   async test(companyId: string, requestedProvider?: NfeProviderKind) {
     const config = await this.config(companyId);
     const kind = requestedProvider ?? config.primary_provider;
+    if (!config.ativo) throw new ServiceUnavailableException("A integração fiscal está desativada para esta empresa.");
+    if (!providerConfigured(config, kind)) throw new ProviderPreparationError(missingProviderMessage(kind));
     return { provider: kind, ...(await this.provider(kind).testConnection(companyId)) };
   }
 
@@ -61,6 +62,10 @@ export class FiscalSyncService {
       if (stateResult.error) throw stateResult.error;
       auditOrganizationId = config.organization_id;
       auditLastNsu = String(stateResult.data.last_nsu);
+      if (!config.ativo) throw new ServiceUnavailableException("A integração fiscal está desativada para esta empresa.");
+      if (!providerConfigured(config, config.primary_provider)) {
+        throw new ProviderPreparationError(missingProviderMessage(config.primary_provider));
+      }
       const nextAllowed = stateResult.data.next_allowed_sync_at ? new Date(stateResult.data.next_allowed_sync_at) : null;
       if (nextAllowed && nextAllowed > new Date()) {
         throw new HttpException(`A SEFAZ permite a próxima consulta após ${nextAllowed.toLocaleString("pt-BR")}.`, HttpStatus.TOO_MANY_REQUESTS);
@@ -78,8 +83,9 @@ export class FiscalSyncService {
       try {
         result = await this.provider(usedProvider).syncDistribution(checkpoint);
       } catch (error) {
-        if (!(error instanceof ProviderPreparationError) || !config.fallback_enabled || !config.fallback_provider || config.fallback_provider === usedProvider) throw error;
-        usedProvider = config.fallback_provider;
+        const fallback = availableFallback(config, usedProvider, error);
+        if (!fallback) throw error;
+        usedProvider = fallback;
         auditProvider = usedProvider;
         result = await this.provider(usedProvider).syncDistribution(checkpoint);
       }

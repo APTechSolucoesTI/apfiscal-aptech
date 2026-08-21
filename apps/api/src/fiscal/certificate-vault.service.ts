@@ -2,12 +2,17 @@ import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { execFileSync } from "node:child_process";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import forge from "node-forge";
+import * as forge from "node-forge";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env } from "@/config/env";
 
 const PREFIX = "v1";
+
+export function certificateMatchesCompany(subjectCnpj: string | null, companyCnpj: string): boolean {
+  if (!subjectCnpj || !companyCnpj) return true;
+  return subjectCnpj.slice(0, 8) === companyCnpj.replace(/\D/g, "").slice(0, 8);
+}
 
 function encryptionKey(): Buffer {
   const raw = env("CERTIFICATE_ENCRYPTION_KEY");
@@ -68,14 +73,17 @@ export class CertificateVaultService {
       throw new BadRequestException("O certificado A1 está vencido.");
     }
 
-    const subject = certificate.subject.attributes
-      .map((attribute) => `${attribute.shortName ?? attribute.name ?? attribute.type}=${attribute.value}`)
-      .join(", ");
+    const commonNames = certificate.subject.attributes
+      .filter((attribute) => attribute.shortName === "CN" || attribute.name === "commonName")
+      .map((attribute) => typeof attribute.value === "string" ? attribute.value : "");
+    const subjectCnpj = commonNames
+      .map((commonName) => commonName.match(/(?:^|:)(\d{14})\b/)?.[1])
+      .find(Boolean) ?? null;
 
     return {
       validFrom: certificate.validity.notBefore,
       expiresAt,
-      subjectCnpj: subject.match(/\d{14}/)?.[0] ?? null,
+      subjectCnpj,
       daysRemaining: Math.ceil((expiresAt.getTime() - now.getTime()) / 86_400_000),
     };
   }

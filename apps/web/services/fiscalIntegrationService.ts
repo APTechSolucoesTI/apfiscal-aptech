@@ -21,7 +21,7 @@ export function getFiscalSettings(companyId: string) {
 }
 
 export function saveFiscalSettings(companyId: string, input: { primaryProvider: NfeProviderKind; fallbackProvider: NfeProviderKind | null; fallbackEnabled: boolean; active: boolean }) {
-  return backendFetch<{ ok: true }>(`/fiscal-integration/settings/${companyId}`, { method: "PATCH", body: JSON.stringify(input) });
+  return backendFetch<{ ok: true; fallbackEnabled: boolean; warning: string | null }>(`/fiscal-integration/settings/${companyId}`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
 export function testFiscalProvider(companyId: string, provider: NfeProviderKind) {

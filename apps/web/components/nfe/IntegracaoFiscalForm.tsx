@@ -25,7 +25,7 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [provider, setProvider] = useState<NfeProviderKind>("nfewizard");
   const [active, setActive] = useState(true);
-  const [fallback, setFallback] = useState(true);
+  const [fallback, setFallback] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -37,7 +37,7 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
     if (!settings.data) return;
     setProvider(settings.data.primary_provider);
     setActive(settings.data.ativo);
-    setFallback(settings.data.fallback_enabled);
+    setFallback(settings.data.fallback_enabled && settings.data.apifiscalConfigured);
   }, [settings.data]);
 
   if (!companyId) return <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Salve a empresa para habilitar a integração fiscal.</div>;
@@ -45,9 +45,10 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
   const save = async () => {
     setSaving(true);
     try {
-      await saveFiscalSettings(companyId, { primaryProvider: provider, fallbackProvider: provider === "nfewizard" ? "apifiscal" : null, fallbackEnabled: provider === "nfewizard" && fallback, active });
+      const result = await saveFiscalSettings(companyId, { primaryProvider: provider, fallbackProvider: provider === "nfewizard" ? "apifiscal" : null, fallbackEnabled: provider === "nfewizard" && fallback && Boolean(settings.data?.apifiscalConfigured), active });
       await queryClient.invalidateQueries({ queryKey: ["fiscal-provider-settings", companyId] });
       toast.success("Configuração fiscal salva.");
+      if (result.warning) toast.warning(result.warning);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar a configuração."); }
     finally { setSaving(false); }
   };
@@ -71,7 +72,6 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
       await queryClient.invalidateQueries({ queryKey: ["fiscal-provider-settings", companyId] });
       toast.success("Certificado A1 armazenado com segurança.");
       if (result.apifiscal.configured) toast.success("Fallback APFiscal provisionado.");
-      else if (fallback) toast.warning(result.apifiscal.message);
     } catch (error) { setPassword(""); toast.error(error instanceof Error ? error.message : "Falha ao enviar o certificado."); }
     finally { setUploading(false); }
   };
@@ -96,7 +96,7 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Certificado digital A1</div>{settings.data?.certificateConfigured ? <Badge variant="outline" className="border-emerald-200 text-emerald-700"><CheckCircle2 className="mr-1 h-3 w-3" /> Configurado</Badge> : <Badge variant="outline" className="border-amber-200 text-amber-700">Pendente</Badge>}</div>
       <div className="grid gap-4 md:grid-cols-2"><div className="grid gap-2"><Label htmlFor="nfe-certificate">Arquivo .pfx ou .p12</Label><Input ref={fileRef} id="nfe-certificate" type="file" accept=".pfx,.p12" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></div><div className="grid gap-2"><Label htmlFor="nfe-certificate-password">Senha do certificado</Label><Input id="nfe-certificate-password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></div></div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Arquivo privado; senha criptografada com AES-256-GCM no backend.</p><Button type="button" variant="outline" onClick={upload} disabled={!file || !password || uploading}>{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileKey2 className="mr-2 h-4 w-4" />}{settings.data?.certificateConfigured ? "Substituir certificado" : "Enviar certificado"}</Button></div>
-      <div className="flex items-start justify-between gap-4 border-t pt-4"><div className="space-y-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">Fallback automático pela APFiscal</p>{settings.data?.apifiscalConfigured ? <Badge variant="outline" className="border-emerald-200 text-emerald-700">Configurado</Badge> : <Badge variant="outline" className="border-amber-200 text-amber-700">Não configurado</Badge>}</div><p className="text-xs text-muted-foreground">Somente se o NFeWizard falhar antes da requisição à SEFAZ.</p>{fallback && settings.data?.apifiscal_certificate_last_error && <p className="text-xs text-amber-700">{settings.data.apifiscal_certificate_last_error}</p>}</div><Switch checked={fallback} onCheckedChange={setFallback} aria-label="Ativar fallback APFiscal" /></div>
+      <div className="flex items-start justify-between gap-4 border-t pt-4"><div className="space-y-1"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">Contingência APFiscal</p>{settings.data?.apifiscalConfigured ? <Badge variant="outline" className="border-emerald-200 text-emerald-700">Disponível</Badge> : <Badge variant="outline" className="border-slate-200 text-slate-600">Opcional</Badge>}</div><p className="text-xs text-muted-foreground">Entra somente se o NFeWizard estiver configurado e indisponível. Erros de certificado ou cadastro nunca acionam o legado.</p>{!settings.data?.apifiscalConfigured && <p className="text-xs text-muted-foreground">Sem credenciais do conector legado; a contingência permanecerá desligada.</p>}</div><Switch checked={fallback} onCheckedChange={setFallback} disabled={!settings.data?.apifiscalConfigured} aria-label="Ativar contingência APFiscal" /></div>
     </div>}
 
     <div className="grid gap-3 rounded-xl border p-4 text-sm sm:grid-cols-3"><div><p className="text-xs text-muted-foreground">Último NSU</p><p className="mt-1 font-mono font-medium">{settings.data?.checkpoint?.last_nsu ?? 0}</p></div><div><p className="text-xs text-muted-foreground">Última consulta</p><p className="mt-1 font-medium">{settings.data?.checkpoint?.last_sync_at ? new Date(settings.data.checkpoint.last_sync_at).toLocaleString("pt-BR") : "Ainda não executada"}</p></div><div><p className="text-xs text-muted-foreground">Status SEFAZ</p><p className="mt-1 font-medium">{settings.data?.checkpoint?.last_cstat ?? "Sem retorno"}</p></div></div>

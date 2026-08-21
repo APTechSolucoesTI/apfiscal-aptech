@@ -5,6 +5,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { CertificateVaultService } from "../certificate-vault.service";
 import { parseDistributionResponse, parseEventResponse } from "./response-parser";
 import { ProviderPreparationError } from "../provider-preparation.error";
+import { ProviderUnavailableError } from "../provider-unavailable.error";
+import { silenceNfeWizardLogger } from "../nfewizard-logger";
 
 const UF_CODE: Record<string, number> = {
   RO: 11, AC: 12, AM: 13, RR: 14, PA: 15, AP: 16, TO: 17, MA: 21, PI: 22, CE: 23, RN: 24,
@@ -18,7 +20,20 @@ type WizardContext = { wizard: NFeWizard; cnpj: string; ufCode: number; environm
 export class NfeWizardProvider implements NfeProvider {
   readonly kind = "nfewizard" as const;
 
-  constructor(private readonly vault: CertificateVaultService) {}
+  constructor(private readonly vault: CertificateVaultService) {
+    silenceNfeWizardLogger();
+  }
+
+  private async request<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      throw new ProviderUnavailableError(
+        "O NFeWizard não conseguiu comunicar com a SEFAZ. Tente novamente em alguns instantes.",
+        { cause: error },
+      );
+    }
+  }
 
   private async context(companyId: string): Promise<WizardContext> {
     try {
@@ -65,24 +80,26 @@ export class NfeWizardProvider implements NfeProvider {
 
   async testConnection(companyId: string) {
     const { wizard } = await this.context(companyId);
-    const result = parseEventResponse(await wizard.NFE_ConsultaStatusServico());
+    const result = await this.request(async () => parseEventResponse(await wizard.NFE_ConsultaStatusServico()));
     return { ok: ["107", "128"].includes(result.cStat), message: `${result.cStat} — ${result.xMotivo}` };
   }
 
   async syncDistribution(checkpoint: DistributionCheckpoint): Promise<DistributionResult> {
     const { wizard, cnpj, ufCode } = await this.context(checkpoint.companyId);
-    const response = await wizard.NFE_DistribuicaoDFePorUltNSU({ cUFAutor: ufCode, CNPJ: cnpj, distNSU: { ultNSU: checkpoint.lastNsu.padStart(15, "0") } });
-    return parseDistributionResponse(response, checkpoint.lastNsu);
+    return this.request(async () => parseDistributionResponse(
+      await wizard.NFE_DistribuicaoDFePorUltNSU({ cUFAutor: ufCode, CNPJ: cnpj, distNSU: { ultNSU: checkpoint.lastNsu.padStart(15, "0") } }),
+      checkpoint.lastNsu,
+    ));
   }
 
   async getDocumentByNsu(companyId: string, nsu: string): Promise<DistributionResult> {
     const { wizard, cnpj, ufCode } = await this.context(companyId);
-    return parseDistributionResponse(await wizard.NFE_DistribuicaoDFePorNSU({ cUFAutor: ufCode, CNPJ: cnpj, consNSU: { NSU: nsu.padStart(15, "0") } }), nsu);
+    return this.request(async () => parseDistributionResponse(await wizard.NFE_DistribuicaoDFePorNSU({ cUFAutor: ufCode, CNPJ: cnpj, consNSU: { NSU: nsu.padStart(15, "0") } }), nsu));
   }
 
   async getDocumentByKey(companyId: string, accessKey: string): Promise<DistributionResult> {
     const { wizard, cnpj, ufCode } = await this.context(companyId);
-    return parseDistributionResponse(await wizard.NFE_DistribuicaoDFePorChave({ cUFAutor: ufCode, CNPJ: cnpj, consChNFe: { chNFe: accessKey } }), "0");
+    return this.request(async () => parseDistributionResponse(await wizard.NFE_DistribuicaoDFePorChave({ cUFAutor: ufCode, CNPJ: cnpj, consChNFe: { chNFe: accessKey } }), "0"));
   }
 
   async fetchFullXml(companyId: string, accessKey: string): Promise<string> {
@@ -104,6 +121,6 @@ export class NfeWizardProvider implements NfeProvider {
         detEvento: { descEvento: descriptions[input.event], ...(input.justification ? { xJust: input.justification } : {}) },
       }],
     };
-    return parseEventResponse(await wizard.NFE_RecepcaoEvento(event as Parameters<NFeWizard["NFE_RecepcaoEvento"]>[0]));
+    return this.request(async () => parseEventResponse(await wizard.NFE_RecepcaoEvento(event as Parameters<NFeWizard["NFE_RecepcaoEvento"]>[0])));
   }
 }

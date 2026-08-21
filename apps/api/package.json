@@ -16,6 +16,7 @@
     "@nestjs/core": "11.2.1",
     "@nestjs/platform-express": "11.2.1",
     "@nestjs/throttler": "6.5.0",
+    "@nfewizard/shared": "1.1.4",
     "@supabase/supabase-js": "2.110.7",
     "cep-promise": "4.4.1",
     "class-transformer": "0.5.1",

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import forge from "node-forge";
+import * as forge from "node-forge";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { CertificateVaultService } from "./certificate-vault.service";
+import { CertificateVaultService, certificateMatchesCompany } from "./certificate-vault.service";
 
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
 
@@ -16,7 +16,10 @@ beforeAll(() => {
   certificate.serialNumber = "01";
   certificate.validity.notBefore = new Date(Date.now() - 60_000);
   certificate.validity.notAfter = new Date(Date.now() + 86_400_000);
-  const subject = [{ name: "commonName", value: "APFiscal 12345678000199" }];
+  const subject = [
+    { name: "organizationalUnitName", value: "Autoridade 62226170000146" },
+    { name: "commonName", value: "APFiscal:12345678000199" },
+  ];
   certificate.setSubject(subject);
   certificate.setIssuer(subject);
   certificate.sign(keys.privateKey, forge.md.sha256.create());
@@ -55,5 +58,15 @@ describe("CertificateVaultService.inspectPkcs12", () => {
       expect.arrayContaining(["pkcs12", "-clcerts", "-nokeys"]),
       expect.objectContaining({ timeout: 10_000 }),
     );
+  });
+});
+
+describe("certificateMatchesCompany", () => {
+  it("aceita certificado de matriz ou filial com a mesma raiz de CNPJ", () => {
+    expect(certificateMatchesCompany("08168210000286", "08.168.210/0001-03")).toBe(true);
+  });
+
+  it("rejeita certificado pertencente a outra raiz de CNPJ", () => {
+    expect(certificateMatchesCompany("17382391000199", "08.168.210/0001-03")).toBe(false);
   });
 });

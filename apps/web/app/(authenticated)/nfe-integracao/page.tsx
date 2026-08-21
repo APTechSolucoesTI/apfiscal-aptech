@@ -13,6 +13,10 @@ import {
   ArrowUpDown,
   ChevronDown,
   ChevronRight,
+  Building2,
+  CheckCircle2,
+  ReceiptText,
+  ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +73,7 @@ import {
 } from "@/services/apfiscalService";
 import { STATUS_LABEL, TIPOS_EVENTO_MANIFESTACAO, type StatusDocumentoFiscal } from "@/lib/apfiscal/types";
 import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
+import { getFiscalSettings } from "@/services/fiscalIntegrationService";
 
 
 const STATUS_STYLE: Record<StatusDocumentoFiscal, string> = {
@@ -138,6 +143,23 @@ function NfeIntegracao() {
     queryKey: ["apfiscal-historico", empresaFiltro, filtroHist],
     queryFn: () => listarHistorico(empresaFiltro, filtroHist),
   });
+
+  const { data: fiscalSettings, isFetching: loadingFiscalSettings } = useQuery({
+    queryKey: ["fiscal-provider-settings", empresaFiltro],
+    queryFn: () => getFiscalSettings(empresaFiltro!),
+    enabled: Boolean(empresaFiltro),
+  });
+
+  const selectedCompany = companies.find((company) => company.id === empresaFiltro);
+  const syncBlockedReason = !empresaFiltro
+    ? "Selecione uma empresa específica para sincronizar."
+    : loadingFiscalSettings
+      ? "Verificando a configuração fiscal…"
+      : !fiscalSettings?.ativo
+        ? "A integração fiscal está desativada para esta empresa."
+        : fiscalSettings.primary_provider === "nfewizard" && !fiscalSettings.certificateConfigured
+          ? "Envie o certificado A1 da empresa antes de sincronizar."
+          : null;
 
   const filtrados = useMemo<Row[]>(() => {
     const q = busca.trim().toLowerCase();
@@ -407,15 +429,22 @@ function NfeIntegracao() {
 
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Integração de NF-e</h1>
-          <p className="text-sm text-slate-600">
-            Sincronize documentos por NSU, manifeste eventos e baixe os XMLs.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between lg:p-6">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <ReceiptText className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Operação fiscal</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Central de NF-e</h1>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                Consulte a SEFAZ pelo NFeWizard, acompanhe o NSU e gerencie XMLs em um só fluxo.
+              </p>
+            </div>
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
           <Select
             value={companyId}
             onValueChange={(v) => {
@@ -423,7 +452,7 @@ function NfeIntegracao() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[260px]">
+            <SelectTrigger className="w-full bg-white sm:w-[280px]">
               <SelectValue placeholder="Empresa" />
             </SelectTrigger>
             <SelectContent>
@@ -437,8 +466,9 @@ function NfeIntegracao() {
           </Select>
           <Button
             onClick={handleSincronizar}
-            disabled={sincronizando}
-            className="bg-blue-600 hover:bg-blue-700"
+            disabled={sincronizando || Boolean(syncBlockedReason)}
+            title={syncBlockedReason ?? undefined}
+            className="min-w-44"
           >
             {sincronizando ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -447,21 +477,18 @@ function NfeIntegracao() {
             )}
             Sincronizar notas
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleBaixarLote}
-            disabled={selecionados.size === 0 || baixandoLote}
-            title={selecionados.size === 0 ? "Selecione ao menos uma NF-e" : undefined}
-          >
-            {baixandoLote ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <FileDown className="mr-2 h-4 w-4" />
-            )}
-            Baixar XMLs (Lote){selecionados.size > 0 ? ` (${selecionados.size})` : ""}
-          </Button>
+          </div>
         </div>
-      </div>
+        <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/80 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between lg:px-6">
+          <div className="flex items-center gap-2 text-slate-700">
+            {syncBlockedReason ? <ShieldAlert className="h-4 w-4 text-amber-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+            <span>{syncBlockedReason ?? `${selectedCompany?.nome_fantasia || selectedCompany?.razao_social}: NFeWizard pronto para consultar.`}</span>
+          </div>
+          {fiscalSettings?.checkpoint && (
+            <span className="text-xs text-slate-500">Último NSU: <span className="font-mono font-medium text-slate-700">{fiscalSettings.checkpoint.last_nsu}</span></span>
+          )}
+        </div>
+      </section>
 
       <Tabs defaultValue="documentos">
         <TabsList>
@@ -471,18 +498,27 @@ function NfeIntegracao() {
 
         <TabsContent value="documentos" className="mt-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
-              <CardTitle className="text-base">Documentos fiscais</CardTitle>
-              <div className="flex items-center gap-2">
+            <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+              <div><CardTitle className="text-base">Documentos fiscais</CardTitle><p className="mt-1 text-xs text-muted-foreground">{filtrados.length} documento(s) no filtro atual</p></div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                 <Input
                   placeholder="Buscar por chave, emitente ou CNPJ"
-                  className="max-w-xs"
+                  className="w-full sm:w-72"
                   value={busca}
                   onChange={(e) => {
                     setBusca(e.target.value);
                     setPage(1);
                   }}
                 />
+                <Button
+                  variant="outline"
+                  onClick={handleBaixarLote}
+                  disabled={selecionados.size === 0 || baixandoLote}
+                  title={selecionados.size === 0 ? "Selecione ao menos uma NF-e" : undefined}
+                >
+                  {baixandoLote ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                  Baixar XML{selecionados.size > 0 ? ` (${selecionados.size})` : ""}
+                </Button>
                 <ColumnSettings
                   columns={orderedCols}
                   isVisible={isVisible}
@@ -494,8 +530,8 @@ function NfeIntegracao() {
                 />
               </div>
             </CardHeader>
-            <CardContent>
-              <Table>
+            <CardContent className="overflow-x-auto">
+              <Table className="min-w-[960px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -529,8 +565,10 @@ function NfeIntegracao() {
                     </TableRow>
                   ) : paginados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={colSpan} className="py-10 text-center text-slate-500">
-                        Nenhum documento sincronizado.
+                      <TableCell colSpan={colSpan} className="py-16 text-center text-slate-500">
+                        <Building2 className="mx-auto mb-3 h-7 w-7 text-slate-300" />
+                        <p className="font-medium text-slate-700">Nenhum documento encontrado</p>
+                        <p className="mt-1 text-xs">Selecione uma empresa pronta e execute a primeira sincronização.</p>
                       </TableCell>
                     </TableRow>
                   ) : (

@@ -13,7 +13,7 @@ const SINTETICO_RE = /^\d{2}$/;
 const ANALITICO_RE = /^\d{2}\.\d{3}$/;
 
 export function tipoDoCodigoLocal(codigo: string): "sintetico" | "analitico" {
-  return ANALITICO_RE.test(codigo) ? "analitico" : "sintetico";
+  return SINTETICO_RE.test(codigo) ? "sintetico" : "analitico";
 }
 
 async function orgIdOf(context: any, companyId: string | null): Promise<string> {
@@ -44,9 +44,7 @@ export const saveLocalEstoque = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: LocalEstoqueInput) => {
     const codigo = (data.codigo ?? "").trim();
-    if (!SINTETICO_RE.test(codigo) && !ANALITICO_RE.test(codigo)) {
-      throw new Error("Formato inválido. Use 99 (sintético) ou 99.999 (analítico)");
-    }
+    if (!codigo || codigo.length > 50) throw new Error("Código é obrigatório e deve ter até 50 caracteres");
     if (!data.descricao?.trim()) throw new Error("Descrição é obrigatória");
     return { ...data, codigo };
   })
@@ -59,7 +57,7 @@ export const saveLocalEstoque = createApiAction({ method: "POST" })
     const scopeFilter = (q: any) => (company_id ? q.eq("company_id", company_id) : q.is("company_id", null));
 
     let codigo_pai_id: string | null = null;
-    if (tipo === "analitico") {
+    if (ANALITICO_RE.test(data.codigo)) {
       const prefixo = data.codigo.split(".")[0];
       const { data: pai, error: paiErr } = await scopeFilter(
         (context.supabase as any).from("locais_estoque")

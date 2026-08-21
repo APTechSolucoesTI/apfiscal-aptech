@@ -9,8 +9,6 @@ export type CentroCustoInput = {
   ativo?: boolean;
 };
 
-const CODIGO_RE = /^\d{2}(\.\d{4})?$/;
-
 async function orgIdOf(context: any, companyId: string | null): Promise<string> {
   if (companyId) {
     const { data, error } = await context.supabase
@@ -40,7 +38,7 @@ export const listCentrosCusto = createApiAction({ method: "GET" })
 export const saveCentroCusto = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: CentroCustoInput) => {
-    if (!CODIGO_RE.test(data.codigo)) throw new Error("Código deve estar no formato 99 ou 99.9999");
+    if (!data.codigo?.trim() || data.codigo.trim().length > 50) throw new Error("Código é obrigatório e deve ter até 50 caracteres");
     if (!data.descricao?.trim()) throw new Error("Descrição é obrigatória");
     return data;
   })

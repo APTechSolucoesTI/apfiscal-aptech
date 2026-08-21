@@ -12,8 +12,10 @@ describe("TOTVS SQL read-only guard", () => {
 
   it("keeps every legacy synchronization query read-only", () => {
     expect(TOTVS_READ_QUERIES.map((definition) => definition.entity)).toContain("products");
+    expect(TOTVS_READ_QUERIES.map((definition) => definition.entity)).toContain("product_classifications");
     expect(TOTVS_READ_QUERIES.map((definition) => definition.entity)).toContain("financial_plan");
-    expect(TOTVS_PENDING_SCHEMA_ENTITIES).toEqual(["stock_locations"]);
+    expect(TOTVS_READ_QUERIES.map((definition) => definition.entity)).toContain("stock_locations");
+    expect(TOTVS_PENDING_SCHEMA_ENTITIES).toEqual([]);
 
     for (const definition of TOTVS_READ_QUERIES) {
       expect(() => assertReadOnlySql(definition.sql("1,2"))).not.toThrow();

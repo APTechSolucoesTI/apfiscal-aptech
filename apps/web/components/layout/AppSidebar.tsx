@@ -42,7 +42,7 @@ const permissionByUrl: Record<string, string> = {
   "/settings/plano-contas": "finance.chart_accounts.view", "/settings/locais-estoque": "finance.stock_locations.view",
   "/settings/catalog": "settings.general.view", "/settings/users": "settings.users.view", "/settings/profiles": "settings.profiles.view",
   "/settings/integracao": "nfe.integration.view", "/settings/api": "settings.api_keys.view",
-  "/settings/totvs": "totvs.integration.view",
+  "/settings/totvs": "totvs.integration.view", "/settings/synchronizations": "totvs.integration.view",
 };
 
 const menuItems = [
@@ -79,7 +79,6 @@ const menuItems = [
       { title: "NF-e (Produtos)", url: "/documents/nfe" },
       { title: "NFS-e (Serviços)", url: "/documents/nfse" },
       { title: "CT-e (Transporte)", url: "/documents/cte" },
-      { title: "Integração NF-e", url: "/nfe-integracao" },
     ]
   },
   {
@@ -112,7 +111,7 @@ const menuItems = [
       { title: "Usuários", url: "/settings/users" },
       { title: "Perfis de Acesso", url: "/settings/profiles" },
       { title: "Integração Fiscal", url: "/settings/integracao" },
-      { title: "TOTVS RM", url: "/settings/totvs" },
+      { title: "Sincronizações", url: "/settings/synchronizations" },
       { title: "API Keys", url: "/settings/api" },
     ]
   },

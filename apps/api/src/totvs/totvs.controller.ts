@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Req } from "@nestjs/common";
 import { z } from "zod";
 import { RequirePermission } from "@/common/permission.decorator";
 import type { AuthenticatedRequest } from "@/common/request-user";
@@ -14,9 +14,10 @@ const settingsSchema = z.object({
   scheduleHours: z.array(z.number().int().min(0).max(23)).min(1).max(24).transform((values) => [...new Set(values)].sort((a, b) => a - b)),
   safetyWindowDays: z.number().int().min(1).max(30).default(3),
   companyMappings: z.array(z.object({ companyId: z.string().uuid(), coligadaId: z.number().int().positive().nullable() })),
+  nfeSchedules: z.array(z.object({ companyId: z.string().uuid(), enabled: z.boolean(), intervalMinutes: z.number().int().min(15).max(1440) })),
 });
 
-@Controller("totvs")
+@Controller(["totvs", "synchronizations"])
 export class TotvsController {
   constructor(
     private readonly queue: TotvsQueueService,
@@ -39,14 +40,16 @@ export class TotvsController {
   @Get("settings")
   async settings(@Req() request: AuthenticatedRequest) {
     const organizationId = await this.organizationId(request.user.id);
-    const [settings, companies, runs, checkpoints, integrationRuns] = await Promise.all([
+    const [settings, companies, runs, checkpoints, integrationRuns, nfeSchedules, fiscalRuns] = await Promise.all([
       supabaseAdmin.from("totvs_settings").select("*").eq("organization_id", organizationId).maybeSingle(),
       supabaseAdmin.from("companies").select("id, razao_social, nome_fantasia, cnpj, totvs_coligada_id").eq("organization_id", organizationId).order("razao_social"),
       supabaseAdmin.from("totvs_sync_runs").select("id, direction, entity, status, trigger, started_at, finished_at, metrics, error_message, created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(50),
       supabaseAdmin.from("totvs_sync_checkpoints").select("entity, last_attempt_at, last_success_at, source_watermark, rows_processed, last_error").eq("organization_id", organizationId).order("entity"),
       supabaseAdmin.from("totvs_integration_runs").select("id, fiscal_document_id, status, attempt, rm_record_id, error_message, started_at, finished_at, created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(50),
+      supabaseAdmin.from("empresa_integracoes_fiscais").select("company_id, ativo, automatic_sync_enabled, sync_interval_minutes, primary_provider").eq("organization_id", organizationId).order("company_id"),
+      supabaseAdmin.from("historico_integracao_fiscal").select("id, company_id, acao, sucesso, mensagem, payload_bruto, created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(100),
     ]);
-    for (const result of [settings, companies, runs, checkpoints, integrationRuns]) if (result.error) throw result.error;
+    for (const result of [settings, companies, runs, checkpoints, integrationRuns, nfeSchedules, fiscalRuns]) if (result.error) throw result.error;
     return {
       settings: settings.data ?? {
         enabled: false,
@@ -60,6 +63,8 @@ export class TotvsController {
       runs: runs.data ?? [],
       checkpoints: checkpoints.data ?? [],
       integrationRuns: integrationRuns.data ?? [],
+      nfeSchedules: nfeSchedules.data ?? [],
+      fiscalRuns: fiscalRuns.data ?? [],
       environment: {
         sqlConfigured: this.sqlServer.configured(),
         redisConfigured: this.queue.configured(),
@@ -75,16 +80,20 @@ export class TotvsController {
     const organizationId = await this.organizationId(request.user.id);
     const input = settingsSchema.parse(body);
     if (input.integrationEnabled && !this.sqlServer.writesEnabled()) {
-      throw new Error("Defina TOTVS_WRITES_ENABLED=true somente após homologar o SQL de escrita.");
+      throw new BadRequestException("Defina TOTVS_WRITES_ENABLED=true somente após homologar o SQL de escrita.");
     }
-    const companyIds = input.companyMappings.map((mapping) => mapping.companyId);
+    const companyIds = [...new Set([...input.companyMappings.map((mapping) => mapping.companyId), ...input.nfeSchedules.map((schedule) => schedule.companyId)])];
     if (companyIds.length > 0) {
       const allowed = await supabaseAdmin.from("companies").select("id").eq("organization_id", organizationId).in("id", companyIds);
       if (allowed.error) throw allowed.error;
-      if ((allowed.data?.length ?? 0) !== new Set(companyIds).size) throw new Error("Uma empresa informada não pertence à organização.");
+      if ((allowed.data?.length ?? 0) !== companyIds.length) throw new BadRequestException("Uma empresa informada não pertence à organização.");
     }
     const duplicateColigadas = input.companyMappings.map((mapping) => mapping.coligadaId).filter((value): value is number => value !== null);
-    if (new Set(duplicateColigadas).size !== duplicateColigadas.length) throw new Error("Cada coligada TOTVS pode ser associada a somente uma empresa.");
+    if (new Set(duplicateColigadas).size !== duplicateColigadas.length) throw new BadRequestException("Cada coligada TOTVS pode ser associada a somente uma empresa.");
+    const allowedColigadas = this.sqlServer.configured() ? this.sqlServer.coligadas() : [];
+    if (allowedColigadas.length && duplicateColigadas.some((value) => !allowedColigadas.includes(value))) {
+      throw new BadRequestException("Uma coligada informada não está permitida em TOTVS_COLIGADAS.");
+    }
     const saved = await supabaseAdmin.from("totvs_settings").upsert({
       organization_id: organizationId,
       enabled: input.enabled,
@@ -95,11 +104,22 @@ export class TotvsController {
       safety_window_days: input.safetyWindowDays,
     }, { onConflict: "organization_id" });
     if (saved.error) throw saved.error;
-    for (const mapping of input.companyMappings) {
-      const update = await supabaseAdmin.from("companies").update({ totvs_coligada_id: mapping.coligadaId }).eq("organization_id", organizationId).eq("id", mapping.companyId);
+    const mappings = await supabaseAdmin.rpc("apply_totvs_company_mappings", {
+      _organization_id: organizationId,
+      _mappings: input.companyMappings.map((mapping) => ({ companyId: mapping.companyId, coligadaId: mapping.coligadaId })),
+    });
+    if (mappings.error) throw mappings.error;
+    for (const schedule of input.nfeSchedules) {
+      const update = await supabaseAdmin.from("empresa_integracoes_fiscais").upsert({
+        organization_id: organizationId,
+        company_id: schedule.companyId,
+        automatic_sync_enabled: schedule.enabled,
+        sync_interval_minutes: schedule.intervalMinutes,
+      }, { onConflict: "company_id" });
       if (update.error) throw update.error;
     }
     await this.queue.refreshSchedulers(organizationId);
+    await this.queue.refreshNfeSchedulers(organizationId);
     return { ok: true };
   }
 

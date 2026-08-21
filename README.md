@@ -9,7 +9,7 @@ apps/web         Next.js 16 (porta 3000, único serviço público)
 apps/api         NestJS 11 (porta 3001, somente rede interna)
 packages/shared  regras e contratos compartilhados
 supabase         migrations versionadas e RLS
-Redis/BullMQ     filas e agendamentos da integração TOTVS
+Redis/BullMQ     filas e agendamentos das sincronizações NF-e e TOTVS
 ```
 
 O navegador acessa somente o domínio do `web`. Requisições para `/backend/*` são encaminhadas pelo Next ao container `apfiscal-api`; a API não deve receber domínio público no Dokploy.
@@ -34,6 +34,9 @@ O domínio fiscal vive exclusivamente no schema `apfiscal`, sem reutilizar tabel
 - `20260820162700_apfiscal_harden_function_permissions.sql`: restringe funções `SECURITY DEFINER` e protege o cadastro de fornecedores por organização/empresa;
 - `20260821150000_apfiscal_link_fiscal_documents_suppliers.sql`: cria o vínculo interno fornecedor → NF-e e faz backfill por CNPJ/CPF;
 - `20260821153000_apfiscal_totvs_rm_integration.sql`: cria configurações, checkpoints, staging, execuções, idempotência e RBAC do TOTVS RM.
+- `20260821183000_apfiscal_synchronization_hardening.sql`: aceita os códigos reais do RM, adiciona recorrência NF-e, status parcial e troca atômica de coligadas.
+- `20260821184500_apfiscal_resync_totvs_product_links.sql`: força uma recarga única dos produtos para preencher família, grupo e subgrupo.
+- `20260821190000_apfiscal_resync_totvs_derived_classifications.sql`: completa prefixos ausentes no RM e refaz os vínculos derivados.
 
 As 24 migrations históricas que originaram o bootstrap foram preservadas em `supabase/legacy-migrations/` apenas para auditoria. Não as aplique: em ambientes novos, somente os arquivos de `supabase/migrations/` são executáveis.
 
@@ -115,7 +118,7 @@ Cada sincronização reconcilia documentos novos e conhecidos. XML completo já 
 
 ## TOTVS RM
 
-A integração usa SQL Server direto com `mssql` e duas filas BullMQ: `totvs-sync` para leitura RM → APFiscal e `totvs-integration` para NF-e → RM. O Compose inclui um Redis privado e persistente. A agenda padrão é 06:00, 08:00, 12:00, 16:00 e 20:00 em `America/Sao_Paulo`; horários, fuso, janela incremental e associação empresa/coligada ficam em **Configurações → TOTVS RM**.
+A integração usa SQL Server direto com `mssql` e três filas BullMQ: `totvs-sync` para leitura RM → APFiscal, `nfe-sync` para consultas fiscais recorrentes e `totvs-integration` para NF-e → RM. O Compose inclui um Redis privado e persistente. Horários do RM, recorrência NF-e por empresa, janela incremental, vínculos de coligadas, checkpoints e logs ficam em **Configurações → Sincronizações**.
 
 As consultas de leitura foram transcritas dos dois serviços PHP legados e cobrem representantes, categorias, fornecedores, três tipos de endereço, países, estados, municípios, contatos, transportadoras, centros de custo, condições de pagamento, defaults do fornecedor, produtos (`TPRODUTO` + `TPRODUTODEF`) e plano financeiro (`FTB1`). Somente locais de estoque continuam marcados como aguardando confirmação de schema. Não há SQL inventado.
 

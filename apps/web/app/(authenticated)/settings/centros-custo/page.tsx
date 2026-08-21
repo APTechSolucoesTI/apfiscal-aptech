@@ -37,29 +37,26 @@ function parseAtivo(v: unknown): boolean {
 }
 
 function normalizeCodigoCC(raw: unknown): string {
-  const d = String(raw ?? "").replace(/\D/g, "");
-  if (d.length === 2) return d;
-  if (d.length !== 6) throw new Error("Código deve ter 2 dígitos (99) ou 6 dígitos (99.9999)");
-  return `${d.slice(0, 2)}.${d.slice(2)}`;
+  const codigo = String(raw ?? "").trim();
+  if (!codigo || codigo.length > 50) throw new Error("Código deve ter de 1 a 50 caracteres");
+  return codigo;
 }
 
 function maskCodigoCC(raw: string): string {
-  const d = (raw || "").replace(/\D/g, "").slice(0, 6);
-  if (d.length <= 2) return d;
-  return `${d.slice(0, 2)}.${d.slice(2)}`;
+  return raw.slice(0, 50);
 }
 
 function codigoValido(c: string) {
-  return /^\d{2}$/.test(c) || /^\d{2}\.\d{4}$/.test(c);
+  return c.trim().length > 0 && c.trim().length <= 50;
 }
 
 function nivelDoCodigo(c: string): 1 | 2 {
-  return /^\d{2}\.\d{4}$/.test(c) ? 2 : 1;
+  return c.includes(".") ? 2 : 1;
 }
 
 function codigoPai(codigo: string): string | null {
   const parts = codigo.split(".");
-  return parts.length <= 1 ? null : parts[0];
+  return parts.length <= 1 ? null : parts.slice(0, -1).join(".");
 }
 
 type Node = { row: any; children: Node[] };
@@ -286,7 +283,7 @@ function CentrosCustoPage() {
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Wallet className="h-6 w-6 text-primary" /> Centros de Custo
         </h1>
-        <p className="text-sm text-slate-500">Estrutura hierárquica em dois níveis (99 &gt; 99.9999) para rateio de despesas nas NF-e.</p>
+        <p className="text-sm text-slate-500">Centros de custo da empresa, preservando a estrutura e os códigos reais do TOTVS RM.</p>
       </div>
 
       <Card>
@@ -410,7 +407,7 @@ function CentrosCustoPage() {
                 className="font-mono"
               />
               {form.codigo && !codigoValido(form.codigo) && (
-                <p className="text-xs text-red-600 mt-1">Formato inválido. Use 99 ou 99.9999</p>
+                <p className="text-xs text-red-600 mt-1">Informe um código com até 50 caracteres.</p>
               )}
             </div>
             <div>

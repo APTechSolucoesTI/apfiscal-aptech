@@ -11,8 +11,10 @@ export type TotvsEntity =
   | "cost_centers"
   | "payment_conditions"
   | "supplier_defaults"
+  | "product_classifications"
   | "products"
-  | "financial_plan";
+  | "financial_plan"
+  | "stock_locations";
 
 export type TotvsQueryDefinition = {
   entity: TotvsEntity;
@@ -127,6 +129,13 @@ export const TOTVS_READ_QUERIES: readonly TotvsQueryDefinition[] = [
       AND CODCOLIGADA IN (${c}) AND RECMODIFIEDON >= @since`,
   },
   {
+    entity: "product_classifications", incremental: false,
+    externalKey: (row) => composite(row.coligada, row.id_product), displayName: (row) => text(row.description) || null,
+    sql: (c) => `SELECT CODCOLPRD AS coligada, IDPRD AS id_product, CODIGOPRD AS code,
+      DESCRICAO AS description, ULTIMONIVEL AS last_level, DATAULTALTERACAO AS source_updated_at
+      FROM TPRODUTO WHERE CODCOLPRD IN (${c}) AND ULTIMONIVEL = 0`,
+  },
+  {
     entity: "products", incremental: true, updatedAtField: "source_updated_at",
     externalKey: (row) => composite(row.coligada, row.id_product), displayName: (row) => text(row.description) || null,
     sql: (c) => `SELECT P.CODCOLPRD AS coligada, P.IDPRD AS id_product, P.CODIGOPRD AS code,
@@ -134,8 +143,8 @@ export const TOTVS_READ_QUERIES: readonly TotvsQueryDefinition[] = [
       P.DESCRICAO AS description, P.DESCRICAOAUX AS auxiliary_description, P.CODIGOAUXILIAR AS auxiliary_code,
       P.PESOLIQUIDO AS net_weight, P.PESOBRUTO AS gross_weight, P.OBSERVACAO AS notes,
       P.INATIVO AS inactive,
-      CASE WHEN D.RECMODIFIEDON > P.DATAULTALTERACAO THEN D.RECMODIFIEDON ELSE P.DATAULTALTERACAO END AS source_updated_at,
-      P.IDNCM AS ncm_id,
+      (SELECT MAX(updated_at) FROM (VALUES (P.DATAULTALTERACAO), (D.RECMODIFIEDON), (N.RECMODIFIEDON)) AS updates(updated_at)) AS source_updated_at,
+      N.NCM AS ncm,
       P.INDICADORORIGEM AS origin_indicator, P.CODBARRASEXTERIOR AS external_barcode,
       P.CONTROLADOPORLOTE AS lot_controlled, P.USANUMSERIE AS uses_serial_number,
       D.CODFAB AS manufacturer_code, D.CODUNDVENDA AS sales_unit, D.CODUNDCOMPRA AS purchase_unit,
@@ -145,14 +154,26 @@ export const TOTVS_READ_QUERIES: readonly TotvsQueryDefinition[] = [
       D.CODCOLCONTAGER AS management_account_coligada, D.SALDOGERALFISICO AS physical_balance,
       D.SALDOGERALFINANC AS financial_balance, D.RECMODIFIEDON AS definition_updated_at
       FROM TPRODUTO P LEFT JOIN TPRODUTODEF D ON D.CODCOLIGADA = P.CODCOLPRD AND D.IDPRD = P.IDPRD
+      LEFT JOIN DTIPI N ON N.IDNCM = P.IDNCM
       WHERE P.CODCOLPRD IN (${c}) AND P.ULTIMONIVEL = 1
-      AND (P.DATAULTALTERACAO >= @since OR D.RECMODIFIEDON >= @since)`,
+      AND (P.DATAULTALTERACAO >= @since OR D.RECMODIFIEDON >= @since OR N.RECMODIFIEDON >= @since)`,
   },
   {
     entity: "financial_plan", incremental: false,
     externalKey: (row) => text(row.code), displayName: (row) => text(row.description) || null,
     sql: () => "SELECT CODTB1FLX AS code, DESCRICAO AS description FROM FTB1",
   },
+  {
+    entity: "stock_locations", incremental: false,
+    externalKey: (row) => composite(row.coligada, row.filial, row.code), displayName: (row) => text(row.description) || null,
+    sql: (c) => `SELECT CODCOLIGADA AS coligada, CODFILIAL AS filial, CODLOC AS code,
+      NOME AS description, NIVELESTOQUE AS stock_level, IDUNDNEGOCIO AS business_unit_id,
+      RUA AS street, COMPLEMENTO AS complement, BAIRRO AS district, CIDADE AS city,
+      CEP AS postal_code, CONTATO AS contact, DDD AS area_code, TELEFONE AS phone,
+      EMAIL AS email, CODETD AS state, NUMERO AS number, PAIS AS country,
+      INATIVO AS inactive, RECMODIFIEDON AS source_updated_at
+      FROM TLOC WHERE CODCOLIGADA IN (${c})`,
+  },
 ] as const;
 
-export const TOTVS_PENDING_SCHEMA_ENTITIES = ["stock_locations"] as const;
+export const TOTVS_PENDING_SCHEMA_ENTITIES: readonly string[] = [];

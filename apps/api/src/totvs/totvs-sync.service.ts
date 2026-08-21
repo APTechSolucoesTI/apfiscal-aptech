@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TOTVS_PENDING_SCHEMA_ENTITIES, TOTVS_READ_QUERIES, type TotvsQueryDefinition } from "./totvs-queries";
@@ -32,6 +32,17 @@ function jsonRecord(row: Record<string, unknown>): JsonRecord {
 
 function hash(payload: JsonRecord): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  try {
+    const serialized = JSON.stringify(error);
+    return serialized && serialized !== "{}" ? serialized : "Falha não identificada.";
+  } catch {
+    return "Falha não identificada.";
+  }
 }
 
 function initialSyncDate(): Date {
@@ -88,16 +99,17 @@ export class TotvsSyncService {
         coligada_id: number(row.coligada ?? row.codcoligada) ?? 0,
         external_key: definition.externalKey(row),
         name: definition.displayName(row),
-        active: text(row.ativo).toUpperCase() !== "N",
+        active: row.inactive == null ? text(row.ativo).toUpperCase() !== "N" : Number(row.inactive) !== 1,
         source_updated_at: date(row.source_updated_at)?.toISOString() ?? null,
         payload,
         payload_hash: hash(payload),
         synced_at: now,
       };
     }).filter((record) => record.external_key.length > 0);
-    for (let offset = 0; offset < records.length; offset += 250) {
+    const deduplicated = [...new Map(records.map((record) => [`${record.coligada_id}|${record.external_key}`, record])).values()];
+    for (let offset = 0; offset < deduplicated.length; offset += 250) {
       const result = await supabaseAdmin.from("totvs_reference_records")
-        .upsert(records.slice(offset, offset + 250), { onConflict: "organization_id,entity,coligada_id,external_key" });
+        .upsert(deduplicated.slice(offset, offset + 250), { onConflict: "organization_id,entity,coligada_id,external_key" });
       if (result.error) throw result.error;
     }
   }
@@ -187,54 +199,148 @@ export class TotvsSyncService {
     return materialized;
   }
 
+  private async materializeProductClassifications(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+    const tables = ["familias", "grupos", "subgrupos"] as const;
+    let materialized = 0;
+    for (const [coligada, company] of companies) {
+      const companyRows = rows.filter((row) => Number(row.coligada) === coligada);
+      for (let level = 1; level <= tables.length; level += 1) {
+        const table = tables[level - 1];
+        const levelRows = companyRows.filter((row) => text(row.code) && text(row.code).split(".").length === level);
+        for (let offset = 0; offset < levelRows.length; offset += 250) {
+          const chunk = levelRows.slice(offset, offset + 250);
+          const codes = [...new Set(chunk.map((row) => text(row.code)))];
+          const existing = await supabaseAdmin.from(table).select("id, codigo").eq("company_id", company.id).in("codigo", codes);
+          if (existing.error) throw existing.error;
+          const ids = new Map((existing.data ?? []).map((row) => [row.codigo, row.id]));
+          const records = chunk.map((row) => ({
+            id: ids.get(text(row.code)) ?? randomUUID(),
+            organization_id: organizationId,
+            company_id: company.id,
+            codigo: text(row.code),
+            descricao: text(row.description) || text(row.code),
+          }));
+          const result = await supabaseAdmin.from(table).upsert(records, { onConflict: "id" });
+          if (result.error) throw result.error;
+          materialized += records.length;
+        }
+      }
+    }
+    return materialized;
+  }
+
+  private async ensureProductClassificationLinks(organizationId: string, companyId: string, rows: Record<string, unknown>[]) {
+    const tables = ["familias", "grupos", "subgrupos"] as const;
+    const maps: Array<Map<string, string>> = [];
+    for (let level = 1; level <= tables.length; level += 1) {
+      const candidates = new Map<string, { description: string; exact: boolean }>();
+      for (const row of rows) {
+        const code = text(row.code);
+        const parts = code.split(".");
+        if (!code || parts.length < level) continue;
+        const prefix = parts.slice(0, level).join(".");
+        const exact = code === prefix;
+        if (!candidates.has(prefix) || exact) {
+          candidates.set(prefix, { description: exact ? text(row.description) || prefix : prefix, exact });
+        }
+      }
+      const table = tables[level - 1];
+      const existing = await supabaseAdmin.from(table).select("id, codigo").eq("company_id", companyId);
+      if (existing.error) throw existing.error;
+      const ids = new Map((existing.data ?? []).map((row) => [row.codigo, row.id]));
+      const missing = [...candidates.entries()].filter(([code]) => !ids.has(code));
+      for (let offset = 0; offset < missing.length; offset += 250) {
+        const records = missing.slice(offset, offset + 250).map(([code, candidate]) => ({
+          id: randomUUID(),
+          organization_id: organizationId,
+          company_id: companyId,
+          codigo: code,
+          descricao: candidate.description,
+        }));
+        const result = await supabaseAdmin.from(table).insert(records).select("id, codigo");
+        if (result.error) throw result.error;
+        for (const row of result.data ?? []) ids.set(row.codigo, row.id);
+      }
+      maps.push(ids);
+    }
+    return { familyIds: maps[0], groupIds: maps[1], subgroupIds: maps[2] };
+  }
+
   private async materializeProducts(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
     let materialized = 0;
-    for (const row of rows) {
-      const company = companies.get(Number(row.coligada));
-      if (!company) continue;
-      const externalId = `${text(row.coligada)}|${text(row.id_product)}`;
-      const code = text(row.code);
-      if (!code || !text(row.id_product)) continue;
-      let existing = await supabaseAdmin.from("produtos")
-        .select("id, erp_metadata")
-        .eq("organization_id", organizationId)
-        .eq("company_id", company.id)
-        .eq("erp_system", "totvs_rm")
-        .eq("erp_external_id", externalId)
-        .maybeSingle();
-      if (existing.error) throw existing.error;
-      if (!existing.data) {
-        existing = await supabaseAdmin.from("produtos")
-          .select("id, erp_metadata")
-          .eq("organization_id", organizationId)
+    for (const [coligada, company] of companies) {
+      const companyRows = rows.filter((row) => Number(row.coligada) === coligada && text(row.code) && text(row.id_product));
+      const { familyIds, groupIds, subgroupIds } = await this.ensureProductClassificationLinks(organizationId, company.id, companyRows);
+
+      for (let offset = 0; offset < companyRows.length; offset += 200) {
+        const chunk = companyRows.slice(offset, offset + 200);
+        const codes = [...new Set(chunk.map((row) => text(row.code)))];
+        const existing = await supabaseAdmin.from("produtos")
+          .select("id, codigo_interno, erp_metadata")
           .eq("company_id", company.id)
-          .eq("codigo_interno", code)
-          .maybeSingle();
+          .in("codigo_interno", codes);
         if (existing.error) throw existing.error;
+        const byCode = new Map((existing.data ?? []).map((row) => [row.codigo_interno, row]));
+        const now = new Date().toISOString();
+        const records = chunk.map((row) => {
+          const code = text(row.code);
+          const current = byCode.get(code);
+          const parts = code.split(".");
+          const ncm = text(row.ncm).replace(/\D/g, "");
+          const origin = Number(row.origin_indicator);
+          return {
+            id: current?.id ?? randomUUID(),
+            organization_id: organizationId,
+            company_id: company.id,
+            codigo_interno: code,
+            descricao: text(row.description) || text(row.fantasy_name) || code,
+            unidade: text(row.sales_unit) || text(row.control_unit) || text(row.purchase_unit) || "UN",
+            ean_gtin: text(row.external_barcode) || text(row.auxiliary_code) || null,
+            ncm: /^\d{8}$/.test(ncm) ? ncm : "00000000",
+            origem_mercadoria: Number.isInteger(origin) && origin >= 0 && origin <= 8 ? origin : 0,
+            familia_id: familyIds.get(parts[0]) ?? null,
+            grupo_id: groupIds.get(parts.slice(0, 2).join(".")) ?? null,
+            subgrupo_id: subgroupIds.get(parts.slice(0, 3).join(".")) ?? null,
+            ativo: Number(row.inactive) !== 1,
+            erp_system: "totvs_rm",
+            erp_code: code,
+            erp_external_id: `${coligada}|${text(row.id_product)}`,
+            erp_metadata: { ...(current?.erp_metadata && typeof current.erp_metadata === "object" ? current.erp_metadata : {}), totvs: jsonRecord(row) },
+            erp_synced_at: now,
+          };
+        });
+        const result = await supabaseAdmin.from("produtos").upsert(records, { onConflict: "id" });
+        if (result.error) throw result.error;
+        materialized += records.length;
       }
-      const ncm = text(row.ncm_id).replace(/\D/g, "");
-      const origin = Number(row.origin_indicator);
-      const values = {
-        organization_id: organizationId,
-        company_id: company.id,
-        codigo_interno: code,
-        descricao: text(row.description) || text(row.fantasy_name) || code,
-        unidade: text(row.sales_unit) || text(row.control_unit) || text(row.purchase_unit) || "UN",
-        ean_gtin: text(row.external_barcode) || text(row.auxiliary_code) || null,
-        ncm: /^\d{8}$/.test(ncm) ? ncm : "00000000",
-        origem_mercadoria: Number.isInteger(origin) && origin >= 0 && origin <= 8 ? origin : 0,
-        ativo: Number(row.inactive) !== 1,
-        erp_system: "totvs_rm",
-        erp_code: code,
-        erp_external_id: externalId,
-        erp_metadata: { ...(existing.data?.erp_metadata && typeof existing.data.erp_metadata === "object" ? existing.data.erp_metadata : {}), totvs: jsonRecord(row) },
-        erp_synced_at: new Date().toISOString(),
-      };
-      const result = existing.data
-        ? await supabaseAdmin.from("produtos").update(values).eq("id", existing.data.id)
-        : await supabaseAdmin.from("produtos").insert(values);
-      if (result.error) throw result.error;
-      materialized += 1;
+    }
+    return materialized;
+  }
+
+  private async materializeStockLocations(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+    let materialized = 0;
+    for (const [coligada, company] of companies) {
+      const companyRows = rows.filter((row) => Number(row.coligada) === coligada && text(row.code));
+      for (let offset = 0; offset < companyRows.length; offset += 250) {
+        const chunk = companyRows.slice(offset, offset + 250);
+        const codes = [...new Set(chunk.map((row) => text(row.code)))];
+        const existing = await supabaseAdmin.from("locais_estoque").select("id, codigo").eq("company_id", company.id).in("codigo", codes);
+        if (existing.error) throw existing.error;
+        const ids = new Map((existing.data ?? []).map((row) => [row.codigo, row.id]));
+        const records = chunk.map((row) => ({
+          id: ids.get(text(row.code)) ?? randomUUID(),
+          organization_id: organizationId,
+          company_id: company.id,
+          codigo: text(row.code),
+          descricao: text(row.description) || text(row.code),
+          tipo: Number(row.stock_level) > 0 ? "analitico" : "sintetico",
+          codigo_pai_id: null,
+          ativo: Number(row.inactive) !== 1,
+        }));
+        const result = await supabaseAdmin.from("locais_estoque").upsert(records, { onConflict: "id" });
+        if (result.error) throw result.error;
+        materialized += records.length;
+      }
     }
     return materialized;
   }
@@ -281,8 +387,10 @@ export class TotvsSyncService {
     if (definition.entity === "suppliers") return this.materializeSuppliers(organizationId, rows, companies);
     if (definition.entity === "supplier_addresses") return this.materializeAddresses(organizationId, rows, companies);
     if (definition.entity === "cost_centers") return this.materializeCostCenters(organizationId, rows, companies);
+    if (definition.entity === "product_classifications") return this.materializeProductClassifications(organizationId, rows, companies);
     if (definition.entity === "products") return this.materializeProducts(organizationId, rows, companies);
     if (definition.entity === "financial_plan") return this.materializeFinancialPlan(organizationId, rows, companies);
+    if (definition.entity === "stock_locations") return this.materializeStockLocations(organizationId, rows, companies);
     return 0;
   }
 
@@ -295,6 +403,7 @@ export class TotvsSyncService {
       entities: {},
       pending_schema_confirmation: TOTVS_PENDING_SCHEMA_ENTITIES,
       coligadas: [],
+      errors: [],
     };
 
     try {
@@ -340,13 +449,20 @@ export class TotvsSyncService {
           if (checkpoint.error) throw checkpoint.error;
           (metrics.entities as Record<string, unknown>)[definition.entity] = { read: rows.length, materialized, since: definition.incremental ? since.toISOString() : null };
         } catch (error) {
-          const errorText = error instanceof Error ? error.message : "Falha não identificada.";
+          const errorText = errorMessage(error);
           await supabaseAdmin.from("totvs_sync_checkpoints").upsert({ organization_id: organizationId, entity: definition.entity, last_error: errorText }, { onConflict: "organization_id,entity" });
-          throw new Error(`Falha em ${definition.entity}: ${errorText}`);
+          (metrics.entities as Record<string, unknown>)[definition.entity] = { read: 0, materialized: 0, error: errorText };
+          (metrics.errors as Array<Record<string, string>>).push({ entity: definition.entity, message: errorText });
         }
       }
       const finished = new Date().toISOString();
-      const update = await supabaseAdmin.from("totvs_sync_runs").update({ status: "succeeded", finished_at: finished, metrics }).eq("id", runId);
+      const errors = metrics.errors as Array<Record<string, string>>;
+      const update = await supabaseAdmin.from("totvs_sync_runs").update({
+        status: errors.length ? "partial" : "succeeded",
+        finished_at: finished,
+        metrics,
+        error_message: errors.length ? errors.map((entry) => `${entry.entity}: ${entry.message}`).join(" | ").slice(0, 4000) : null,
+      }).eq("id", runId);
       if (update.error) throw update.error;
       return metrics;
     } catch (error) {
@@ -354,7 +470,7 @@ export class TotvsSyncService {
         status: "failed",
         finished_at: new Date().toISOString(),
         metrics,
-        error_message: error instanceof Error ? error.message : "Falha não identificada.",
+        error_message: errorMessage(error),
       }).eq("id", runId);
       throw error;
     }

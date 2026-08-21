@@ -37,29 +37,26 @@ function parseAtivo(v: unknown): boolean {
 }
 
 function normalizeCodigoLE(raw: unknown): string {
-  const d = String(raw ?? "").replace(/\D/g, "");
-  if (d.length === 2) return d;
-  if (d.length !== 5) throw new Error("Código deve ter 2 dígitos (99) ou 5 dígitos (99.999)");
-  return `${d.slice(0, 2)}.${d.slice(2)}`;
+  const codigo = String(raw ?? "").trim();
+  if (!codigo || codigo.length > 50) throw new Error("Código deve ter de 1 a 50 caracteres");
+  return codigo;
 }
 
 function maskCodigoLE(raw: string): string {
-  const d = (raw || "").replace(/\D/g, "").slice(0, 5);
-  if (d.length <= 2) return d;
-  return `${d.slice(0, 2)}.${d.slice(2)}`;
+  return raw.slice(0, 50);
 }
 
 function codigoValido(c: string) {
-  return /^\d{2}$/.test(c) || /^\d{2}\.\d{3}$/.test(c);
+  return c.trim().length > 0 && c.trim().length <= 50;
 }
 
 function nivelDoCodigo(c: string): 1 | 2 {
-  return /^\d{2}\.\d{3}$/.test(c) ? 2 : 1;
+  return c.includes(".") ? 2 : 1;
 }
 
 function codigoPai(codigo: string): string | null {
   const parts = codigo.split(".");
-  return parts.length <= 1 ? null : parts[0];
+  return parts.length <= 1 ? null : parts.slice(0, -1).join(".");
 }
 
 type Node = { row: any; children: Node[] };
@@ -285,7 +282,7 @@ function LocaisEstoquePage() {
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <Warehouse className="h-6 w-6 text-primary" /> Locais de Estoque
         </h1>
-        <p className="text-sm text-slate-500">Estrutura hierárquica em dois níveis (99 &gt; 99.999) para organização dos locais de estoque.</p>
+        <p className="text-sm text-slate-500">Locais de estoque da empresa, incluindo os códigos sincronizados da TLOC do TOTVS RM.</p>
       </div>
 
       <Card>
@@ -413,7 +410,7 @@ function LocaisEstoquePage() {
                 <p className="text-xs text-slate-500 mt-1">O código não pode ser alterado após a criação.</p>
               )}
               {form.codigo && !codigoValido(form.codigo) && (
-                <p className="text-xs text-red-600 mt-1">Formato inválido. Use 99 (sintético) ou 99.999 (analítico)</p>
+                <p className="text-xs text-red-600 mt-1">Informe um código com até 50 caracteres.</p>
               )}
             </div>
             <div>

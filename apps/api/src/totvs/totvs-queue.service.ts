@@ -1,11 +1,13 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
+import { HttpException, Injectable, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from "@nestjs/common";
 import { Queue, Worker, type ConnectionOptions, type Job } from "bullmq";
+import { FiscalSyncService } from "@/fiscal/fiscal-sync.service";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TotvsIntegrationService } from "./totvs-integration.service";
 import { TotvsSyncService } from "./totvs-sync.service";
 
 type SyncJob = { runId?: string; organizationId?: string };
 type IntegrationJob = { runId: string };
+type NfeSyncJob = { companyId: string };
 
 function redisConnection(): ConnectionOptions | null {
   const raw = process.env.REDIS_URL?.trim();
@@ -26,12 +28,15 @@ function redisConnection(): ConnectionOptions | null {
 export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
   private syncQueue: Queue<SyncJob> | null = null;
   private integrationQueue: Queue<IntegrationJob> | null = null;
+  private nfeSyncQueue: Queue<NfeSyncJob> | null = null;
   private syncWorker: Worker<SyncJob> | null = null;
   private integrationWorker: Worker<IntegrationJob> | null = null;
+  private nfeSyncWorker: Worker<NfeSyncJob> | null = null;
 
   constructor(
     private readonly syncService: TotvsSyncService,
     private readonly integrationService: TotvsIntegrationService,
+    private readonly fiscalSyncService: FiscalSyncService,
   ) {}
 
   configured(): boolean {
@@ -43,11 +48,15 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     if (!connection) return;
     this.syncQueue = new Queue<SyncJob>("totvs-sync", { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 5_000 }, removeOnComplete: 500, removeOnFail: 500 } });
     this.integrationQueue = new Queue<IntegrationJob>("totvs-integration", { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 10_000 }, removeOnComplete: 500, removeOnFail: 500 } });
+    this.nfeSyncQueue = new Queue<NfeSyncJob>("nfe-sync", { connection, defaultJobOptions: { attempts: 3, backoff: { type: "exponential", delay: 30_000 }, removeOnComplete: 500, removeOnFail: 500 } });
     this.syncWorker = new Worker<SyncJob>("totvs-sync", (job) => this.processSync(job), { connection, concurrency: 1 });
     this.integrationWorker = new Worker<IntegrationJob>("totvs-integration", (job) => this.processIntegration(job), { connection, concurrency: 1 });
+    this.nfeSyncWorker = new Worker<NfeSyncJob>("nfe-sync", (job) => this.processNfeSync(job), { connection, concurrency: 1 });
     this.syncWorker.on("error", () => undefined);
     this.integrationWorker.on("error", () => undefined);
+    this.nfeSyncWorker.on("error", () => undefined);
     await this.refreshSchedulers();
+    await this.refreshNfeSchedulers();
   }
 
   private async processSync(job: Job<SyncJob>) {
@@ -75,6 +84,17 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     return this.integrationService.execute(job.data.runId);
   }
 
+  private async processNfeSync(job: Job<NfeSyncJob>) {
+    try {
+      return await this.fiscalSyncService.sync(job.data.companyId);
+    } catch (error) {
+      if (error instanceof HttpException && [409, 429].includes(error.getStatus())) {
+        return { skipped: true, status: error.getStatus(), message: error.message };
+      }
+      throw error;
+    }
+  }
+
   async refreshSchedulers(organizationId?: string) {
     if (!this.syncQueue) return;
     let settingsQuery = supabaseAdmin.from("totvs_settings")
@@ -95,6 +115,25 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
           { name: "scheduled-sync", data: { organizationId: setting.organization_id } },
         );
       }
+    }
+  }
+
+  async refreshNfeSchedulers(organizationId?: string) {
+    if (!this.nfeSyncQueue) return;
+    let integrationsQuery = supabaseAdmin.from("empresa_integracoes_fiscais")
+      .select("organization_id, company_id, ativo, automatic_sync_enabled, sync_interval_minutes");
+    if (organizationId) integrationsQuery = integrationsQuery.eq("organization_id", organizationId);
+    const integrations = await integrationsQuery;
+    if (integrations.error) throw integrations.error;
+    for (const integration of integrations.data ?? []) {
+      const schedulerId = `nfe-sync-${integration.company_id}`;
+      await this.nfeSyncQueue.removeJobScheduler(schedulerId);
+      if (!integration.ativo || !integration.automatic_sync_enabled) continue;
+      await this.nfeSyncQueue.upsertJobScheduler(
+        schedulerId,
+        { every: integration.sync_interval_minutes * 60_000, startDate: new Date(Date.now() + 60_000) },
+        { name: "scheduled-nfe-sync", data: { companyId: integration.company_id } },
+      );
     }
   }
 
@@ -148,7 +187,8 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy() {
     await Promise.all([
-      this.syncWorker?.close(), this.integrationWorker?.close(), this.syncQueue?.close(), this.integrationQueue?.close(),
+      this.syncWorker?.close(), this.integrationWorker?.close(), this.nfeSyncWorker?.close(),
+      this.syncQueue?.close(), this.integrationQueue?.close(), this.nfeSyncQueue?.close(),
     ]);
   }
 }

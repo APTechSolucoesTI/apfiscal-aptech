@@ -391,6 +391,7 @@ export type Database = {
       }
       empresa_integracoes_fiscais: {
         Row: {
+          automatic_sync_enabled: boolean
           apfiscal_empresa_id: number | null
           apfiscal_system_unit_id: number | null
           api_key_encrypted: string | null
@@ -416,10 +417,12 @@ export type Database = {
           id: string
           organization_id: string
           primary_provider: string
+          sync_interval_minutes: number
           ultimo_nsu: number
           updated_at: string
         }
         Insert: {
+          automatic_sync_enabled?: boolean
           apfiscal_empresa_id?: number | null
           apfiscal_system_unit_id?: number | null
           api_key_encrypted?: string | null
@@ -445,10 +448,12 @@ export type Database = {
           id?: string
           organization_id: string
           primary_provider?: string
+          sync_interval_minutes?: number
           ultimo_nsu?: number
           updated_at?: string
         }
         Update: {
+          automatic_sync_enabled?: boolean
           apfiscal_empresa_id?: number | null
           apfiscal_system_unit_id?: number | null
           api_key_encrypted?: string | null
@@ -474,6 +479,7 @@ export type Database = {
           id?: string
           organization_id?: string
           primary_provider?: string
+          sync_interval_minutes?: number
           ultimo_nsu?: number
           updated_at?: string
         }
@@ -1925,6 +1931,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_totvs_company_mappings: {
+        Args: { _mappings: Json; _organization_id: string }
+        Returns: undefined
+      }
       ensure_user_organization: { Args: never; Returns: string }
       has_org_role: {
         Args: {

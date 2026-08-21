@@ -5,18 +5,41 @@ const SESSION_COOKIE = "apfiscal_session";
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  if (pathname.startsWith("/_next/") || pathname === "/favicon.ico" || pathname.includes(".")) {
+
+  //backend é responsabilidade da API Nest.
+  // Não redirecionar chamadas HTTP para /login.
+  if (pathname.startsWith("/backend/")) {
     return NextResponse.next();
   }
-  const hasSession = await validSession(request.cookies.get(SESSION_COOKIE)?.value);
+
+  if (
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico" ||
+    pathname.includes(".")
+  ) {
+    return NextResponse.next();
+  }
+
+  const hasSession = await validSession(
+    request.cookies.get(SESSION_COOKIE)?.value,
+  );
+
   const isPublic = publicPaths.includes(pathname);
+
   if (!hasSession && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
-  if (hasSession && ["/login", "/register", "/forgot-password"].includes(pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
+
+  if (
+    hasSession &&
+    ["/login", "/register", "/forgot-password"].includes(pathname)
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   return NextResponse.next({ request });
 }
 

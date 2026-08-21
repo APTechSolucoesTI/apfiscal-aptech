@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { backendFetch } from "@/lib/backend";
 
 type NotificationRow = {
   id: string;
@@ -36,12 +37,11 @@ function Notifications() {
   const { data: settings } = useQuery({
     queryKey: ["notification_settings"],
     queryFn: async () => {
-      const { data: userRes } = await supabase.auth.getUser();
-      if (!userRes.user) return null;
+      const current = await backendFetch<{ user: { id: string } }>("/auth/me");
       const { data, error } = await supabase
         .from("notification_settings")
         .select("id, email_enabled, webhook_url")
-        .eq("user_id", userRes.user.id)
+        .eq("user_id", current.user.id)
         .maybeSingle();
       if (error) throw error;
       return (data ?? null) as SettingsRow | null;
@@ -70,13 +70,12 @@ function Notifications() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const { data: userRes } = await supabase.auth.getUser();
-      if (!userRes.user) throw new Error("Sessão expirada.");
-      const { data: orgId, error: orgErr } = await supabase.rpc("ensure_user_organization");
-      if (orgErr) throw orgErr;
+      const current = await backendFetch<{ user: { id: string }; memberships: Array<{ organization_id: string }> }>("/auth/me");
+      const orgId = current.memberships[0]?.organization_id;
+      if (!orgId) throw new Error("Sua conta não possui uma organização ativa.");
       const payload = {
-        user_id: userRes.user.id,
-        organization_id: orgId as unknown as string,
+        user_id: current.user.id,
+        organization_id: orgId,
         email_enabled: emailEnabled,
         webhook_url: webhook || null,
       };

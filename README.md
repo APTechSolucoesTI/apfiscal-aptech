@@ -76,6 +76,9 @@ Use [`.env.example`](./.env.example) como lista do Compose. Os arquivos específ
 | `SUPABASE_URL` | API | URL alcançável pelo container |
 | `SUPABASE_PUBLISHABLE_KEY` | API | valida JWT e consultas com RLS |
 | `SUPABASE_SECRET_KEY` | API | segredo exclusivo do backend |
+| `SUPABASE_JWT_SECRET` | API | `JWT_SECRET` da instalação Supabase; usado apenas para token RLS efêmero |
+| `AUTH_SESSION_SECRET` | API + web | segredo próprio da sessão APFiscal; mínimo 32 caracteres |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | API | envio de confirmação, convite e redefinição de senha |
 | `CERTIFICATE_ENCRYPTION_KEY` | API | 32 bytes em base64; não rotacionar sem recriptografar senhas |
 | `NFE_ENVIRONMENT` | API | `1` produção, `2` homologação |
 | `APFISCAL_*` | API | credenciais opcionais do fallback legado |

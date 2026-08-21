@@ -1,9 +1,9 @@
-import type { User } from "@supabase/supabase-js";
 import type { Request } from "express";
 import type { AppSupabaseClient } from "@/integrations/supabase/client.server";
+import type { AppUser } from "@/auth/session-token";
 
 export type AuthenticatedRequest = Request & {
-  accessToken: string;
-  user: User;
+  sessionId: string;
+  user: AppUser;
   supabase: AppSupabaseClient;
 };

@@ -1,38 +1,41 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const publicPaths = ["/", "/login", "/register", "/auth/callback", "/api/health"];
+const publicPaths = ["/", "/login", "/register", "/forgot-password", "/auth/callback", "/auth/verify-email", "/auth/activate", "/auth/reset-password", "/api/health"];
+const SESSION_COOKIE = "apfiscal_session";
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   if (pathname.startsWith("/_next/") || pathname === "/favicon.ico" || pathname.includes(".")) {
     return NextResponse.next();
   }
-  let response = NextResponse.next({ request });
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    },
-  );
-  const { data } = await supabase.auth.getClaims();
+  const hasSession = await validSession(request.cookies.get(SESSION_COOKIE)?.value);
   const isPublic = publicPaths.includes(pathname);
-  if (!data?.claims && !isPublic) {
+  if (!hasSession && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
-  if (data?.claims && ["/login", "/register"].includes(pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
-  return response;
+  if (hasSession && ["/login", "/register", "/forgot-password"].includes(pathname)) return NextResponse.redirect(new URL("/dashboard", request.url));
+  return NextResponse.next({ request });
 }
 
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
+
+async function validSession(token?: string) {
+  if (!token || !process.env.AUTH_SESSION_SECRET) return false;
+  const [header, payload, signature, ...extra] = token.split(".");
+  if (!header || !payload || !signature || extra.length) return false;
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(process.env.AUTH_SESSION_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  const validSignature = await crypto.subtle.verify("HMAC", key, base64Url(signature), new TextEncoder().encode(`${header}.${payload}`));
+  if (!validSignature) return false;
+  try {
+    const claims = JSON.parse(new TextDecoder().decode(base64Url(payload))) as { app?: string; exp?: number };
+    return claims.app === "apfiscal" && typeof claims.exp === "number" && claims.exp > Math.floor(Date.now() / 1000);
+  } catch { return false; }
+}
+
+function base64Url(value: string) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+}

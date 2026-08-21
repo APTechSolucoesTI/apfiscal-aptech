@@ -1,6 +1,6 @@
 "use client";
 
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
@@ -28,7 +28,9 @@ const proxyFetch: typeof fetch = async (input, init) => {
   });
 };
 
-export const supabase = createBrowserClient(url, key, {
+// O browser nunca autentica no Supabase. As chamadas REST passam pelo backend,
+// que valida o cookie de sessão do APFiscal e emite um JWT RLS de curta duração.
+export const supabase = createClient(url, key, {
   db: { schema: "apfiscal" },
   global: { fetch: proxyFetch },
 }) as unknown as SupabaseClient<Database>;

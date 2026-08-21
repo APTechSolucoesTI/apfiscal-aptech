@@ -15,9 +15,10 @@ export class MeController {
       _user_id: request.user.id,
     } as never);
     return {
-      user: { id: request.user.id, email: request.user.email },
+      user: { id: request.user.id, email: request.user.email, fullName: request.user.fullName ?? null },
       memberships: memberships ?? [],
       permissions: permissions ?? [],
+      setupRequired: (memberships?.length ?? 0) === 0,
     };
   }
 }

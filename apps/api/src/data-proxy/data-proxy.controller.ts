@@ -3,6 +3,7 @@ import type { Response } from "express";
 import type { AuthenticatedRequest } from "@/common/request-user";
 import { RbacService } from "@/common/rbac.service";
 import { env } from "@/config/env";
+import { createSupabaseRlsToken } from "@/auth/session-token";
 
 const tablePermissions: Record<string, { read: string; write: string }> = {
   companies: { read: "companies.view", write: "companies.manage" },
@@ -50,7 +51,10 @@ export class DataProxyController {
       if (typeof value === "string") headers.set(key, value);
     }
     headers.set("apikey", env("SUPABASE_PUBLISHABLE_KEY"));
-    headers.set("authorization", `Bearer ${request.accessToken}`);
+    // O JWT abaixo é efêmero e é emitido apenas dentro da API após validar a
+    // sessão própria do APFiscal. Ele preserva o RLS do schema apfiscal sem
+    // reutilizar qualquer sessão do Supabase Auth no navegador.
+    headers.set("authorization", `Bearer ${createSupabaseRlsToken(request.user)}`);
     const upstream = await fetch(`${env("SUPABASE_URL")}${target}`, {
       method: request.method,
       headers,

@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ShieldCheck } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { backendFetch } from "@/lib/backend";
 import { getNfeDetails } from "@/lib/client-actions";
 import { aprovarNfe } from "@/lib/client-actions";
 
@@ -45,9 +45,9 @@ export function NfeAprovacaoDialog({
   useQuery({
     queryKey: ["current-user-email"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (u.user?.email) setEmail((e) => e || u.user!.email!);
-      return u.user?.email ?? null;
+      const result = await backendFetch<{ user: { email: string } }>("/auth/me");
+      if (result.user.email) setEmail((e) => e || result.user.email);
+      return result.user.email;
     },
     enabled: open,
   });

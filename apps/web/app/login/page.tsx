@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { backendFetch } from "@/lib/backend";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
 
@@ -22,17 +22,12 @@ function LoginContent() {
     setLoading(true);
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
+      await backendFetch("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
 
       toast.success("Login realizado com sucesso!");
       navigate({ to: redirect });
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao realizar login");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Erro ao realizar login");
     } finally {
       setLoading(false);
     }
@@ -69,9 +64,9 @@ function LoginContent() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Senha</Label>
-                <button type="button" className="text-xs text-blue-600 hover:underline">
+                <Link to="/forgot-password" className="text-xs text-blue-600 hover:underline">
                   Esqueceu a senha?
-                </button>
+                </Link>
               </div>
               <Input 
                 id="password" 

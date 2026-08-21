@@ -8,6 +8,9 @@ import { HealthController } from "@/health/health.controller";
 import { ActionsController } from "@/actions/actions.controller";
 import { DataProxyController } from "@/data-proxy/data-proxy.controller";
 import { MeController } from "@/auth/me.controller";
+import { AuthController } from "@/auth/auth.controller";
+import { AuthService } from "@/auth/auth.service";
+import { EmailService } from "@/auth/email.service";
 import { AccessProfilesController } from "@/access/access-profiles.controller";
 import { UsersController } from "@/users/users.controller";
 import { FiscalIntegrationController } from "@/fiscal/fiscal-integration.controller";
@@ -18,8 +21,10 @@ import { ApfiscalProvider } from "@/fiscal/providers/apfiscal.provider";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])],
-  controllers: [HealthController, ActionsController, DataProxyController, MeController, AccessProfilesController, UsersController, FiscalIntegrationController],
+  controllers: [HealthController, ActionsController, DataProxyController, MeController, AuthController, AccessProfilesController, UsersController, FiscalIntegrationController],
   providers: [
+    AuthService,
+    EmailService,
     RbacService,
     CertificateVaultService,
     FiscalSyncService,

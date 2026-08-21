@@ -126,7 +126,8 @@ export function AppSidebar() {
     currentPath === url || currentPath.startsWith(url + "/");
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await backendFetch("/auth/logout", { method: "POST" }).catch(() => undefined);
+    router.invalidate();
     router.navigate({ to: "/" });
   };
 

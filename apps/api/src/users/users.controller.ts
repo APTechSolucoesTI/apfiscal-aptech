@@ -3,6 +3,7 @@ import { z } from "zod";
 import { RequirePermission } from "@/common/permission.decorator";
 import type { AuthenticatedRequest } from "@/common/request-user";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { AuthService } from "@/auth/auth.service";
 
 const memberSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
@@ -13,6 +14,7 @@ const memberSchema = z.object({
 
 @Controller("users")
 export class UsersController {
+  constructor(private readonly auth: AuthService) {}
   private async organizationId(request: AuthenticatedRequest, header?: string): Promise<string> {
     if (header) return header;
     const membership = await supabaseAdmin.from("organization_members").select("organization_id").eq("user_id", request.user.id).eq("active", true).limit(1).single();
@@ -57,26 +59,7 @@ export class UsersController {
     const organizationId = await this.organizationId(request, orgHeader);
     const profile = await supabaseAdmin.from("access_profiles").select("id").eq("id", input.profileId).eq("organization_id", organizationId).eq("active", true).single();
     if (profile.error) throw profile.error;
-    const authResult = await supabaseAdmin.auth.admin.inviteUserByEmail(input.email, {
-      data: { app: "apfiscal", full_name: input.fullName },
-      redirectTo: `${process.env.PUBLIC_APP_URL ?? "http://localhost:3000"}/login`,
-    });
-    if (authResult.error || !authResult.data.user) throw authResult.error ?? new Error("Falha ao convidar usuário.");
-    const userId = authResult.data.user.id;
-    try {
-      const user = await supabaseAdmin.from("users").upsert({ id: userId, email: input.email, full_name: input.fullName, active: true });
-      if (user.error) throw user.error;
-      const member = await supabaseAdmin.from("organization_members").upsert({ organization_id: organizationId, user_id: userId, profile_id: input.profileId, role: "visualizador", active: true }, { onConflict: "organization_id,user_id" });
-      if (member.error) throw member.error;
-      if (input.companyIds.length) {
-        const access = await supabaseAdmin.from("company_access").insert(input.companyIds.map((company_id) => ({ user_id: userId, company_id })));
-        if (access.error) throw access.error;
-      }
-      return { id: userId, email: input.email, status: "invited" };
-    } catch (error) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw error;
-    }
+    return this.auth.invite({ ...input, organizationId, profileId: profile.data.id });
   }
 
   @RequirePermission("settings.users.manage")

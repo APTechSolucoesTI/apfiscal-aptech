@@ -47,26 +47,12 @@ export const aprovarNfe = createApiAction({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!data.email?.trim() || !data.password) throw new Error("Informe usuário e senha.");
 
-    const { createClient } = await import("@supabase/supabase-js");
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
-    const check = createClient(process.env.SUPABASE_URL!, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: {
-        fetch: (input: any, init: any) => {
-          const h = new Headers(init?.headers);
-          if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
-          h.set("apikey", key);
-          return fetch(input, { ...init, headers: h });
-        },
-      },
-    });
-    const { data: auth, error: authError } = await check.auth.signInWithPassword({
-      email: data.email.trim(),
-      password: data.password,
-    });
-    if (authError || !auth?.user) throw new Error("Usuário ou senha inválidos.");
-    if (auth.user.id !== context.userId) throw new Error("As credenciais informadas não são da conta atual.");
-    await check.auth.signOut();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { verifyPassword } = await import("@/auth/password");
+    const credential = await supabaseAdmin.from("users").select("id, password_hash, active").ilike("email", data.email.trim().toLowerCase()).maybeSingle();
+    if (credential.error || !credential.data || credential.data.id !== context.userId || !credential.data.active || !(await verifyPassword(data.password, credential.data.password_hash))) {
+      throw new Error("As credenciais informadas não são da conta atual.");
+    }
 
     const doc = await getDocOrThrow(context, data.documentId);
     await assertAprovador(context, doc.companies.organization_id);
@@ -154,10 +140,8 @@ export const listStatusHistorico = createApiAction({ method: "GET" })
     const nomes: Record<string, string> = {};
     if (ids.length > 0) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      for (const id of ids) {
-        const { data: u } = await supabaseAdmin.auth.admin.getUserById(id as string);
-        if (u?.user) nomes[id as string] = (u.user.user_metadata?.full_name as string) || u.user.email || "Usuário";
-      }
+      const { data: users } = await supabaseAdmin.from("users").select("id, email, full_name").in("id", ids as string[]);
+      for (const user of users ?? []) nomes[user.id] = user.full_name || user.email || "Usuário";
     }
     return (rows ?? []).map((r: any) => ({ ...r, autor: r.alterado_por ? nomes[r.alterado_por] ?? "Usuário" : "Sistema" }));
   });

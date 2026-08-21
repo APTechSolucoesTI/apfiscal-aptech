@@ -12,6 +12,8 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:?obrigatoria}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?obrigatoria}
       SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?obrigatoria}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:?obrigatoria}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?obrigatoria}
       CERTIFICATE_ENCRYPTION_KEY: ${CERTIFICATE_ENCRYPTION_KEY:?obrigatoria}
       NFE_ENVIRONMENT: ${NFE_ENVIRONMENT:-1}
       NFE_TIMEOUT_MS: ${NFE_TIMEOUT_MS:-30000}
@@ -20,6 +22,12 @@ services:
       APFISCAL_CADASTRO_TOKEN: ${APFISCAL_CADASTRO_TOKEN:-}
       APFISCAL_ENC_KEY: ${APFISCAL_ENC_KEY:-}
       PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?obrigatoria}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 20s
@@ -48,6 +56,7 @@ services:
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?obrigatoria}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?obrigatoria}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?obrigatoria}
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:?obrigatoria}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 20s

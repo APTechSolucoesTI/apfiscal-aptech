@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { backendFetch } from "@/lib/backend";
 import { toast } from "sonner";
 import { UserPlus, ArrowRight } from "lucide-react";
 
@@ -22,31 +22,11 @@ function Register() {
     setLoading(true);
     
     try {
-      // For demo purposes, we'll auto-confirm or just sign up
-      // Note: In a real app, this would trigger email verification unless configured otherwise
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-          data: {
-            app: "apfiscal",
-            full_name: fullName,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.session) {
-        toast.success("Conta criada com sucesso! Aproveite seus 7 dias grátis.");
-        navigate({ to: "/dashboard" });
-      } else {
-        toast.info("Cadastro realizado! Verifique seu e-mail para confirmar a conta.");
-        navigate({ to: "/login" });
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao realizar cadastro");
+      await backendFetch("/auth/register", { method: "POST", body: JSON.stringify({ fullName, email, password }) });
+      toast.success("Conta criada. Confirme seu e-mail para liberar o acesso.");
+      navigate({ to: "/login" });
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Erro ao realizar cadastro");
     } finally {
       setLoading(false);
     }
@@ -96,7 +76,8 @@ function Register() {
               <Input 
                 id="password" 
                 type="password" 
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 12 caracteres"
+                minLength={12}
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

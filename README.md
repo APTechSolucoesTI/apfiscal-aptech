@@ -116,7 +116,7 @@ Nunca coloque valores reais em `.env.example`, commits, logs ou variáveis do fr
 
 ## NFeWizard e fallback
 
-NFeWizard é o provedor padrão. O certificado A1 fica no bucket privado e a senha é armazenada com AES-256-GCM. A distribuição usa um checkpoint único por empresa/CNPJ, lock transacional e cooldown para os retornos 137/656. O fallback APFiscal só ocorre quando a preparação do NFeWizard falha antes de uma chamada à SEFAZ, evitando duplicidade de consumo e manifestações.
+NFeWizard é o provedor padrão. O certificado A1 fica no bucket privado e a senha é armazenada com AES-256-GCM. A distribuição usa um checkpoint único por empresa/CNPJ, lock transacional e cooldown para os retornos 137/656. Durante o cooldown, novas tentativas manuais retornam HTTP 429 com o horário exato de liberação e ficam bloqueadas na interface; os agendamentos permanecem ativos e retomam sozinhos depois desse horário. O fallback APFiscal só ocorre quando a preparação do NFeWizard falha antes de uma chamada à SEFAZ, evitando duplicidade de consumo e manifestações.
 
 O backend fixa `nfewizard-io@1.1.2` (licença GPL-3.0). A validação XSD opcional que depende de JDK fica desativada na instalação; distribuição, consulta, eventos e validação do PKCS#12 não dependem dela. O mesmo upload A1 tenta provisionar o fallback APFiscal quando as variáveis `APFISCAL_*` estão completas e mantém o NFeWizard operacional caso esse provisionamento externo falhe.
 
@@ -144,11 +144,13 @@ As variáveis legadas `TOTVS_SQL_*` continuam aceitas apenas para a conexão pad
 
 A primeira implementação usa a API oficial do Ambiente de Dados Nacional (ADN), com consulta incremental por NSU e autenticação mTLS pelo mesmo certificado A1 da empresa. O documento bruto e o checkpoint são persistidos de forma idempotente. Provedores municipais permanecem como adapters explícitos e bloqueados até existir configuração homologada para o município; não há consulta municipal simulada.
 
-Em **Configurações → Sincronizações**, selecione `Ambiente Nacional (ADN)`, defina a recorrência, teste o certificado e execute a primeira sincronização manual. A tela mostra última execução, próxima execução, estado do agendamento e último erro.
+Em **Configurações → Sincronizações**, selecione `Ambiente Nacional (ADN)`, defina a recorrência, teste o certificado e execute a primeira sincronização manual. A tela mostra última execução, próxima execução, estado do agendamento e último erro. Respostas HTTP 429 da ADN respeitam `Retry-After`, persistem o próximo horário permitido e não desativam a recorrência automática.
 
 ## Super Admin
 
-O usuário inicial é criado uma única vez a partir de `SUPERADMIN_EMAIL` e `SUPERADMIN_INITIAL_PASSWORD`. Após confirmar o primeiro acesso em `/admin`, remova `SUPERADMIN_INITIAL_PASSWORD` do Dokploy e redeploye a API; reinícios não recriam nem redefinem a senha existente. O painel permite administrar usuários, ativação, plano, limites, acessos a empresas, vínculos TOTVS, testes, sincronizações e logs.
+O usuário inicial é criado uma única vez a partir de `SUPERADMIN_EMAIL` e `SUPERADMIN_INITIAL_PASSWORD`. Após confirmar o primeiro acesso em `/admin`, remova `SUPERADMIN_INITIAL_PASSWORD` do Dokploy e redeploye a API; reinícios não recriam nem redefinem a senha existente.
+
+Os planos são administrados por conta/organização, não por usuário. Em `/admin`, o Super Admin pode criar e editar planos, preço descritivo, disponibilidade, recursos e limites de usuários, empresas, documentos mensais e conexões TOTVS. Também pode atribuir um plano a cada conta e definir exceções individuais. As regras são verificadas na API e no PostgreSQL; ocultar ou desabilitar controles no frontend não é a única proteção. Contas que já existiam na aplicação da migration são preservadas como `Enterprise`, enquanto novas contas começam no `Starter`.
 
 ### Checklist de atualização no Dokploy
 

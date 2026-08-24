@@ -1,9 +1,12 @@
 import { Controller, Get, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "@/common/request-user";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { PlanLimitsService } from "@/plans/plan-limits.service";
 
 @Controller("auth")
 export class MeController {
+  constructor(private readonly plans: PlanLimitsService) {}
+
   @Get("me")
   async me(@Req() request: AuthenticatedRequest) {
     const { data: memberships, error } = await supabaseAdmin
@@ -14,15 +17,40 @@ export class MeController {
     const { data: permissions } = await supabaseAdmin.rpc("list_user_permissions", {
       _user_id: request.user.id,
     } as never);
-    const account = await supabaseAdmin.from("users").select("is_superadmin, plan_key, max_companies, max_totvs_connections").eq("id", request.user.id).single();
+    const account = await supabaseAdmin
+      .from("users")
+      .select("is_superadmin")
+      .eq("id", request.user.id)
+      .single();
     if (account.error) throw account.error;
+    const organizationId = memberships?.[0]?.organization_id;
+    const accountPlan = organizationId ? await this.plans.account(organizationId) : null;
     return {
-      user: { id: request.user.id, email: request.user.email, fullName: request.user.fullName ?? null },
+      user: {
+        id: request.user.id,
+        email: request.user.email,
+        fullName: request.user.fullName ?? null,
+      },
       memberships: memberships ?? [],
       permissions: permissions ?? [],
       setupRequired: (memberships?.length ?? 0) === 0,
       isSuperadmin: account.data.is_superadmin,
-      plan: { key: account.data.plan_key, maxCompanies: account.data.max_companies, maxTotvsConnections: account.data.max_totvs_connections },
+      plan: accountPlan
+        ? {
+            key: accountPlan.plan.key,
+            name: accountPlan.plan.name,
+            ...accountPlan.limits,
+            features: accountPlan.features,
+          }
+        : {
+            key: "platform",
+            name: "Plataforma",
+            maxUsers: null,
+            maxCompanies: null,
+            maxMonthlyDocuments: null,
+            maxTotvsConnections: null,
+            features: {},
+          },
     };
   }
 }

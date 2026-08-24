@@ -26,12 +26,24 @@ import { TotvsIntegrationService } from "@/totvs/totvs-integration.service";
 import { TotvsQueueService } from "@/totvs/totvs-queue.service";
 import { SuperadminController } from "@/superadmin/superadmin.controller";
 import { SuperadminBootstrapService } from "@/superadmin/superadmin-bootstrap.service";
+import { PlanLimitsService } from "@/plans/plan-limits.service";
 import { NacionalAdnNfseProvider } from "@/nfse/nacional-adn-nfse.provider";
 import { NfseSyncService } from "@/nfse/nfse-sync.service";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])],
-  controllers: [HealthController, ActionsController, DataProxyController, MeController, AuthController, AccessProfilesController, UsersController, FiscalIntegrationController, TotvsController, SuperadminController],
+  controllers: [
+    HealthController,
+    ActionsController,
+    DataProxyController,
+    MeController,
+    AuthController,
+    AccessProfilesController,
+    UsersController,
+    FiscalIntegrationController,
+    TotvsController,
+    SuperadminController,
+  ],
   providers: [
     AuthService,
     EmailService,
@@ -46,6 +58,7 @@ import { NfseSyncService } from "@/nfse/nfse-sync.service";
     TotvsIntegrationService,
     TotvsQueueService,
     SuperadminBootstrapService,
+    PlanLimitsService,
     NacionalAdnNfseProvider,
     NfseSyncService,
     { provide: APP_GUARD, useClass: AuthGuard },

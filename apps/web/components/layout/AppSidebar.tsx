@@ -1,9 +1,9 @@
-﻿import { 
-  LayoutDashboard, 
-  Building2, 
-  FileText, 
-  Bell, 
-  Settings, 
+﻿import {
+  LayoutDashboard,
+  Building2,
+  FileText,
+  Bell,
+  Settings,
   LogOut,
   ChevronRight,
   ShieldCheck,
@@ -14,11 +14,11 @@
   Layers,
   Wallet,
 } from "lucide-react";
-import { 
-  Sidebar, 
-  SidebarContent, 
-  SidebarFooter, 
-  SidebarHeader, 
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -35,14 +35,26 @@ import { useQuery } from "@tanstack/react-query";
 import { backendFetch } from "@/lib/backend";
 
 const permissionByUrl: Record<string, string> = {
-  "/dashboard": "dashboard.view", "/companies": "companies.view", "/suppliers": "suppliers.view",
-  "/products": "products.view", "/classifications": "classifications.view", "/documents/nfe": "documents.nfe.view",
-  "/documents/nfse": "documents.nfse.view", "/nfe-integracao": "nfe.integration.view",
-  "/monitoring": "monitoring.view", "/notifications": "notifications.view", "/settings/centros-custo": "finance.cost_centers.view",
-  "/settings/plano-contas": "finance.chart_accounts.view", "/settings/locais-estoque": "finance.stock_locations.view",
-  "/settings/catalog": "settings.general.view", "/settings/users": "settings.users.view", "/settings/profiles": "settings.profiles.view",
-  "/settings/integracao": "nfe.integration.view", "/settings/api": "settings.api_keys.view",
-  "/settings/totvs": "totvs.integration.view", "/settings/synchronizations": "totvs.integration.view",
+  "/dashboard": "dashboard.view",
+  "/companies": "companies.view",
+  "/suppliers": "suppliers.view",
+  "/products": "products.view",
+  "/classifications": "classifications.view",
+  "/documents/nfe": "documents.nfe.view",
+  "/documents/nfse": "documents.nfse.view",
+  "/nfe-integracao": "nfe.integration.view",
+  "/monitoring": "monitoring.view",
+  "/notifications": "notifications.view",
+  "/settings/centros-custo": "finance.cost_centers.view",
+  "/settings/plano-contas": "finance.chart_accounts.view",
+  "/settings/locais-estoque": "finance.stock_locations.view",
+  "/settings/catalog": "settings.general.view",
+  "/settings/users": "settings.users.view",
+  "/settings/profiles": "settings.profiles.view",
+  "/settings/integracao": "nfe.integration.view",
+  "/settings/api": "settings.api_keys.view",
+  "/settings/totvs": "totvs.integration.view",
+  "/settings/synchronizations": "totvs.integration.view",
 };
 
 const menuItems = [
@@ -76,9 +88,10 @@ const menuItems = [
     icon: FileText,
     url: "/documents",
     subItems: [
-      { title: "NF-e (Produtos)", url: "/documents/nfe" },
-      { title: "NFS-e (Serviços)", url: "/documents/nfse" },
-    ]
+      { title: "NF-e Resumida", url: "/nfe-integracao" },
+      { title: "NF-e Completa", url: "/documents/nfe" },
+      { title: "NFS-e", url: "/documents/nfse" },
+    ],
   },
   {
     title: "Monitoramento",
@@ -98,8 +111,7 @@ const menuItems = [
       { title: "Centros de Custo", url: "/settings/centros-custo" },
       { title: "Plano de Contas", url: "/settings/plano-contas" },
       { title: "Local de Estoque", url: "/settings/locais-estoque" },
-    ]
-
+    ],
   },
   {
     title: "Configurações",
@@ -109,10 +121,9 @@ const menuItems = [
       { title: "Cadastros Globais", url: "/settings/catalog" },
       { title: "Usuários", url: "/settings/users" },
       { title: "Perfis de Acesso", url: "/settings/profiles" },
-      { title: "Integração Fiscal", url: "/settings/integracao" },
       { title: "Sincronizações", url: "/settings/synchronizations" },
       { title: "API Keys", url: "/settings/api" },
-    ]
+    ],
   },
 ];
 
@@ -122,8 +133,7 @@ export function AppSidebar() {
     select: (s) => s.location.pathname,
   });
 
-  const isActive = (url: string) =>
-    currentPath === url || currentPath.startsWith(url + "/");
+  const isActive = (url: string) => currentPath === url || currentPath.startsWith(url + "/");
 
   const handleLogout = async () => {
     await backendFetch("/auth/logout", { method: "POST" }).catch(() => undefined);
@@ -133,19 +143,26 @@ export function AppSidebar() {
 
   const { data: access } = useQuery({
     queryKey: ["auth-me"],
-    queryFn: () => backendFetch<{ permissions: Array<{ permission_key: string } | string>; isSuperadmin: boolean }>("/auth/me"),
+    queryFn: () =>
+      backendFetch<{
+        permissions: Array<{ permission_key: string } | string>;
+        isSuperadmin: boolean;
+      }>("/auth/me"),
     staleTime: 5 * 60_000,
   });
-  const permissionSet = new Set((access?.permissions ?? []).map((permission) => typeof permission === "string" ? permission : permission.permission_key));
-  const allowed = (url: string) => !access || !permissionByUrl[url] || permissionSet.has(permissionByUrl[url]);
+  const permissionSet = new Set(
+    (access?.permissions ?? []).map((permission) =>
+      typeof permission === "string" ? permission : permission.permission_key,
+    ),
+  );
+  const allowed = (url: string) =>
+    !access || !permissionByUrl[url] || permissionSet.has(permissionByUrl[url]);
 
   const { data: integracao } = useQuery({
     queryKey: ["status-integracao-sidebar"],
     queryFn: async () => {
       const [total, integradas] = await Promise.all([
-        supabase
-          .from("fiscal_documents")
-          .select("id", { count: "exact", head: true }),
+        supabase.from("fiscal_documents").select("id", { count: "exact", head: true }),
         supabase
           .from("fiscal_documents")
           .select("id", { count: "exact", head: true })
@@ -164,9 +181,11 @@ export function AppSidebar() {
 
   const percentual = integracao?.percentual ?? 0;
   const visibleItems = access?.isSuperadmin
-    ? [{ title: "Super Admin", icon: ShieldCheck, url: "/admin", subItems: undefined }, ...menuItems]
+    ? [
+        { title: "Super Admin", icon: ShieldCheck, url: "/admin", subItems: undefined },
+        ...menuItems,
+      ]
     : menuItems;
-
 
   return (
     <Sidebar className="border-r border-slate-200">
@@ -178,61 +197,66 @@ export function AppSidebar() {
           <span className="font-bold text-xl text-slate-900 tracking-tight">Fiscal</span>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent className="p-4 gap-2 bg-white">
         <SidebarGroup>
           <SidebarMenu>
-            {visibleItems.filter((item) => item.subItems ? item.subItems.some((sub) => allowed(sub.url)) : allowed(item.url)).map((item) => {
-              const parentActive = isActive(item.url);
-              return (
-                <SidebarMenuItem key={item.title}>
-                  {item.subItems ? (
-                    <>
+            {visibleItems
+              .filter((item) =>
+                item.subItems ? item.subItems.some((sub) => allowed(sub.url)) : allowed(item.url),
+              )
+              .map((item) => {
+                const parentActive = isActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    {item.subItems ? (
+                      <>
+                        <SidebarMenuButton
+                          isActive={parentActive}
+                          className="text-slate-600 font-medium hover:bg-slate-50 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold"
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                          <ChevronRight className="ml-auto h-4 w-4" />
+                        </SidebarMenuButton>
+                        <SidebarMenuSub>
+                          {item.subItems
+                            .filter((sub) => allowed(sub.url))
+                            .map((sub) => {
+                              const subActive = isActive(sub.url);
+                              return (
+                                <SidebarMenuSubItem key={sub.title}>
+                                  <SidebarMenuSubButton asChild isActive={subActive}>
+                                    <Link
+                                      to={sub.url}
+                                      className="py-2 text-slate-500 hover:text-blue-600 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold"
+                                    >
+                                      {sub.title}
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              );
+                            })}
+                        </SidebarMenuSub>
+                      </>
+                    ) : (
                       <SidebarMenuButton
+                        asChild
                         isActive={parentActive}
-                        className="text-slate-600 font-medium hover:bg-slate-50 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold"
+                        className="text-slate-600 font-medium hover:bg-slate-50 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold data-[active=true]:border-l-2 data-[active=true]:border-blue-600"
                       >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                        <ChevronRight className="ml-auto h-4 w-4" />
+                        <Link to={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
                       </SidebarMenuButton>
-                      <SidebarMenuSub>
-                        {item.subItems.filter((sub) => allowed(sub.url)).map((sub) => {
-                          const subActive = isActive(sub.url);
-                          return (
-                            <SidebarMenuSubItem key={sub.title}>
-                              <SidebarMenuSubButton asChild isActive={subActive}>
-                                <Link
-                                  to={sub.url}
-                                  className="py-2 text-slate-500 hover:text-blue-600 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold"
-                                >
-                                  {sub.title}
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          );
-                        })}
-                      </SidebarMenuSub>
-                    </>
-                  ) : (
-                    <SidebarMenuButton
-                      asChild
-                      isActive={parentActive}
-                      className="text-slate-600 font-medium hover:bg-slate-50 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:font-semibold data-[active=true]:border-l-2 data-[active=true]:border-blue-600"
-                    >
-                      <Link to={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  )}
-                </SidebarMenuItem>
-              );
-            })}
+                    )}
+                  </SidebarMenuItem>
+                );
+              })}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
-
 
       <SidebarFooter className="p-4 border-t border-slate-100 bg-white">
         <div className="p-3 mb-4 rounded-xl bg-slate-50 border border-slate-200">
@@ -252,7 +276,7 @@ export function AppSidebar() {
           </p>
         </div>
 
-        <button 
+        <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2 w-full text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
         >

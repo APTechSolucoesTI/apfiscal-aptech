@@ -29,6 +29,8 @@ import { SuperadminBootstrapService } from "@/superadmin/superadmin-bootstrap.se
 import { PlanLimitsService } from "@/plans/plan-limits.service";
 import { NacionalAdnNfseProvider } from "@/nfse/nacional-adn-nfse.provider";
 import { NfseSyncService } from "@/nfse/nfse-sync.service";
+import { FiscalDocumentsController } from "@/fiscal-documents/fiscal-documents.controller";
+import { FiscalDocumentsService } from "@/fiscal-documents/fiscal-documents.service";
 
 @Module({
   imports: [ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])],
@@ -43,6 +45,7 @@ import { NfseSyncService } from "@/nfse/nfse-sync.service";
     FiscalIntegrationController,
     TotvsController,
     SuperadminController,
+    FiscalDocumentsController,
   ],
   providers: [
     AuthService,
@@ -61,6 +64,7 @@ import { NfseSyncService } from "@/nfse/nfse-sync.service";
     PlanLimitsService,
     NacionalAdnNfseProvider,
     NfseSyncService,
+    FiscalDocumentsService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },

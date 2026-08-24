@@ -1,4 +1,16 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Post, Req, UploadedFile, UseInterceptors } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { z } from "zod";
 import { RequirePermission } from "@/common/permission.decorator";
@@ -39,53 +51,74 @@ export class FiscalIntegrationController {
   async settings(@Param("companyId") companyId: string, @Req() request: AuthenticatedRequest) {
     await this.assertCompany(request, companyId);
     const [integration, state] = await Promise.all([
-      supabaseAdmin.from("empresa_integracoes_fiscais")
-        .select("ativo, primary_provider, fallback_provider, fallback_enabled, certificate_storage_path, certificate_expires_at, api_key_last4, apifiscal_certificate_configured, apifiscal_certificate_last_error")
-        .eq("company_id", companyId).single(),
-      supabaseAdmin.from("fiscal_distribution_state")
+      supabaseAdmin
+        .from("empresa_integracoes_fiscais")
+        .select(
+          "ativo, primary_provider, fallback_provider, fallback_enabled, certificate_storage_path, certificate_expires_at, api_key_last4, apifiscal_certificate_configured, apifiscal_certificate_last_error",
+        )
+        .eq("company_id", companyId)
+        .single(),
+      supabaseAdmin
+        .from("fiscal_distribution_state")
         .select("last_nsu, last_sync_at, next_allowed_sync_at, last_cstat, last_error")
-        .eq("company_id", companyId).single(),
+        .eq("company_id", companyId)
+        .single(),
     ]);
     if (integration.error) throw integration.error;
     return {
       ...integration.data,
       checkpoint: state.data ?? null,
       certificateConfigured: Boolean(integration.data.certificate_storage_path),
-      apifiscalConfigured: Boolean(integration.data.apifiscal_certificate_configured || integration.data.api_key_last4),
+      apifiscalConfigured: Boolean(
+        integration.data.apifiscal_certificate_configured || integration.data.api_key_last4,
+      ),
     };
   }
 
   @RequirePermission("nfe.integration.manage")
   @Patch("settings/:companyId")
-  async saveSettings(@Param("companyId") companyId: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+  async saveSettings(
+    @Param("companyId") companyId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
     await this.assertCompany(request, companyId);
     const input = settingsSchema.parse(body);
-    const current = await supabaseAdmin.from("empresa_integracoes_fiscais")
+    const current = await supabaseAdmin
+      .from("empresa_integracoes_fiscais")
       .select("api_key_encrypted")
       .eq("company_id", companyId)
       .single();
     if (current.error) throw current.error;
-    const fallbackConfigured = input.fallbackProvider === "apifiscal" && Boolean(current.data.api_key_encrypted);
-    const fallbackEnabled = input.primaryProvider === "nfewizard" && input.fallbackEnabled && fallbackConfigured;
-    const update = await supabaseAdmin.from("empresa_integracoes_fiscais").update({
-      primary_provider: input.primaryProvider,
-      fallback_provider: input.fallbackProvider,
-      fallback_enabled: fallbackEnabled,
-      ativo: input.active,
-    }).eq("company_id", companyId);
+    const fallbackConfigured =
+      input.fallbackProvider === "apifiscal" && Boolean(current.data.api_key_encrypted);
+    const fallbackEnabled =
+      input.primaryProvider === "nfewizard" && input.fallbackEnabled && fallbackConfigured;
+    const update = await supabaseAdmin
+      .from("empresa_integracoes_fiscais")
+      .update({
+        primary_provider: input.primaryProvider,
+        fallback_provider: input.fallbackProvider,
+        fallback_enabled: fallbackEnabled,
+        ativo: input.active,
+      })
+      .eq("company_id", companyId);
     if (update.error) throw update.error;
     return {
       ok: true,
       fallbackEnabled,
-      warning: input.fallbackEnabled && !fallbackConfigured
-        ? "O fallback APFiscal permaneceu desativado porque não possui credenciais."
-        : null,
+      warning:
+        input.fallbackEnabled && !fallbackConfigured
+          ? "O fallback APFiscal permaneceu desativado porque não possui credenciais."
+          : null,
     };
   }
 
   @RequirePermission("nfe.integration.manage")
   @Post("certificate/:companyId")
-  @UseInterceptors(FileInterceptor("certificate", { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }))
+  @UseInterceptors(
+    FileInterceptor("certificate", { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }),
+  )
   async uploadCertificate(
     @Param("companyId") companyId: string,
     @UploadedFile() file: Express.Multer.File,
@@ -93,13 +126,20 @@ export class FiscalIntegrationController {
     @Req() request: AuthenticatedRequest,
   ) {
     await this.assertCompany(request, companyId);
-    if (!file?.buffer?.length || !/\.(pfx|p12)$/i.test(file.originalname)) throw new BadRequestException("Envie um certificado A1 .pfx ou .p12 válido.");
+    if (!file?.buffer?.length || !/\.(pfx|p12)$/i.test(file.originalname))
+      throw new BadRequestException("Envie um certificado A1 .pfx ou .p12 válido.");
     const certificate = this.vault.inspectPkcs12(file.buffer, password);
-    const company = await supabaseAdmin.from("companies").select("cnpj, organization_id").eq("id", companyId).single();
+    const company = await supabaseAdmin
+      .from("companies")
+      .select("cnpj, organization_id")
+      .eq("id", companyId)
+      .single();
     if (company.error) throw company.error;
-    const integration = await supabaseAdmin.from("empresa_integracoes_fiscais")
+    const integration = await supabaseAdmin
+      .from("empresa_integracoes_fiscais")
       .select("organization_id, ativo, primary_provider, fallback_provider, fallback_enabled")
-      .eq("company_id", companyId).single();
+      .eq("company_id", companyId)
+      .single();
     if (integration.error) throw integration.error;
     const companyCnpj = company.data.cnpj?.replace(/\D/g, "") ?? "";
     if (!certificateMatchesCompany(certificate.subjectCnpj, companyCnpj)) {
@@ -107,19 +147,24 @@ export class FiscalIntegrationController {
     }
 
     const path = `certificates/${companyId}/a1.pfx`;
-    const upload = await supabaseAdmin.storage.from("fiscal-xml").upload(path, file.buffer, { contentType: "application/x-pkcs12", upsert: true });
+    const upload = await supabaseAdmin.storage
+      .from("fiscal-xml")
+      .upload(path, file.buffer, { contentType: "application/x-pkcs12", upsert: true });
     if (upload.error) throw upload.error;
     try {
-      const update = await supabaseAdmin.from("empresa_integracoes_fiscais").update({
-        certificate_storage_path: path,
-        certificate_password_encrypted: this.vault.encrypt(password),
-        certificate_expires_at: certificate.expiresAt.toISOString(),
-        certificado_validade_inicio: certificate.validFrom.toISOString(),
-        certificado_validade_fim: certificate.expiresAt.toISOString(),
-        certificado_dias_restantes: certificate.daysRemaining,
-        certificado_vencido: false,
-        certificado_atualizado_em: new Date().toISOString(),
-      }).eq("company_id", companyId);
+      const update = await supabaseAdmin
+        .from("empresa_integracoes_fiscais")
+        .update({
+          certificate_storage_path: path,
+          certificate_password_encrypted: this.vault.encrypt(password),
+          certificate_expires_at: certificate.expiresAt.toISOString(),
+          certificado_validade_inicio: certificate.validFrom.toISOString(),
+          certificado_validade_fim: certificate.expiresAt.toISOString(),
+          certificado_dias_restantes: certificate.daysRemaining,
+          certificado_vencido: false,
+          certificado_atualizado_em: new Date().toISOString(),
+        })
+        .eq("company_id", companyId);
       if (update.error) throw update.error;
     } catch (error) {
       await supabaseAdmin.storage.from("fiscal-xml").remove([path]);
@@ -130,9 +175,9 @@ export class FiscalIntegrationController {
 
     if (shouldProvisionApifiscal) {
       const hasApifiscalEnvironment = Boolean(
-        process.env.APFISCAL_BASE_URL
-        && (process.env.APFISCAL_CADASTRO_TOKEN || process.env.APFISCAL_DEFAULT_API_KEY)
-        && process.env.APFISCAL_ENC_KEY,
+        process.env.APFISCAL_BASE_URL &&
+        (process.env.APFISCAL_CADASTRO_TOKEN || process.env.APFISCAL_DEFAULT_API_KEY) &&
+        process.env.APFISCAL_ENC_KEY,
       );
       if (hasApifiscalEnvironment) {
         try {
@@ -152,19 +197,28 @@ export class FiscalIntegrationController {
         } catch (error) {
           apifiscal = {
             configured: false,
-            message: error instanceof Error ? error.message : "Não foi possível provisionar o fallback APFiscal.",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Não foi possível provisionar o fallback APFiscal.",
           };
         }
       } else {
-        apifiscal = { configured: false, message: "Credenciais do fallback APFiscal não configuradas na API." };
+        apifiscal = {
+          configured: false,
+          message: "Credenciais do fallback APFiscal não configuradas na API.",
+        };
       }
 
-      await supabaseAdmin.from("empresa_integracoes_fiscais").update({
-        ativo: integration.data.ativo,
-        apifiscal_certificate_configured: apifiscal.configured,
-        apifiscal_certificate_last_error: apifiscal.configured ? null : apifiscal.message,
-        apifiscal_certificate_updated_at: new Date().toISOString(),
-      }).eq("company_id", companyId);
+      await supabaseAdmin
+        .from("empresa_integracoes_fiscais")
+        .update({
+          ativo: integration.data.ativo,
+          apifiscal_certificate_configured: apifiscal.configured,
+          apifiscal_certificate_last_error: apifiscal.configured ? null : apifiscal.message,
+          apifiscal_certificate_updated_at: new Date().toISOString(),
+        })
+        .eq("company_id", companyId);
     }
 
     return {
@@ -177,7 +231,11 @@ export class FiscalIntegrationController {
 
   @RequirePermission("nfe.integration.manage")
   @Post("test/:companyId")
-  async test(@Param("companyId") companyId: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+  async test(
+    @Param("companyId") companyId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
     await this.assertCompany(request, companyId);
     const provider = z.object({ provider: providerSchema.optional() }).parse(body).provider;
     return this.syncService.test(companyId, provider);
@@ -192,12 +250,21 @@ export class FiscalIntegrationController {
 
   @RequirePermission("documents.nfe.manage")
   @Post("manifest/:companyId")
-  async manifest(@Param("companyId") companyId: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+  async manifest(
+    @Param("companyId") companyId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
     await this.assertCompany(request, companyId);
     const input = manifestationSchema.parse(body);
-    const integration = await supabaseAdmin.from("empresa_integracoes_fiscais").select("primary_provider").eq("company_id", companyId).single();
+    const integration = await supabaseAdmin
+      .from("empresa_integracoes_fiscais")
+      .select("primary_provider")
+      .eq("company_id", companyId)
+      .single();
     if (integration.error) throw integration.error;
-    const document = await supabaseAdmin.from("fiscal_documents")
+    const document = await supabaseAdmin
+      .from("fiscal_documents")
       .select("id")
       .eq("company_id", companyId)
       .eq("chave_acesso", input.accessKey)
@@ -205,34 +272,52 @@ export class FiscalIntegrationController {
     if (document.error) throw document.error;
     if (!document.data) throw new NotFoundException("NF-e não encontrada para esta empresa.");
 
-    const previous = await supabaseAdmin.from("manifestations")
+    const previous = await supabaseAdmin
+      .from("manifestations")
       .select("id, response_cstat, response_xmotivo")
       .eq("fiscal_document_id", document.data.id)
       .eq("tipo", input.event)
       .eq("sequence", 1)
       .maybeSingle();
     if (previous.error) throw previous.error;
-    if (previous.data?.response_cstat) return { ...previous.data, idempotent: true };
+    if (previous.data?.response_cstat) {
+      await supabaseAdmin
+        .from("documentos_fiscais_integracao")
+        .update({
+          status_manifestacao: input.event,
+          ultima_sincronizacao: new Date().toISOString(),
+        })
+        .eq("company_id", companyId)
+        .eq("chave", input.accessKey);
+      return { ...previous.data, idempotent: true };
+    }
 
     let pendingId = previous.data?.id;
     if (!pendingId) {
-      const pending = await supabaseAdmin.from("manifestations").insert({
-        fiscal_document_id: document.data.id,
-        tipo: input.event,
-        usuario_id: request.user.id,
-        provider: integration.data.primary_provider,
-        sequence: 1,
-        requested_at: new Date().toISOString(),
-      }).select("id").single();
+      const pending = await supabaseAdmin
+        .from("manifestations")
+        .insert({
+          fiscal_document_id: document.data.id,
+          tipo: input.event,
+          usuario_id: request.user.id,
+          provider: integration.data.primary_provider,
+          sequence: 1,
+          requested_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
       if (pending.error) throw pending.error;
       pendingId = pending.data.id;
     } else {
-      const retry = await supabaseAdmin.from("manifestations").update({
-        usuario_id: request.user.id,
-        provider: integration.data.primary_provider,
-        requested_at: new Date().toISOString(),
-        response_xmotivo: null,
-      }).eq("id", pendingId);
+      const retry = await supabaseAdmin
+        .from("manifestations")
+        .update({
+          usuario_id: request.user.id,
+          provider: integration.data.primary_provider,
+          requested_at: new Date().toISOString(),
+          response_xmotivo: null,
+        })
+        .eq("id", pendingId);
       if (retry.error) throw retry.error;
     }
 
@@ -243,16 +328,32 @@ export class FiscalIntegrationController {
         event: input.event,
         justification: input.justification,
       });
-      const update = await supabaseAdmin.from("manifestations").update({
-        response_cstat: result.cStat,
-        response_xmotivo: result.xMotivo,
-      }).eq("id", pendingId);
+      const update = await supabaseAdmin
+        .from("manifestations")
+        .update({
+          response_cstat: result.cStat,
+          response_xmotivo: result.xMotivo,
+        })
+        .eq("id", pendingId);
       if (update.error) throw update.error;
+      const summaryUpdate = await supabaseAdmin
+        .from("documentos_fiscais_integracao")
+        .update({
+          status_manifestacao: input.event,
+          ultima_sincronizacao: new Date().toISOString(),
+        })
+        .eq("company_id", companyId)
+        .eq("chave", input.accessKey);
+      if (summaryUpdate.error) throw summaryUpdate.error;
       return { ...result, idempotent: false };
     } catch (error) {
-      await supabaseAdmin.from("manifestations").update({
-        response_xmotivo: error instanceof Error ? error.message : "Falha não identificada no envio do evento.",
-      }).eq("id", pendingId);
+      await supabaseAdmin
+        .from("manifestations")
+        .update({
+          response_xmotivo:
+            error instanceof Error ? error.message : "Falha não identificada no envio do evento.",
+        })
+        .eq("id", pendingId);
       throw error;
     }
   }

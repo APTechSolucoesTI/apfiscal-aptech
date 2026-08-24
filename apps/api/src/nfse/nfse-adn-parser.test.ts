@@ -40,4 +40,22 @@ describe("ADN NFS-e", () => {
       taxTotal: 45,
     });
   });
+
+  it("extrai competencia, servico, municipio, regime e tributos da NFS-e nacional", () => {
+    const detailed = `<?xml version="1.0"?><NFSe><infNFSe Id="NFS${"2".repeat(50)}"><xLocPrestacao>Conchas</xLocPrestacao><cLocIncid>3512308</cLocIncid><xLocIncid>Conchas</xLocIncid><nNFSe>7</nNFSe><cStat>100</cStat><dhProc>2026-07-17T13:55:07-03:00</dhProc><emit><CNPJ>10287986000186</CNPJ><IM>2479</IM><xNome>Prestador</xNome><enderNac><xLgr>Rua A</xLgr><nro>10</nro><cMun>3512308</cMun><UF>SP</UF></enderNac></emit><valores><vBC>1400.00</vBC><pAliqAplic>2.01</pAliqAplic><vISSQN>28.14</vISSQN><vLiq>1371.86</vLiq></valores><DPS><infDPS><serie>49999</serie><nDPS>7</nDPS><dCompet>2026-07-17</dCompet><prest><CNPJ>10287986000186</CNPJ><regTrib><opSimpNac>3</opSimpNac><regEspTrib>0</regEspTrib></regTrib></prest><toma><CNPJ>08168210000286</CNPJ><xNome>Tomador</xNome></toma><serv><locPrest><cLocPrestacao>3512308</cLocPrestacao></locPrest><cServ><cTribNac>140101</cTribNac><cIntContrib>9521500</cIntContrib><xDescServ>Manutencao de bomba</xDescServ></cServ></serv><valores><vServPrest><vServ>1400.00</vServ></vServPrest><trib><tribMun><tpRetISSQN>1</tpRetISSQN><pAliq>2.01</pAliq></tribMun></trib></valores></infDPS></DPS></infNFSe></NFSe>`;
+    expect(parseNfseXml(detailed, "2".repeat(50))).toMatchObject({
+      competenceDate: "2026-07-17",
+      serviceMunicipalityCode: "3512308",
+      serviceMunicipalityName: "Conchas",
+      grossValue: 1400,
+      netValue: 1371.86,
+      issRate: 2.01,
+      issValue: 28.14,
+      serviceCodeNational: "140101",
+      serviceCodeMunicipal: "9521500",
+      taxRegime: "3",
+      specialTaxRegime: "0",
+      serviceDescription: "Manutencao de bomba",
+    });
+  });
 });

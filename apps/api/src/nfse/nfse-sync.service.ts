@@ -93,34 +93,81 @@ export class NfseSyncService {
       { onConflict: "company_id,provider,nsu" },
     );
     if (distributed.error) throw distributed.error;
-    const canonical = await supabaseAdmin.from("fiscal_documents").upsert(
-      {
-        company_id: input.companyId,
-        tipo: "nfse",
-        chave_acesso: parsed.accessKey,
-        numero: parsed.number,
-        serie: parsed.series,
-        emitente_cnpj: parsed.issuerTaxId,
-        emitente_nome: parsed.issuerName,
-        destinatario_cnpj: parsed.recipientTaxId,
-        destinatario_nome: parsed.recipientName,
-        valor_total: parsed.total,
-        valor_impostos: parsed.taxTotal,
-        situacao: parsed.status,
-        natureza_operacao: parsed.serviceDescription,
-        data_emissao: parsed.issuedAt,
-        xml_path: xmlPath,
-        xml_content: input.document.rawDocument,
-        source_provider: this.nacional.kind,
-        raw_payload: {
-          provider: this.nacional.kind,
-          nsu: input.document.nsu,
-          recipient_tax_id: parsed.recipientTaxId,
+    const canonical = await supabaseAdmin
+      .from("fiscal_documents")
+      .upsert(
+        {
+          company_id: input.companyId,
+          tipo: "nfse",
+          chave_acesso: parsed.accessKey,
+          numero: parsed.number,
+          serie: parsed.series,
+          emitente_cnpj: parsed.issuerTaxId,
+          emitente_nome: parsed.issuerName,
+          destinatario_cnpj: parsed.recipientTaxId,
+          destinatario_nome: parsed.recipientName,
+          valor_total: parsed.total,
+          valor_impostos: parsed.taxTotal,
+          situacao: parsed.status,
+          natureza_operacao: parsed.serviceDescription,
+          data_emissao: parsed.issuedAt,
+          external_id: parsed.externalId,
+          verification_code: parsed.verificationCode,
+          competence_date: parsed.competenceDate,
+          service_municipality_code: parsed.serviceMunicipalityCode,
+          service_municipality_name: parsed.serviceMunicipalityName,
+          incidence_municipality_code: parsed.incidenceMunicipalityCode,
+          incidence_municipality_name: parsed.incidenceMunicipalityName,
+          service_gross_value: parsed.grossValue,
+          service_net_value: parsed.netValue,
+          deductions_value: parsed.deductionsValue,
+          unconditional_discount_value: parsed.unconditionalDiscountValue,
+          conditional_discount_value: parsed.conditionalDiscountValue,
+          retentions_value: parsed.retentionsValue,
+          iss_base_value: parsed.issBaseValue,
+          iss_rate: parsed.issRate,
+          iss_value: parsed.issValue,
+          service_code_national: parsed.serviceCodeNational,
+          service_code_municipal: parsed.serviceCodeMunicipal,
+          cnae_code: parsed.cnaeCode,
+          service_description: parsed.serviceDescription,
+          tax_regime: parsed.taxRegime,
+          special_tax_regime: parsed.specialTaxRegime,
+          nfse_details: parsed.details,
+          sync_status: parsed.status === "100" ? "processed" : "cancelled",
+          last_sync_attempt_at: new Date().toISOString(),
+          last_sync_success_at: new Date().toISOString(),
+          processing_error: null,
+          xml_path: xmlPath,
+          xml_content: input.document.rawDocument,
+          source_provider: this.nacional.kind,
+          raw_payload: {
+            provider: this.nacional.kind,
+            nsu: input.document.nsu,
+            recipient_tax_id: parsed.recipientTaxId,
+          },
         },
-      },
-      { onConflict: "chave_acesso" },
-    );
+        { onConflict: "chave_acesso" },
+      )
+      .select("id")
+      .single();
     if (canonical.error) throw canonical.error;
+    const history = await supabaseAdmin.from("fiscal_document_history").insert({
+      organization_id: input.organizationId,
+      company_id: input.companyId,
+      fiscal_document_id: canonical.data.id,
+      event_type: existing.data ? "synchronized" : "imported",
+      status: "success",
+      message: existing.data
+        ? `NFS-e atualizada pela ADN no NSU ${input.document.nsu}.`
+        : `NFS-e importada pela ADN no NSU ${input.document.nsu}.`,
+      payload: {
+        provider: this.nacional.kind,
+        nsu: input.document.nsu,
+        access_key: parsed.accessKey,
+      },
+    });
+    if (history.error) throw history.error;
     if (existing.data) input.counters.duplicates += 1;
     else input.counters.imported += 1;
   }
@@ -177,12 +224,70 @@ export class NfseSyncService {
     return Boolean(legacy.data?.length);
   }
 
+  private async backfillStoredDocuments(input: {
+    organizationId: string;
+    companyId: string;
+    companyCnpj: string;
+    counters: SyncCounters;
+  }) {
+    const incomplete = await supabaseAdmin
+      .from("fiscal_documents")
+      .select("chave_acesso")
+      .eq("company_id", input.companyId)
+      .eq("tipo", "nfse")
+      .is("service_description", null)
+      .limit(1000);
+    if (incomplete.error) throw incomplete.error;
+    const keys = (incomplete.data ?? []).map((row) => row.chave_acesso).filter(Boolean);
+    if (!keys.length) return 0;
+    const stored = await supabaseAdmin
+      .from("nfse_distribution_documents")
+      .select("nsu, access_key, content_type, raw_document, payload_hash")
+      .eq("company_id", input.companyId)
+      .in("access_key", keys);
+    if (stored.error) throw stored.error;
+    for (const row of stored.data ?? []) {
+      await this.persistDocument({
+        ...input,
+        document: {
+          nsu: Number(row.nsu),
+          accessKey: row.access_key,
+          contentType: row.content_type,
+          rawDocument: row.raw_document,
+          payloadHash: row.payload_hash,
+        },
+      });
+    }
+    return stored.data?.length ?? 0;
+  }
+
   private message(counters: SyncCounters): string {
     if (!counters.located)
       return "Consulta concluída: a ADN não devolveu documentos novos para o certificado. O checkpoint foi preservado e a sincronização automática continuará ativa.";
     if (!counters.relevant)
       return `A ADN devolveu ${counters.located} registro(s), mas nenhuma NFS-e desse lote foi emitida contra o CNPJ desta empresa. O checkpoint avançou até o NSU ${counters.lastNsu} sem criar documentos incorretos.`;
     return `A ADN localizou ${counters.located} registro(s): ${counters.relevant} NFS-e pertencem a esta empresa, ${counters.imported} foram importadas e ${counters.duplicates} já existiam. Checkpoint atualizado até o NSU ${counters.lastNsu}.`;
+  }
+
+  async backfill(companyId: string) {
+    const [integration, company] = await Promise.all([
+      supabaseAdmin
+        .from("empresa_integracoes_fiscais")
+        .select("organization_id, nfse_last_nsu")
+        .eq("company_id", companyId)
+        .single(),
+      supabaseAdmin.from("companies").select("cnpj").eq("id", companyId).single(),
+    ]);
+    if (integration.error) throw integration.error;
+    if (company.error) throw company.error;
+    const counters = emptyCounters(Number(integration.data.nfse_last_nsu ?? 0));
+    const updated = await this.backfillStoredDocuments({
+      organizationId: integration.data.organization_id,
+      companyId,
+      companyCnpj: taxId(company.data.cnpj),
+      counters,
+    });
+    return { updated, errors: counters.errors };
   }
 
   async sync(companyId: string) {
@@ -213,6 +318,7 @@ export class NfseSyncService {
       counters,
     };
     try {
+      await this.backfillStoredDocuments(common);
       const expanded = await this.expandLegacyEnvelopes(common);
       if (!expanded) {
         const nextAllowed = integration.data.nfse_next_allowed_sync_at

@@ -50,12 +50,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/common/TablePagination";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
@@ -71,10 +66,14 @@ import {
   type DocumentoFiscal,
   type TipoEventoManifestacao,
 } from "@/services/apfiscalService";
-import { STATUS_LABEL, TIPOS_EVENTO_MANIFESTACAO, type StatusDocumentoFiscal } from "@/lib/apfiscal/types";
+import {
+  STATUS_LABEL,
+  TIPOS_EVENTO_MANIFESTACAO,
+  type StatusDocumentoFiscal,
+} from "@/lib/apfiscal/types";
 import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
 import { getFiscalSettings } from "@/services/fiscalIntegrationService";
-
+import { Link } from "@/lib/router-compat";
 
 const STATUS_STYLE: Record<StatusDocumentoFiscal, string> = {
   resumida: "bg-slate-100 text-slate-700 border-slate-200",
@@ -118,7 +117,6 @@ function NfeIntegracao() {
   const [histPage, setHistPage] = useState(1);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [baixandoLote, setBaixandoLote] = useState(false);
-
 
   const empresaFiltro = companyId === "todas" ? null : companyId;
 
@@ -180,7 +178,6 @@ function NfeIntegracao() {
 
   const { items: ordenados, requestSort } = useSortableData<Row>(filtrados);
 
-
   useEffect(() => {
     setSelecionados((prev) => {
       if (prev.size === 0) return prev;
@@ -193,7 +190,6 @@ function NfeIntegracao() {
     });
   }, [filtrados]);
 
-
   const handleSincronizar = async () => {
     if (!empresaFiltro) {
       toast.error("Selecione uma empresa para sincronizar.");
@@ -205,7 +201,10 @@ function NfeIntegracao() {
       toast.success(
         `${r.novosDocumentos} nova(s), ${r.documentosConhecidos} conhecida(s), ${r.xmlsCompletosBaixados} XML(s) completo(s) e ${r.notasImportadas} NF-e importada(s).`,
       );
-      if (r.aguardandoXmlCompleto) toast.info(`${r.aguardandoXmlCompleto} nota(s) ainda aguardam liberação do XML completo pela SEFAZ.`);
+      if (r.aguardandoXmlCompleto)
+        toast.info(
+          `${r.aguardandoXmlCompleto} nota(s) ainda aguardam liberação do XML completo pela SEFAZ.`,
+        );
       if (r.erros.length) toast.warning(`${r.erros.length} ocorrência(s): ${r.erros[0].mensagem}`);
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-documentos"] });
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-historico"] });
@@ -269,8 +268,7 @@ function NfeIntegracao() {
       const arquivos: { nome: string; conteudo: string }[] = [];
       let falhas = 0;
       for (const doc of docs) {
-        const tipo: "resumido" | "completo" =
-          doc.xml_completo_path ? "completo" : "resumido";
+        const tipo: "resumido" | "completo" = doc.xml_completo_path ? "completo" : "resumido";
         if (!doc.xml_completo_path && !doc.xml_resumido_path) {
           falhas += 1;
           continue;
@@ -294,11 +292,33 @@ function NfeIntegracao() {
     }
   };
 
-
   const columns: Col[] = useMemo(
     () => [
-      { key: "nsu", label: "NSU", sortKey: "nsu", className: "font-mono text-xs", render: (doc) => doc.nsu },
-      { key: "chave", label: "Chave", sortKey: "chave", className: "font-mono text-xs", render: (doc) => doc.chave },
+      {
+        key: "numero",
+        label: "NF-e",
+        sortKey: "numero",
+        render: (doc) => (
+          <div>
+            <div className="font-semibold text-slate-900">{doc.numero || "Sem número"}</div>
+            <div className="text-xs text-slate-500">Série {doc.serie || "—"}</div>
+          </div>
+        ),
+      },
+      {
+        key: "nsu",
+        label: "NSU",
+        sortKey: "nsu",
+        className: "font-mono text-xs",
+        render: (doc) => doc.nsu,
+      },
+      {
+        key: "chave",
+        label: "Chave",
+        sortKey: "chave",
+        className: "font-mono text-xs",
+        render: (doc) => doc.chave,
+      },
       {
         key: "emitente",
         label: "Emitente",
@@ -317,15 +337,52 @@ function NfeIntegracao() {
         render: (doc) => {
           const c = companies.find((e) => e.id === doc.company_id);
           return (
-            <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 truncate max-w-[180px]">
-              {c ? (c.nome_fantasia || c.razao_social) : "—"}
+            <Badge
+              variant="outline"
+              className="bg-slate-50 text-slate-600 border-slate-200 truncate max-w-[180px]"
+            >
+              {c ? c.nome_fantasia || c.razao_social : "—"}
             </Badge>
           );
-        }
+        },
       },
-      { key: "emissao", label: "Emissão", sortKey: "data_num", className: "text-sm whitespace-nowrap", render: (doc) => fmtData(doc.data_emissao) },
-      { key: "valor", label: "Valor", sortKey: "valor_num", headClassName: "text-right", className: "text-right text-sm", render: (doc) => fmtMoeda(doc.valor_nota) },
-      { key: "tipo", label: "Tipo", sortKey: "tipo_documento", className: "text-sm", render: (doc) => doc.tipo_documento ?? "NF-e" },
+      {
+        key: "emissao",
+        label: "Emissão",
+        sortKey: "data_num",
+        className: "text-sm whitespace-nowrap",
+        render: (doc) => fmtData(doc.data_emissao),
+      },
+      {
+        key: "valor",
+        label: "Valor",
+        sortKey: "valor_num",
+        headClassName: "text-right",
+        className: "text-right text-sm",
+        render: (doc) => fmtMoeda(doc.valor_nota),
+      },
+      {
+        key: "tipo",
+        label: "Tipo",
+        sortKey: "tipo_documento",
+        className: "text-sm",
+        render: (doc) => doc.tipo_documento ?? "NF-e",
+      },
+      {
+        key: "fiscal",
+        label: "Situação fiscal",
+        sortKey: "situacao",
+        render: (doc) => (
+          <div className="space-y-1">
+            <Badge variant="outline" className="bg-slate-50">
+              {doc.situacao || "Não informada"}
+            </Badge>
+            {doc.tipo_evento && (
+              <p className="text-[11px] text-slate-500">Evento {doc.tipo_evento}</p>
+            )}
+          </div>
+        ),
+      },
       {
         key: "situacao",
         label: "Situação",
@@ -354,8 +411,37 @@ function NfeIntegracao() {
             </Badge>
           ),
       },
-      { key: "protocolo", label: "Protocolo", sortKey: "protocolo", className: "font-mono text-xs", render: (doc) => doc.protocolo || "—" },
-      { key: "atualizado", label: "Atualizado em", sortKey: "updated_at", className: "text-sm whitespace-nowrap", render: (doc) => fmtData(doc.updated_at) },
+      {
+        key: "protocolo",
+        label: "Protocolo",
+        sortKey: "protocolo",
+        className: "font-mono text-xs",
+        render: (doc) => doc.protocolo || "—",
+      },
+      {
+        key: "xml",
+        label: "XML / manifestação",
+        render: (doc) => (
+          <div className="space-y-1 text-xs">
+            <p>
+              <span className="font-medium">XML:</span>{" "}
+              {doc.status_download || (doc.xml_completo_path ? "Completo" : "Resumido")}
+            </p>
+            <p>
+              <span className="font-medium">Manifestação:</span>{" "}
+              {doc.status_manifestacao || "Pendente"}
+            </p>
+            <p className="text-slate-500">Schema {doc.schema_documento || "—"}</p>
+          </div>
+        ),
+      },
+      {
+        key: "atualizado",
+        label: "Última sincronização",
+        sortKey: "ultima_sincronizacao",
+        className: "text-sm whitespace-nowrap",
+        render: (doc) => fmtData(doc.ultima_sincronizacao || doc.updated_at),
+      },
       {
         key: "actions",
         label: "Ações",
@@ -392,6 +478,13 @@ function NfeIntegracao() {
                 Completo
               </Button>
             )}
+            {doc.fiscal_document_id && (
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.fiscal_document_id }}>
+                  Abrir completa
+                </Link>
+              </Button>
+            )}
           </div>
         ),
       },
@@ -400,8 +493,16 @@ function NfeIntegracao() {
     [],
   );
 
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } =
-    useColumnPreferences("nfe-integracao", columns);
+  const {
+    visibleColumns,
+    allColumns,
+    isVisible,
+    toggleVisible,
+    moveColumn,
+    reset,
+    pageSize,
+    setPageSize,
+  } = useColumnPreferences("nfe-integracao", columns);
   const visibleCols = useMemo(
     () => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean),
     [visibleColumns, columns],
@@ -425,9 +526,7 @@ function NfeIntegracao() {
     setPage(1);
   }, [busca, pageSize, ordenados.length]);
 
-  const podeConfirmar =
-    tipoEvento !== "210240" || justificativa.trim().length >= 15;
-
+  const podeConfirmar = tipoEvento !== "210240" || justificativa.trim().length >= 15;
 
   return (
     <div className="space-y-5">
@@ -438,55 +537,71 @@ function NfeIntegracao() {
               <ReceiptText className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Operação fiscal</p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Central de NF-e</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+                Operação fiscal
+              </p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                NF-e Resumida
+              </h1>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
                 Consulte a SEFAZ pelo NFeWizard, acompanhe o NSU e gerencie XMLs em um só fluxo.
               </p>
             </div>
           </div>
           <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-          <Select
-            value={companyId}
-            onValueChange={(v) => {
-              setCompanyId(v);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full bg-white sm:w-[280px]">
-              <SelectValue placeholder="Empresa" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas as empresas</SelectItem>
-              {companies.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.nome_fantasia || c.razao_social}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            onClick={handleSincronizar}
-            disabled={sincronizando || Boolean(syncBlockedReason)}
-            title={syncBlockedReason ?? undefined}
-            className="min-w-44"
-          >
-            {sincronizando ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            Sincronizar notas
-          </Button>
+            <Select
+              value={companyId}
+              onValueChange={(v) => {
+                setCompanyId(v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full bg-white sm:w-[280px]">
+                <SelectValue placeholder="Empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as empresas</SelectItem>
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome_fantasia || c.razao_social}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={handleSincronizar}
+              disabled={sincronizando || Boolean(syncBlockedReason)}
+              title={syncBlockedReason ?? undefined}
+              className="min-w-44"
+            >
+              {sincronizando ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Sincronizar notas
+            </Button>
           </div>
         </div>
         <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/80 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <div className="flex items-center gap-2 text-slate-700">
-            {syncBlockedReason ? <ShieldAlert className="h-4 w-4 text-amber-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-            <span>{syncBlockedReason ?? `${selectedCompany?.nome_fantasia || selectedCompany?.razao_social}: NFeWizard pronto para consultar.`}</span>
+            {syncBlockedReason ? (
+              <ShieldAlert className="h-4 w-4 text-amber-600" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            )}
+            <span>
+              {syncBlockedReason ??
+                `${selectedCompany?.nome_fantasia || selectedCompany?.razao_social}: NFeWizard pronto para consultar.`}
+            </span>
           </div>
           {fiscalSettings?.checkpoint && (
-            <span className="text-xs text-slate-500">Último NSU: <span className="font-mono font-medium text-slate-700">{fiscalSettings.checkpoint.last_nsu}</span></span>
+            <span className="text-xs text-slate-500">
+              Último NSU:{" "}
+              <span className="font-mono font-medium text-slate-700">
+                {fiscalSettings.checkpoint.last_nsu}
+              </span>
+            </span>
           )}
         </div>
       </section>
@@ -500,7 +615,12 @@ function NfeIntegracao() {
         <TabsContent value="documentos" className="mt-4">
           <Card>
             <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-              <div><CardTitle className="text-base">Documentos fiscais</CardTitle><p className="mt-1 text-xs text-muted-foreground">{filtrados.length} documento(s) no filtro atual</p></div>
+              <div>
+                <CardTitle className="text-base">Documentos fiscais</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {filtrados.length} documento(s) no filtro atual
+                </p>
+              </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                 <Input
                   placeholder="Buscar por chave, emitente ou CNPJ"
@@ -517,7 +637,11 @@ function NfeIntegracao() {
                   disabled={selecionados.size === 0 || baixandoLote}
                   title={selecionados.size === 0 ? "Selecione ao menos uma NF-e" : undefined}
                 >
-                  {baixandoLote ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                  {baixandoLote ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileDown className="mr-2 h-4 w-4" />
+                  )}
                   Baixar XML{selecionados.size > 0 ? ` (${selecionados.size})` : ""}
                 </Button>
                 <ColumnSettings
@@ -549,7 +673,9 @@ function NfeIntegracao() {
                         className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer select-none" : ""}`}
                         onClick={c.sortKey ? () => requestSort(c.sortKey as keyof Row) : undefined}
                       >
-                        <div className={`flex items-center gap-1 ${c.headClassName?.includes("text-right") ? "justify-end" : ""}`}>
+                        <div
+                          className={`flex items-center gap-1 ${c.headClassName?.includes("text-right") ? "justify-end" : ""}`}
+                        >
                           {c.label}
                           {c.sortKey && <ArrowUpDown className="h-3 w-3" />}
                         </div>
@@ -569,7 +695,9 @@ function NfeIntegracao() {
                       <TableCell colSpan={colSpan} className="py-16 text-center text-slate-500">
                         <Building2 className="mx-auto mb-3 h-7 w-7 text-slate-300" />
                         <p className="font-medium text-slate-700">Nenhum documento encontrado</p>
-                        <p className="mt-1 text-xs">Selecione uma empresa pronta e execute a primeira sincronização.</p>
+                        <p className="mt-1 text-xs">
+                          Selecione uma empresa pronta e execute a primeira sincronização.
+                        </p>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -619,6 +747,10 @@ function NfeIntegracao() {
                                   {doc.tentativas_xml_completo}
                                 </div>
                                 <div>
+                                  <span className="font-semibold">Recebida em:</span>{" "}
+                                  {fmtData(doc.data_recebimento)}
+                                </div>
+                                <div>
                                   <span className="font-semibold">Atualizado em:</span>{" "}
                                   {fmtData(doc.updated_at)}
                                 </div>
@@ -630,7 +762,6 @@ function NfeIntegracao() {
                     ))
                   )}
                 </TableBody>
-
               </Table>
               <TablePagination
                 page={page}
@@ -727,7 +858,10 @@ function NfeIntegracao() {
           <div className="space-y-4">
             <div className="grid gap-2">
               <Label>Tipo de evento</Label>
-              <Select value={tipoEvento} onValueChange={(v) => setTipoEvento(v as TipoEventoManifestacao)}>
+              <Select
+                value={tipoEvento}
+                onValueChange={(v) => setTipoEvento(v as TipoEventoManifestacao)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -749,7 +883,9 @@ function NfeIntegracao() {
                   maxLength={255}
                   rows={3}
                 />
-                <p className="text-xs text-slate-500">{justificativa.trim().length}/15 caracteres</p>
+                <p className="text-xs text-slate-500">
+                  {justificativa.trim().length}/15 caracteres
+                </p>
               </div>
             )}
           </div>

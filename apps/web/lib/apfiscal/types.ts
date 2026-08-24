@@ -22,6 +22,12 @@ export type DocumentoFiscal = {
   nsu: number;
   chave: string;
   tipo_documento: string | null;
+  fiscal_document_id: string | null;
+  numero: string | null;
+  serie: string | null;
+  situacao: string | null;
+  tipo_evento: string | null;
+  schema_documento: string | null;
   emitente_cnpj: string | null;
   emitente_nome: string | null;
   emitente_ie: string | null;
@@ -29,6 +35,10 @@ export type DocumentoFiscal = {
   valor_nota: number | null;
   protocolo: string | null;
   status: StatusDocumentoFiscal;
+  status_manifestacao: string | null;
+  status_download: string | null;
+  data_recebimento: string | null;
+  ultima_sincronizacao: string | null;
   xml_resumido_path: string | null;
   xml_completo_path: string | null;
   tentativas_xml_completo: number;

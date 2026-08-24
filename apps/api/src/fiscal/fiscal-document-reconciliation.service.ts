@@ -2,7 +2,11 @@ import { Injectable } from "@nestjs/common";
 import type { DistributionResult, NfeProvider, NfeProviderKind } from "@apfiscal/shared";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { importarNfeXml } from "@/legacy/lib/nfe-import.server";
-import { isFullNfeDocument, nfeAccessKey } from "./fiscal-document-reconciliation";
+import {
+  isFullNfeDocument,
+  nfeAccessKey,
+  nfeDistributionMetadata,
+} from "./fiscal-document-reconciliation";
 
 type DistributedDocument = DistributionResult["documents"][number];
 
@@ -13,6 +17,7 @@ type IntegrationDocument = {
   status: "resumida" | "manifestacao_pendente" | "aguardando_xml_completo" | "completa" | "erro";
   xml_completo_path: string | null;
   tentativas_xml_completo: number;
+  fiscal_document_id?: string | null;
 };
 
 export type ReconciliationError = { chave?: string; nsu?: number; mensagem: string };
@@ -42,6 +47,61 @@ function errorMessage(error: unknown): string {
 
 @Injectable()
 export class FiscalDocumentReconciliationService {
+  async backfillMetadata(companyId: string, limit = 1000) {
+    const stored = await supabaseAdmin
+      .from("documentos_fiscais_integracao")
+      .select("id, chave, tipo_documento, xml_resumido_path, xml_completo_path")
+      .eq("company_id", companyId)
+      .or("emitente_nome.is.null,fiscal_document_id.is.null")
+      .order("nsu", { ascending: false })
+      .limit(Math.min(Math.max(limit, 1), 1000));
+    if (stored.error) throw stored.error;
+    let updated = 0;
+    const errors: string[] = [];
+    for (const row of stored.data ?? []) {
+      const path = row.xml_completo_path ?? row.xml_resumido_path;
+      if (!path) continue;
+      try {
+        const downloaded = await supabaseAdmin.storage.from("fiscal-xml").download(path);
+        if (downloaded.error) throw downloaded.error;
+        const xml = await downloaded.data.text();
+        const metadata = nfeDistributionMetadata({ schema: row.tipo_documento ?? "unknown", xml });
+        const canonical = await supabaseAdmin
+          .from("fiscal_documents")
+          .select("id")
+          .eq("company_id", companyId)
+          .eq("chave_acesso", row.chave)
+          .maybeSingle();
+        if (canonical.error) throw canonical.error;
+        const result = await supabaseAdmin
+          .from("documentos_fiscais_integracao")
+          .update({
+            fiscal_document_id: canonical.data?.id ?? null,
+            tipo_documento: metadata.documentType,
+            schema_documento: metadata.schema,
+            numero: metadata.number,
+            serie: metadata.series,
+            emitente_cnpj: metadata.issuerTaxId,
+            emitente_nome: metadata.issuerName,
+            emitente_ie: metadata.issuerStateRegistration,
+            data_emissao: metadata.issuedAt,
+            valor_nota: metadata.total,
+            protocolo: metadata.protocol,
+            situacao: metadata.situation,
+            tipo_evento: metadata.eventType,
+            data_recebimento: metadata.receivedAt,
+            status_download: row.xml_completo_path ? "completo_disponivel" : "resumo_disponivel",
+          })
+          .eq("id", row.id);
+        if (result.error) throw result.error;
+        updated += 1;
+      } catch (error) {
+        errors.push(`${row.chave}: ${errorMessage(error)}`);
+      }
+    }
+    return { located: stored.data?.length ?? 0, updated, errors };
+  }
+
   private async existingIntegrationDocuments(companyId: string, keys: string[]) {
     if (keys.length === 0) return new Map<string, IntegrationDocument>();
     const result = await supabaseAdmin
@@ -82,6 +142,16 @@ export class FiscalDocumentReconciliationService {
         .eq("id", imported.documentId)
         .is("source_provider", null);
       if (update.error) throw update.error;
+      const linked = await supabaseAdmin
+        .from("documentos_fiscais_integracao")
+        .update({
+          fiscal_document_id: imported.documentId,
+          status_download: "completo_disponivel",
+          ultima_sincronizacao: new Date().toISOString(),
+        })
+        .eq("company_id", input.companyId)
+        .eq("chave", input.key);
+      if (linked.error) throw linked.error;
     }
     const promoted = await supabaseAdmin
       .from("documentos_fiscais_integracao")
@@ -109,7 +179,8 @@ export class FiscalDocumentReconciliationService {
       });
       return null;
     }
-    const full = isFullNfeDocument(input.document);
+    const metadata = nfeDistributionMetadata(input.document);
+    const full = metadata.full;
     const normalizedNsu = String(input.document.nsu).replace(/^0+(?=\d)/, "");
     const path = `${input.companyId}/${normalizedNsu}-${full ? "completa" : "resumida"}-${key}.xml`;
     try {
@@ -126,8 +197,22 @@ export class FiscalDocumentReconciliationService {
           company_id: input.companyId,
           nsu: Number(input.document.nsu),
           chave: key,
-          tipo_documento: input.document.schema,
+          tipo_documento: metadata.documentType,
+          schema_documento: metadata.schema,
+          numero: metadata.number,
+          serie: metadata.series,
+          emitente_cnpj: metadata.issuerTaxId,
+          emitente_nome: metadata.issuerName,
+          emitente_ie: metadata.issuerStateRegistration,
+          data_emissao: metadata.issuedAt,
+          valor_nota: metadata.total,
+          protocolo: metadata.protocol,
+          situacao: metadata.situation,
+          tipo_evento: metadata.eventType,
+          data_recebimento: metadata.receivedAt ?? new Date().toISOString(),
           status: full ? "completa" : "resumida",
+          status_download: full ? "completo_disponivel" : "resumo_disponivel",
+          ultima_sincronizacao: new Date().toISOString(),
           mensagem_sefaz: null,
           ...(full ? { xml_completo_path: path } : { xml_resumido_path: path }),
         },
@@ -289,6 +374,7 @@ export class FiscalDocumentReconciliationService {
     for (const document of uniqueIncoming.values()) {
       await this.persistDistributedDocument({ ...input, document, counters });
     }
+    await this.backfillMetadata(input.companyId, 50);
     await this.backfillStoredFullXml({ ...input, counters });
     await this.promoteKnownSummaries({ ...input, counters });
     return counters;

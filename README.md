@@ -94,13 +94,14 @@ Use [`.env.example`](./.env.example) como lista do Compose. Os arquivos específ
 | `TOTVS_SQL_ENCRYPT`, `TOTVS_SQL_TRUST_SERVER_CERTIFICATE` | API | TLS do SQL Server; aceite certificado não confiável apenas em rede controlada |
 | `TOTVS_COLIGADAS` | API | allowlist numérica, por padrão `1,2` |
 | `TOTVS_WRITES_ENABLED` | API | mantenha `false`; escrita exige SQL real homologado e versionado |
-| `NFE_RECONCILIATION_BATCH_SIZE` | API | quantidade de resumos antigos revisitada por sincronização, padrão `50` |
+| `NFE_RECONCILIATION_BATCH_SIZE` | API | resumos antigos revisados por ciclo; máximo seguro `10` para evitar rajadas contra a SEFAZ |
 | `TOTVS_CONNECTION_KEYS` | API | chaves das conexões disponíveis, separadas por vírgula; a conexão atual é `TOTVS_GRANJA` |
 | `TOTVS_DEFAULT_CONNECTION_KEY` | API | conexão usada para compatibilidade com as variáveis legadas; use `TOTVS_GRANJA` |
 | `TOTVS_CONNECTION_<CHAVE>_DESCRIPTION` | API | identificação legível do banco, sem armazenar credenciais no banco APFiscal |
 | `TOTVS_CONNECTION_<CHAVE>_*` | API | host, porta, database, usuário, senha, TLS, coligadas e trava de escrita de cada banco |
 | `SUPERADMIN_EMAIL`, `SUPERADMIN_INITIAL_PASSWORD` | API | bootstrap único do Super Admin; remova a senha do ambiente depois da primeira criação |
 | `NFSE_ADN_BASE_URL` | API | endpoint oficial da ADN NFS-e; o exemplo já contém a URL de produção |
+| `NFSE_ADN_MIN_INTERVAL_MINUTES` | API | intervalo mínimo de proteção entre consultas ADN; mantenha pelo menos `15` |
 
 O Compose repassa `NEXT_PUBLIC_APP_URL` à API como `PUBLIC_APP_URL`, garantindo que os e-mails da autenticação própria do APFiscal apontem para o domínio público correto. O login não usa Supabase Auth nem aceita usuários de outros sistemas do mesmo Supabase.
 
@@ -142,7 +143,7 @@ As variáveis legadas `TOTVS_SQL_*` continuam aceitas apenas para a conexão pad
 
 ## NFS-e recebida/tomada
 
-A primeira implementação usa a API oficial do Ambiente de Dados Nacional (ADN), com consulta incremental por NSU e autenticação mTLS pelo mesmo certificado A1 da empresa. O documento bruto e o checkpoint são persistidos de forma idempotente. Provedores municipais permanecem como adapters explícitos e bloqueados até existir configuração homologada para o município; não há consulta municipal simulada.
+A integração usa a API oficial do Ambiente de Dados Nacional (ADN), com consulta incremental por NSU e autenticação mTLS pelo mesmo certificado A1 da empresa. Cada resposta JSON é expandida, os XMLs compactados são descomprimidos e somente NFS-e cujo tomador corresponde exatamente ao CNPJ da empresa são gravadas. Os documentos são persistidos tanto no histórico de distribuição quanto em `fiscal_documents`, ficando disponíveis na tela de NFS-e. O maior NSU do lote vira o checkpoint e cada execução faz somente uma consulta externa, respeitando o intervalo mínimo da ADN. Provedores municipais permanecem como adapters explícitos e bloqueados até existir configuração homologada para o município; não há consulta municipal simulada.
 
 Em **Configurações → Sincronizações**, selecione `Ambiente Nacional (ADN)`, defina a recorrência, teste o certificado e execute a primeira sincronização manual. A tela mostra última execução, próxima execução, estado do agendamento e último erro. Respostas HTTP 429 da ADN respeitam `Retry-After`, persistem o próximo horário permitido e não desativam a recorrência automática.
 

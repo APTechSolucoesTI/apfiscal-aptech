@@ -84,8 +84,7 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     this.nfeSyncQueue = new Queue<NfeSyncJob>("nfe-sync", {
       connection,
       defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30_000 },
+        attempts: 1,
         removeOnComplete: 500,
         removeOnFail: 500,
       },
@@ -93,8 +92,7 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     this.nfseSyncQueue = new Queue<NfseSyncJob>("nfse-sync", {
       connection,
       defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30_000 },
+        attempts: 1,
         removeOnComplete: 500,
         removeOnFail: 500,
       },

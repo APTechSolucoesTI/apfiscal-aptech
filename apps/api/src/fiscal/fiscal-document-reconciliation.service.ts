@@ -30,8 +30,10 @@ export type ReconciliationCounters = {
 };
 
 function reconciliationBatchSize(): number {
-  const configured = Number(process.env.NFE_RECONCILIATION_BATCH_SIZE ?? 50);
-  return Number.isInteger(configured) ? Math.min(Math.max(configured, 1), 200) : 50;
+  const configured = Number(process.env.NFE_RECONCILIATION_BATCH_SIZE ?? 10);
+  // Each pending summary can result in another SEFAZ request. Keep the batch
+  // deliberately small so reconciliation never turns into a request burst.
+  return Number.isInteger(configured) ? Math.min(Math.max(configured, 1), 10) : 10;
 }
 
 function errorMessage(error: unknown): string {
@@ -42,7 +44,8 @@ function errorMessage(error: unknown): string {
 export class FiscalDocumentReconciliationService {
   private async existingIntegrationDocuments(companyId: string, keys: string[]) {
     if (keys.length === 0) return new Map<string, IntegrationDocument>();
-    const result = await supabaseAdmin.from("documentos_fiscais_integracao")
+    const result = await supabaseAdmin
+      .from("documentos_fiscais_integracao")
       .select("id, nsu, chave, status, xml_completo_path, tentativas_xml_completo")
       .eq("company_id", companyId)
       .in("chave", keys);
@@ -52,7 +55,8 @@ export class FiscalDocumentReconciliationService {
 
   private async canonicalKeys(companyId: string, keys: string[]): Promise<Set<string>> {
     if (keys.length === 0) return new Set();
-    const result = await supabaseAdmin.from("fiscal_documents")
+    const result = await supabaseAdmin
+      .from("fiscal_documents")
       .select("chave_acesso")
       .eq("company_id", companyId)
       .in("chave_acesso", keys);
@@ -72,16 +76,21 @@ export class FiscalDocumentReconciliationService {
     if (imported.ok) input.counters.notesImported += 1;
     if (imported.duplicated) input.counters.duplicates += 1;
     if (imported.documentId) {
-      const update = await supabaseAdmin.from("fiscal_documents")
+      const update = await supabaseAdmin
+        .from("fiscal_documents")
         .update({ source_provider: input.providerKind })
         .eq("id", imported.documentId)
         .is("source_provider", null);
       if (update.error) throw update.error;
     }
-    const promoted = await supabaseAdmin.from("documentos_fiscais_integracao").update({
-      status: "completa",
-      mensagem_sefaz: null,
-    }).eq("company_id", input.companyId).eq("chave", input.key);
+    const promoted = await supabaseAdmin
+      .from("documentos_fiscais_integracao")
+      .update({
+        status: "completa",
+        mensagem_sefaz: null,
+      })
+      .eq("company_id", input.companyId)
+      .eq("chave", input.key);
     if (promoted.error) throw promoted.error;
   }
 
@@ -94,29 +103,36 @@ export class FiscalDocumentReconciliationService {
   }): Promise<string | null> {
     const key = nfeAccessKey(input.document.xml);
     if (!key) {
-      input.counters.errors.push({ nsu: Number(input.document.nsu), mensagem: "Documento sem chave de acesso válida." });
+      input.counters.errors.push({
+        nsu: Number(input.document.nsu),
+        mensagem: "Documento sem chave de acesso válida.",
+      });
       return null;
     }
     const full = isFullNfeDocument(input.document);
     const normalizedNsu = String(input.document.nsu).replace(/^0+(?=\d)/, "");
     const path = `${input.companyId}/${normalizedNsu}-${full ? "completa" : "resumida"}-${key}.xml`;
     try {
-      const upload = await supabaseAdmin.storage.from("fiscal-xml").upload(
-        path,
-        Buffer.from(input.document.xml),
-        { contentType: "application/xml", upsert: true },
-      );
+      const upload = await supabaseAdmin.storage
+        .from("fiscal-xml")
+        .upload(path, Buffer.from(input.document.xml), {
+          contentType: "application/xml",
+          upsert: true,
+        });
       if (upload.error) throw upload.error;
-      const upsert = await supabaseAdmin.from("documentos_fiscais_integracao").upsert({
-        organization_id: input.organizationId,
-        company_id: input.companyId,
-        nsu: Number(input.document.nsu),
-        chave: key,
-        tipo_documento: input.document.schema,
-        status: full ? "completa" : "resumida",
-        mensagem_sefaz: null,
-        ...(full ? { xml_completo_path: path } : { xml_resumido_path: path }),
-      }, { onConflict: "company_id,chave" });
+      const upsert = await supabaseAdmin.from("documentos_fiscais_integracao").upsert(
+        {
+          organization_id: input.organizationId,
+          company_id: input.companyId,
+          nsu: Number(input.document.nsu),
+          chave: key,
+          tipo_documento: input.document.schema,
+          status: full ? "completa" : "resumida",
+          mensagem_sefaz: null,
+          ...(full ? { xml_completo_path: path } : { xml_resumido_path: path }),
+        },
+        { onConflict: "company_id,chave" },
+      );
       if (upsert.error) throw upsert.error;
       if (full) {
         input.counters.fullXmlDownloaded += 1;
@@ -126,8 +142,13 @@ export class FiscalDocumentReconciliationService {
       }
       return key;
     } catch (error) {
-      input.counters.errors.push({ chave: key, nsu: Number(input.document.nsu), mensagem: errorMessage(error) });
-      const failed = await supabaseAdmin.from("documentos_fiscais_integracao")
+      input.counters.errors.push({
+        chave: key,
+        nsu: Number(input.document.nsu),
+        mensagem: errorMessage(error),
+      });
+      const failed = await supabaseAdmin
+        .from("documentos_fiscais_integracao")
         .update({ status: "erro", mensagem_sefaz: errorMessage(error) })
         .eq("company_id", input.companyId)
         .eq("chave", key);
@@ -141,7 +162,8 @@ export class FiscalDocumentReconciliationService {
     providerKind: NfeProviderKind;
     counters: ReconciliationCounters;
   }) {
-    const stored = await supabaseAdmin.from("documentos_fiscais_integracao")
+    const stored = await supabaseAdmin
+      .from("documentos_fiscais_integracao")
       .select("id, nsu, chave, status, xml_completo_path, tentativas_xml_completo")
       .eq("company_id", input.companyId)
       .not("xml_completo_path", "is", null)
@@ -149,14 +171,20 @@ export class FiscalDocumentReconciliationService {
       .limit(1000);
     if (stored.error) throw stored.error;
     const rows = stored.data as IntegrationDocument[];
-    const canonical = await this.canonicalKeys(input.companyId, rows.map((row) => row.chave));
+    const canonical = await this.canonicalKeys(
+      input.companyId,
+      rows.map((row) => row.chave),
+    );
     for (const row of rows) {
       if (canonical.has(row.chave) || !row.xml_completo_path) continue;
       try {
-        const downloaded = await supabaseAdmin.storage.from("fiscal-xml").download(row.xml_completo_path);
+        const downloaded = await supabaseAdmin.storage
+          .from("fiscal-xml")
+          .download(row.xml_completo_path);
         if (downloaded.error) throw downloaded.error;
         const xml = await downloaded.data.text();
-        if (!isFullNfeDocument({ schema: "procNFe", xml })) throw new Error("O arquivo armazenado não contém uma NF-e completa.");
+        if (!isFullNfeDocument({ schema: "procNFe", xml }))
+          throw new Error("O arquivo armazenado não contém uma NF-e completa.");
         await this.importFullXml({
           companyId: input.companyId,
           providerKind: input.providerKind,
@@ -166,7 +194,11 @@ export class FiscalDocumentReconciliationService {
           counters: input.counters,
         });
       } catch (error) {
-        input.counters.errors.push({ chave: row.chave, nsu: row.nsu, mensagem: errorMessage(error) });
+        input.counters.errors.push({
+          chave: row.chave,
+          nsu: row.nsu,
+          mensagem: errorMessage(error),
+        });
       }
     }
   }
@@ -178,7 +210,8 @@ export class FiscalDocumentReconciliationService {
     provider: NfeProvider;
     counters: ReconciliationCounters;
   }) {
-    const pending = await supabaseAdmin.from("documentos_fiscais_integracao")
+    const pending = await supabaseAdmin
+      .from("documentos_fiscais_integracao")
       .select("id, nsu, chave, status, xml_completo_path, tentativas_xml_completo")
       .eq("company_id", input.companyId)
       .is("xml_completo_path", null)
@@ -192,16 +225,25 @@ export class FiscalDocumentReconciliationService {
       try {
         const xml = await input.provider.fetchFullXml(input.companyId, row.chave);
         const fullDocument: DistributedDocument = { nsu: String(row.nsu), schema: "procNFe", xml };
-        if (!isFullNfeDocument(fullDocument)) throw new Error("XML completo ainda não foi liberado pela SEFAZ.");
+        if (!isFullNfeDocument(fullDocument))
+          throw new Error("XML completo ainda não foi liberado pela SEFAZ.");
         await this.persistDistributedDocument({ ...input, document: fullDocument });
       } catch (error) {
         input.counters.waitingForFullXml += 1;
-        const update = await supabaseAdmin.from("documentos_fiscais_integracao").update({
-          status: "aguardando_xml_completo",
-          tentativas_xml_completo: row.tentativas_xml_completo + 1,
-          mensagem_sefaz: errorMessage(error),
-        }).eq("id", row.id);
-        if (update.error) input.counters.errors.push({ chave: row.chave, nsu: row.nsu, mensagem: update.error.message });
+        const update = await supabaseAdmin
+          .from("documentos_fiscais_integracao")
+          .update({
+            status: "aguardando_xml_completo",
+            tentativas_xml_completo: row.tentativas_xml_completo + 1,
+            mensagem_sefaz: errorMessage(error),
+          })
+          .eq("id", row.id);
+        if (update.error)
+          input.counters.errors.push({
+            chave: row.chave,
+            nsu: row.nsu,
+            mensagem: update.error.message,
+          });
       }
     }
   }
@@ -228,13 +270,19 @@ export class FiscalDocumentReconciliationService {
     for (const document of input.incoming) {
       const key = nfeAccessKey(document.xml);
       if (!key) {
-        counters.errors.push({ nsu: Number(document.nsu), mensagem: "Documento descoberto sem chave de acesso válida." });
+        counters.errors.push({
+          nsu: Number(document.nsu),
+          mensagem: "Documento descoberto sem chave de acesso válida.",
+        });
         continue;
       }
       const current = uniqueIncoming.get(key);
-      if (!current || (!isFullNfeDocument(current) && isFullNfeDocument(document))) uniqueIncoming.set(key, document);
+      if (!current || (!isFullNfeDocument(current) && isFullNfeDocument(document)))
+        uniqueIncoming.set(key, document);
     }
-    const existing = await this.existingIntegrationDocuments(input.companyId, [...uniqueIncoming.keys()]);
+    const existing = await this.existingIntegrationDocuments(input.companyId, [
+      ...uniqueIncoming.keys(),
+    ]);
     counters.newDocuments = [...uniqueIncoming.keys()].filter((key) => !existing.has(key)).length;
     counters.knownDocuments = uniqueIncoming.size - counters.newDocuments;
 

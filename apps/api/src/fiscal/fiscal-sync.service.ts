@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { ApfiscalProvider } from "./providers/apfiscal.provider";
 import { NfeWizardProvider } from "./providers/nfewizard.provider";
 import { ProviderPreparationError } from "./provider-preparation.error";
+import { ProviderUnavailableError } from "./provider-unavailable.error";
 import {
   availableFallback,
   missingProviderMessage,
@@ -122,11 +123,21 @@ export class FiscalSyncService {
         incoming: result.documents,
       });
 
-      const cooldownHours = ["137", "656"].includes(result.cStat) ? 1 : 0;
+      const caughtUp = (() => {
+        if (!result.maxNsu) return false;
+        try {
+          return BigInt(result.lastNsu) >= BigInt(result.maxNsu);
+        } catch {
+          return false;
+        }
+      })();
+      const cooldownHours =
+        ["137", "656"].includes(result.cStat) || (result.cStat === "138" && caughtUp) ? 1 : 0;
       const retryAt = cooldownHours ? new Date(Date.now() + cooldownHours * 3_600_000) : null;
+      const locatedMessage = `${result.documents.length} documento(s) localizado(s) nesta consulta.`;
       const userMessage = retryAt
-        ? `${result.xMotivo} ${cooldownMessage("A SEFAZ", retryAt)}`
-        : result.xMotivo;
+        ? `${locatedMessage} ${result.xMotivo} O checkpoint alcançou o último NSU disponível. ${cooldownMessage("A SEFAZ", retryAt)}`
+        : `${locatedMessage} ${result.xMotivo}`;
       const update = await supabaseAdmin
         .from("fiscal_distribution_state")
         .update({
@@ -155,6 +166,7 @@ export class FiscalSyncService {
           cstat: result.cStat,
           last_nsu_before: checkpoint.lastNsu,
           last_nsu_after: result.lastNsu,
+          max_nsu: result.maxNsu ?? null,
           documents_found: result.documents.length,
           documents_discovered: counters.discovered,
           new_documents: counters.newDocuments,
@@ -185,6 +197,18 @@ export class FiscalSyncService {
         erros: counters.errors,
       };
     } catch (error) {
+      if (error instanceof ProviderUnavailableError) {
+        const retryAt = new Date(Date.now() + 5 * 60_000);
+        await supabaseAdmin
+          .from("fiscal_distribution_state")
+          .update({
+            last_sync_at: new Date().toISOString(),
+            next_allowed_sync_at: retryAt.toISOString(),
+            last_error: error.message,
+          })
+          .eq("company_id", companyId)
+          .eq("lock_token", lockToken);
+      }
       if (auditOrganizationId) {
         await supabaseAdmin.from("historico_integracao_fiscal").insert({
           organization_id: auditOrganizationId,
@@ -197,6 +221,7 @@ export class FiscalSyncService {
             provider: auditProvider,
             duration_ms: Date.now() - startedAt,
             last_nsu_before: auditLastNsu,
+            documents_found: 0,
           },
         });
       }

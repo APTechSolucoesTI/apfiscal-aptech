@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
 import { request } from "node:https";
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { CertificateVaultService } from "@/fiscal/certificate-vault.service";
-import type { NfseDocument, NfseProvider } from "./nfse-provider";
+import type { NfseProvider } from "./nfse-provider";
+import { parseAdnBatch } from "./nfse-adn-parser";
 import {
   ExternalRateLimitError,
   friendlyExternalError,
@@ -89,12 +89,14 @@ export class NacionalAdnNfseProvider implements NfseProvider {
   }
 
   async test(companyId: string) {
-    const response = await this.get(companyId, "/DFe/0");
-    if ([200, 204, 404].includes(response.status))
+    // The distribution endpoint consumes the provider quota. Probe the official
+    // documentation route instead, which still validates mTLS without advancing NSU.
+    const response = await this.get(companyId, "/docs/index.html");
+    if (response.status === 200)
       return {
         ok: true,
         message:
-          "Conexão com o Ambiente de Dados Nacional validada. O certificado A1 foi aceito e a empresa está pronta para consultar NFS-e.",
+          "Certificado A1 aceito pelo Ambiente de Dados Nacional. O teste não consumiu uma consulta de distribuição.",
       };
     const retryAt = response.status === 429 ? retryAfterDate(response.retryAfter) : undefined;
     return {
@@ -108,9 +110,10 @@ export class NacionalAdnNfseProvider implements NfseProvider {
     };
   }
 
-  async fetch(companyId: string, nsu: number): Promise<NfseDocument | null> {
+  async fetch(companyId: string, nsu: number) {
     const response = await this.get(companyId, `/DFe/${nsu}`);
-    if ([204, 404].includes(response.status)) return null;
+    if ([204, 404].includes(response.status))
+      return { status: "SEM_DOCUMENTOS", documents: [], located: 0, lastNsu: nsu, warnings: [] };
     if (response.status === 429)
       throw new ExternalRateLimitError(
         "Limite de consultas do ADN NFS-e atingido.",
@@ -121,15 +124,6 @@ export class NacionalAdnNfseProvider implements NfseProvider {
       throw new Error(
         friendlyExternalError("O Ambiente de Dados Nacional da NFS-e", response.status),
       );
-    const textual = /json|xml|text/i.test(response.contentType ?? "");
-    const rawDocument = textual ? response.body.toString("utf8") : response.body.toString("base64");
-    const accessKey = rawDocument.match(/\b\d{50}\b/)?.[0] ?? null;
-    return {
-      nsu,
-      accessKey,
-      contentType: response.contentType,
-      rawDocument,
-      payloadHash: createHash("sha256").update(response.body).digest("hex"),
-    };
+    return parseAdnBatch(response.body, nsu);
   }
 }

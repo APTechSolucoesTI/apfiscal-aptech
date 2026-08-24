@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TOTVS_PENDING_SCHEMA_ENTITIES, TOTVS_READ_QUERIES, type TotvsQueryDefinition } from "./totvs-queries";
+import { mergeGlobalRows } from "./totvs-global-rows";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
 
 type JsonRecord = Record<string, string | number | boolean | null>;
@@ -116,85 +117,89 @@ export class TotvsSyncService {
 
   private async materializeSuppliers(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
     let materialized = 0;
-    for (const row of rows) {
-      const company = companies.get(Number(row.coligada));
-      const document = text(row.cpf_cnpj).replace(/\D/g, "");
-      if (!company || !document) continue;
-      const code = text(row.codigo);
-      const existing = await supabaseAdmin.from("suppliers")
-        .select("id, erp_metadata, origem")
-        .eq("organization_id", organizationId)
-        .eq("company_id", company.id)
-        .in("cnpj_cpf", documentVariants(document))
-        .maybeSingle();
-      if (existing.error) throw existing.error;
-      const values = {
-        organization_id: organizationId,
-        company_id: company.id,
-        cnpj_cpf: document,
-        tipo_pessoa: Number(row.tipo_pessoa_id) === 1 ? "fisica" : "juridica",
-        razao_social: text(row.razao_social) || document,
-        nome_fantasia: text(row.fantasia) || null,
-        inscricao_estadual: text(row.ie) || null,
-        email: text(row.email) || null,
-        telefone: text(row.telefone) || null,
-        erp_system: "totvs_rm",
-        erp_code: code,
-        erp_external_id: `${row.coligada}|${code}`,
-        erp_metadata: { ...(existing.data?.erp_metadata && typeof existing.data.erp_metadata === "object" ? existing.data.erp_metadata : {}), totvs: jsonRecord(row) },
-        erp_synced_at: new Date().toISOString(),
-        origem: existing.data?.origem ?? "erp",
-      };
-      const result = existing.data
-        ? await supabaseAdmin.from("suppliers").update(values).eq("id", existing.data.id)
-        : await supabaseAdmin.from("suppliers").insert(values);
-      if (result.error) throw result.error;
-      materialized += 1;
+    for (const [coligada, company] of companies) {
+      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.codigo));
+      for (const row of companyRows) {
+        const document = text(row.cpf_cnpj).replace(/\D/g, "");
+        if (!document) continue;
+        const code = text(row.codigo);
+        const existing = await supabaseAdmin.from("suppliers")
+          .select("id, erp_metadata, origem")
+          .eq("organization_id", organizationId)
+          .eq("company_id", company.id)
+          .in("cnpj_cpf", documentVariants(document))
+          .maybeSingle();
+        if (existing.error) throw existing.error;
+        const values = {
+          organization_id: organizationId,
+          company_id: company.id,
+          cnpj_cpf: document,
+          tipo_pessoa: Number(row.tipo_pessoa_id) === 1 ? "fisica" : "juridica",
+          razao_social: text(row.razao_social) || document,
+          nome_fantasia: text(row.fantasia) || null,
+          inscricao_estadual: text(row.ie) || null,
+          email: text(row.email) || null,
+          telefone: text(row.telefone) || null,
+          erp_system: "totvs_rm",
+          erp_code: code,
+          erp_external_id: `${row.coligada}|${code}`,
+          erp_metadata: { ...(existing.data?.erp_metadata && typeof existing.data.erp_metadata === "object" ? existing.data.erp_metadata : {}), totvs: jsonRecord(row) },
+          erp_synced_at: new Date().toISOString(),
+          origem: existing.data?.origem ?? "erp",
+        };
+        const result = existing.data
+          ? await supabaseAdmin.from("suppliers").update(values).eq("id", existing.data.id)
+          : await supabaseAdmin.from("suppliers").insert(values);
+        if (result.error) throw result.error;
+        materialized += 1;
+      }
     }
     return materialized;
   }
 
   private async materializeAddresses(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
     let materialized = 0;
-    for (const row of rows) {
-      if (text(row.tipo) !== "Principal") continue;
-      const company = companies.get(Number(row.coligada));
-      if (!company) continue;
-      const result = await supabaseAdmin.from("suppliers").update({
-        logradouro: text(row.rua) || null,
-        numero: text(row.numero) || null,
-        complemento: text(row.complemento) || null,
-        bairro: text(row.bairro) || null,
-        municipio: text(row.cidade) || null,
-        uf: text(row.uf) || null,
-        cep: text(row.cep).replace(/\D/g, "") || null,
-        erp_synced_at: new Date().toISOString(),
-      }).eq("organization_id", organizationId).eq("company_id", company.id).eq("erp_system", "totvs_rm").eq("erp_code", text(row.codigo));
-      if (result.error) throw result.error;
-      materialized += 1;
+    for (const [coligada, company] of companies) {
+      const companyRows = mergeGlobalRows(rows, coligada, (row) => `${text(row.codigo)}|${text(row.tipo)}`);
+      for (const row of companyRows) {
+        if (text(row.tipo) !== "Principal") continue;
+        const result = await supabaseAdmin.from("suppliers").update({
+          logradouro: text(row.rua) || null,
+          numero: text(row.numero) || null,
+          complemento: text(row.complemento) || null,
+          bairro: text(row.bairro) || null,
+          municipio: text(row.cidade) || null,
+          uf: text(row.uf) || null,
+          cep: text(row.cep).replace(/\D/g, "") || null,
+          erp_synced_at: new Date().toISOString(),
+        }).eq("organization_id", organizationId).eq("company_id", company.id).eq("erp_system", "totvs_rm").eq("erp_code", text(row.codigo));
+        if (result.error) throw result.error;
+        materialized += 1;
+      }
     }
     return materialized;
   }
 
   private async materializeCostCenters(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
     let materialized = 0;
-    for (const row of rows) {
-      const company = companies.get(Number(row.coligada));
-      if (!company) continue;
-      const code = text(row.codigo);
-      const existing = await supabaseAdmin.from("centros_custo")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .eq("company_id", company.id)
-        .eq("codigo", code)
-        .maybeSingle();
-      if (existing.error) throw existing.error;
-      const values = { organization_id: organizationId, company_id: company.id, codigo: code, descricao: text(row.nome) || code, ativo: text(row.ativo) !== "N" };
-      const result = existing.data
-        ? await supabaseAdmin.from("centros_custo").update(values).eq("id", existing.data.id)
-        : await supabaseAdmin.from("centros_custo").insert(values);
-      if (result.error) throw result.error;
-      materialized += 1;
+    for (const [coligada, company] of companies) {
+      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.codigo));
+      for (const row of companyRows) {
+        const code = text(row.codigo);
+        const existing = await supabaseAdmin.from("centros_custo")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("company_id", company.id)
+          .eq("codigo", code)
+          .maybeSingle();
+        if (existing.error) throw existing.error;
+        const values = { organization_id: organizationId, company_id: company.id, codigo: code, descricao: text(row.nome) || code, ativo: text(row.ativo) !== "N" };
+        const result = existing.data
+          ? await supabaseAdmin.from("centros_custo").update(values).eq("id", existing.data.id)
+          : await supabaseAdmin.from("centros_custo").insert(values);
+        if (result.error) throw result.error;
+        materialized += 1;
+      }
     }
     return materialized;
   }
@@ -203,7 +208,7 @@ export class TotvsSyncService {
     const tables = ["familias", "grupos", "subgrupos"] as const;
     let materialized = 0;
     for (const [coligada, company] of companies) {
-      const companyRows = rows.filter((row) => Number(row.coligada) === coligada);
+      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.code));
       for (let level = 1; level <= tables.length; level += 1) {
         const table = tables[level - 1];
         const levelRows = companyRows.filter((row) => text(row.code) && text(row.code).split(".").length === level);
@@ -269,7 +274,8 @@ export class TotvsSyncService {
   private async materializeProducts(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
     let materialized = 0;
     for (const [coligada, company] of companies) {
-      const companyRows = rows.filter((row) => Number(row.coligada) === coligada && text(row.code) && text(row.id_product));
+      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.code))
+        .filter((row) => text(row.code) && text(row.id_product));
       const { familyIds, groupIds, subgroupIds } = await this.ensureProductClassificationLinks(organizationId, company.id, companyRows);
 
       for (let offset = 0; offset < companyRows.length; offset += 200) {
@@ -304,7 +310,7 @@ export class TotvsSyncService {
             ativo: Number(row.inactive) !== 1,
             erp_system: "totvs_rm",
             erp_code: code,
-            erp_external_id: `${coligada}|${text(row.id_product)}`,
+            erp_external_id: `${row.coligada}|${text(row.id_product)}`,
             erp_metadata: { ...(current?.erp_metadata && typeof current.erp_metadata === "object" ? current.erp_metadata : {}), totvs: jsonRecord(row) },
             erp_synced_at: now,
           };
@@ -320,7 +326,7 @@ export class TotvsSyncService {
   private async materializeStockLocations(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
     let materialized = 0;
     for (const [coligada, company] of companies) {
-      const companyRows = rows.filter((row) => Number(row.coligada) === coligada && text(row.code));
+      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.code)).filter((row) => text(row.code));
       for (let offset = 0; offset < companyRows.length; offset += 250) {
         const chunk = companyRows.slice(offset, offset + 250);
         const codes = [...new Set(chunk.map((row) => text(row.code)))];
@@ -420,8 +426,10 @@ export class TotvsSyncService {
       const configuredColigadas = [...companies.keys()];
       const coligadas = allowedColigadas.filter((id) => configuredColigadas.includes(id));
       if (coligadas.length === 0) throw new Error("Associe ao menos uma empresa APFiscal a uma coligada TOTVS permitida.");
-      const coligadaSql = coligadas.join(",");
+      const sourceColigadas = [...new Set([0, ...coligadas])];
+      const coligadaSql = sourceColigadas.join(",");
       metrics.coligadas = coligadas;
+      metrics.source_coligadas = sourceColigadas;
 
       for (const definition of TOTVS_READ_QUERIES) {
         const since = await this.since(organizationId, definition, settings.data.safety_window_days);

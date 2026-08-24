@@ -10,6 +10,10 @@ export class ExternalRateLimitError extends Error {
   }
 }
 
+export function isSefazConsumptionLimit(message: string): boolean {
+  return /consumo\s+indevido|aguardado\s+1\s+hora/i.test(message);
+}
+
 export function retryAfterDate(value: string | undefined, fallbackMinutes = 15): Date {
   if (value) {
     const seconds = Number(value);

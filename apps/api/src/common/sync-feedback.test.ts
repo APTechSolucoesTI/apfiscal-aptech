@@ -1,7 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cooldownException, cooldownMessage, retryAfterDate } from "./sync-feedback";
+import {
+  cooldownException,
+  cooldownMessage,
+  isSefazConsumptionLimit,
+  retryAfterDate,
+} from "./sync-feedback";
 
 describe("sync feedback", () => {
+  it("reconhece a rejeicao de consumo indevido da SEFAZ", () => {
+    expect(
+      isSefazConsumptionLimit(
+        "Rejeicao: Consumo Indevido (Deve ser aguardado 1 hora para efetuar nova solicitacao)",
+      ),
+    ).toBe(true);
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-24T15:00:00.000Z"));

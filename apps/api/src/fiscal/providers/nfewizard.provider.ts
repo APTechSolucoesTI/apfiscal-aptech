@@ -7,6 +7,11 @@ import { parseDistributionResponse, parseEventResponse } from "./response-parser
 import { ProviderPreparationError } from "../provider-preparation.error";
 import { ProviderUnavailableError } from "../provider-unavailable.error";
 import { silenceNfeWizardLogger } from "../nfewizard-logger";
+import {
+  cooldownMessage,
+  ExternalRateLimitError,
+  isSefazConsumptionLimit,
+} from "@/common/sync-feedback";
 
 const UF_CODE: Record<string, number> = {
   RO: 11,
@@ -53,11 +58,15 @@ export class NfeWizardProvider implements NfeProvider {
     try {
       return await operation();
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
       const code =
         error && typeof error === "object" && "code" in error ? String(error.code) : "SEM_CODIGO";
-      this.logger.warn(
-        `Falha de transporte com a SEFAZ (${code}): ${error instanceof Error ? error.message : String(error)}`,
-      );
+      if (isSefazConsumptionLimit(detail)) {
+        const retryAt = new Date(Date.now() + 60 * 60_000);
+        this.logger.warn(`Consulta bloqueada pela regra de consumo da SEFAZ atÃ© ${retryAt.toISOString()}.`);
+        throw new ExternalRateLimitError(cooldownMessage("A SEFAZ", retryAt), retryAt, "A SEFAZ");
+      }
+      this.logger.warn(`Falha de transporte com a SEFAZ (${code}): ${detail}`);
       throw new ProviderUnavailableError(
         code === "ECONNRESET"
           ? "A SEFAZ encerrou a conexão antes de responder. Nenhum documento ou checkpoint foi alterado; aguarde alguns minutos para uma nova consulta."

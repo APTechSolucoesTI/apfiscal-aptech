@@ -13,7 +13,11 @@ import {
   type ProviderRoutingConfig,
 } from "./provider-routing";
 import { FiscalDocumentReconciliationService } from "./fiscal-document-reconciliation.service";
-import { cooldownException, cooldownMessage } from "@/common/sync-feedback";
+import {
+  cooldownException,
+  cooldownMessage,
+  ExternalRateLimitError,
+} from "@/common/sync-feedback";
 
 type IntegrationConfig = ProviderRoutingConfig & {
   organization_id: string;
@@ -197,14 +201,21 @@ export class FiscalSyncService {
         erros: counters.errors,
       };
     } catch (error) {
-      if (error instanceof ProviderUnavailableError) {
-        const retryAt = new Date(Date.now() + 5 * 60_000);
+      if (error instanceof ExternalRateLimitError || error instanceof ProviderUnavailableError) {
+        const retryAt =
+          error instanceof ExternalRateLimitError
+            ? error.retryAt
+            : new Date(Date.now() + 5 * 60_000);
+        const message =
+          error instanceof ExternalRateLimitError
+            ? cooldownMessage(error.source, error.retryAt)
+            : error.message;
         await supabaseAdmin
           .from("fiscal_distribution_state")
           .update({
             last_sync_at: new Date().toISOString(),
             next_allowed_sync_at: retryAt.toISOString(),
-            last_error: error.message,
+            last_error: message,
           })
           .eq("company_id", companyId)
           .eq("lock_token", lockToken);
@@ -225,6 +236,8 @@ export class FiscalSyncService {
           },
         });
       }
+      if (error instanceof ExternalRateLimitError)
+        throw cooldownException(error.source, error.retryAt);
       throw error;
     } finally {
       await supabaseAdmin.rpc("release_fiscal_sync_lock", {

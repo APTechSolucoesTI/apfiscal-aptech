@@ -6,7 +6,7 @@ import { hashPassword, verifyPassword } from "./password";
 import { createSessionToken, hashToken, type AppUser } from "./session-token";
 
 type TokenKind = "verify_email" | "set_password" | "reset_password";
-type StoredUser = AppUser & { password_hash: string | null; active: boolean; email_verified_at: string | null };
+type StoredUser = AppUser & { password_hash: string | null; active: boolean; email_verified_at: string | null; is_superadmin: boolean };
 
 @Injectable()
 export class AuthService {
@@ -33,9 +33,11 @@ export class AuthService {
     const user = await this.findUser(emailInput);
     if (!user || !user.active || !(await verifyPassword(password, user.password_hash))) throw new UnauthorizedException("E-mail ou senha inválidos.");
     if (!user.email_verified_at) throw new UnauthorizedException("Confirme seu e-mail antes de entrar. Solicite um novo link se necessário.");
-    const membership = await supabaseAdmin.from("organization_members").select("id").eq("user_id", user.id).eq("active", true).limit(1).maybeSingle();
-    if (membership.error) throw membership.error;
-    if (!membership.data) throw new UnauthorizedException("Sua conta não possui acesso a uma organização APFiscal ativa.");
+    if (!user.is_superadmin) {
+      const membership = await supabaseAdmin.from("organization_members").select("id").eq("user_id", user.id).eq("active", true).limit(1).maybeSingle();
+      if (membership.error) throw membership.error;
+      if (!membership.data) throw new UnauthorizedException("Sua conta não possui acesso a uma organização APFiscal ativa.");
+    }
     const session = createSessionToken(user);
     const stored = await supabaseAdmin.from("user_sessions").insert({ id: session.claims.sid, user_id: user.id, token_hash: hashToken(session.token), expires_at: new Date(session.claims.exp * 1000).toISOString() });
     if (stored.error) throw stored.error;
@@ -103,7 +105,7 @@ export class AuthService {
   }
 
   private async findUser(emailInput: string): Promise<StoredUser | null> {
-    const result = await supabaseAdmin.from("users").select("id, email, full_name, password_hash, active, email_verified_at").ilike("email", normalizeEmail(emailInput)).maybeSingle();
+    const result = await supabaseAdmin.from("users").select("id, email, full_name, password_hash, active, email_verified_at, is_superadmin").ilike("email", normalizeEmail(emailInput)).maybeSingle();
     if (result.error) throw result.error;
     return result.data ? { ...result.data, fullName: result.data.full_name } : null;
   }

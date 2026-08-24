@@ -95,6 +95,12 @@ Use [`.env.example`](./.env.example) como lista do Compose. Os arquivos específ
 | `TOTVS_COLIGADAS` | API | allowlist numérica, por padrão `1,2` |
 | `TOTVS_WRITES_ENABLED` | API | mantenha `false`; escrita exige SQL real homologado e versionado |
 | `NFE_RECONCILIATION_BATCH_SIZE` | API | quantidade de resumos antigos revisitada por sincronização, padrão `50` |
+| `TOTVS_CONNECTION_KEYS` | API | chaves das conexões disponíveis, separadas por vírgula; a conexão atual é `TOTVS_GRANJA` |
+| `TOTVS_DEFAULT_CONNECTION_KEY` | API | conexão usada para compatibilidade com as variáveis legadas; use `TOTVS_GRANJA` |
+| `TOTVS_CONNECTION_<CHAVE>_DESCRIPTION` | API | identificação legível do banco, sem armazenar credenciais no banco APFiscal |
+| `TOTVS_CONNECTION_<CHAVE>_*` | API | host, porta, database, usuário, senha, TLS, coligadas e trava de escrita de cada banco |
+| `SUPERADMIN_EMAIL`, `SUPERADMIN_INITIAL_PASSWORD` | API | bootstrap único do Super Admin; remova a senha do ambiente depois da primeira criação |
+| `NFSE_ADN_BASE_URL` | API | endpoint oficial da ADN NFS-e; o exemplo já contém a URL de produção |
 
 O Compose repassa `NEXT_PUBLIC_APP_URL` à API como `PUBLIC_APP_URL`, garantindo que os e-mails da autenticação própria do APFiscal apontem para o domínio público correto. O login não usa Supabase Auth nem aceita usuários de outros sistemas do mesmo Supabase.
 
@@ -125,6 +131,34 @@ As consultas de leitura foram transcritas dos dois serviços PHP legados e cobre
 `TOTVS_WRITES_ENABLED=false` é o padrão e a API possui uma segunda guarda central contra mutações. O payload de integração da NF-e já reúne cabeçalho, fornecedor, itens/produtos, rateios de centro de custo, cobrança e pagamentos, mas nenhuma nota recebe `integrado_totvs` até existir SQL de movimento homologado e uma transação real retornar sucesso. A antiga confirmação manual está bloqueada.
 
 Para liberar leitura, crie no SQL Server um usuário dedicado com acesso apenas `SELECT` às tabelas consultadas, configure as variáveis `TOTVS_SQL_*`, faça o deploy e use **Testar SELECT 1**. Não habilite escrita ao mesmo usuário.
+
+### Múltiplos bancos TOTVS
+
+As credenciais ficam exclusivamente no ambiente da API. O banco APFiscal armazena somente a chave da conexão vinculada à empresa, por exemplo `TOTVS_GRANJA`; senha, usuário e host nunca são persistidos nem devolvidos ao frontend. A descrição e o nome do database são metadados sanitizados exibidos para o Super Admin confirmar o alvo do teste.
+
+Para a conexão atual, configure `TOTVS_CONNECTION_KEYS=TOTVS_GRANJA`, `TOTVS_DEFAULT_CONNECTION_KEY=TOTVS_GRANJA` e as variáveis `TOTVS_CONNECTION_TOTVS_GRANJA_*` do `.env.example`. Para adicionar outro banco, inclua uma nova chave na lista e replique o bloco com outro prefixo. Depois do redeploy da API, o Super Admin testa a conexão e vincula cada empresa à conexão e coligada corretas. Usuários comuns veem e executam somente conexões já vinculadas à própria organização.
+
+As variáveis legadas `TOTVS_SQL_*` continuam aceitas apenas para a conexão padrão, permitindo atualizar o deploy atual sem interrupção. Migre para os blocos prefixados assim que possível.
+
+## NFS-e recebida/tomada
+
+A primeira implementação usa a API oficial do Ambiente de Dados Nacional (ADN), com consulta incremental por NSU e autenticação mTLS pelo mesmo certificado A1 da empresa. O documento bruto e o checkpoint são persistidos de forma idempotente. Provedores municipais permanecem como adapters explícitos e bloqueados até existir configuração homologada para o município; não há consulta municipal simulada.
+
+Em **Configurações → Sincronizações**, selecione `Ambiente Nacional (ADN)`, defina a recorrência, teste o certificado e execute a primeira sincronização manual. A tela mostra última execução, próxima execução, estado do agendamento e último erro.
+
+## Super Admin
+
+O usuário inicial é criado uma única vez a partir de `SUPERADMIN_EMAIL` e `SUPERADMIN_INITIAL_PASSWORD`. Após confirmar o primeiro acesso em `/admin`, remova `SUPERADMIN_INITIAL_PASSWORD` do Dokploy e redeploye a API; reinícios não recriam nem redefinem a senha existente. O painel permite administrar usuários, ativação, plano, limites, acessos a empresas, vínculos TOTVS, testes, sincronizações e logs.
+
+### Checklist de atualização no Dokploy
+
+1. Faça backup do PostgreSQL e mantenha disponível a imagem/tag anterior.
+2. Aplique as novas migrations em ordem, sem editar migrations já executadas e sem usar `db reset`.
+3. Cadastre no ambiente da API o bloco `TOTVS_GRANJA`, as variáveis NFS-e e, apenas no primeiro start, a senha inicial do Super Admin.
+4. Faça build e redeploy de API e web pelo Compose. Não publique a API diretamente.
+5. Confirme `/health/ready`, entre no painel Super Admin, teste `TOTVS_GRANJA` e revise os vínculos empresa/coligada.
+6. Execute uma sincronização TOTVS manual e uma NF-e/NFS-e manual antes de habilitar as recorrências.
+7. Remova `SUPERADMIN_INITIAL_PASSWORD` e faça novo redeploy da API.
 
 ## Operação e rollback
 

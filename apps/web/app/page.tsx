@@ -116,7 +116,7 @@ function Index() {
             Nunca mais perca uma <span className="text-primary">Nota Fiscal</span> emitida contra sua empresa.
           </h1>
           <p className="mt-6 text-xl text-slate-700 max-w-2xl mx-auto">
-            Capture automaticamente NF-e, NFS-e e CT-e. Monitore manifestações, organize XMLs e evite fraudes com o APFiscal.
+            Capture automaticamente NF-e e NFS-e. Monitore manifestações, organize XMLs e evite fraudes com o APFiscal.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
             <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8 shadow-lg shadow-primary/20">

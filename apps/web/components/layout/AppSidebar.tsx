@@ -37,7 +37,7 @@ import { backendFetch } from "@/lib/backend";
 const permissionByUrl: Record<string, string> = {
   "/dashboard": "dashboard.view", "/companies": "companies.view", "/suppliers": "suppliers.view",
   "/products": "products.view", "/classifications": "classifications.view", "/documents/nfe": "documents.nfe.view",
-  "/documents/nfse": "documents.nfse.view", "/documents/cte": "documents.cte.view", "/nfe-integracao": "nfe.integration.view",
+  "/documents/nfse": "documents.nfse.view", "/nfe-integracao": "nfe.integration.view",
   "/monitoring": "monitoring.view", "/notifications": "notifications.view", "/settings/centros-custo": "finance.cost_centers.view",
   "/settings/plano-contas": "finance.chart_accounts.view", "/settings/locais-estoque": "finance.stock_locations.view",
   "/settings/catalog": "settings.general.view", "/settings/users": "settings.users.view", "/settings/profiles": "settings.profiles.view",
@@ -78,7 +78,6 @@ const menuItems = [
     subItems: [
       { title: "NF-e (Produtos)", url: "/documents/nfe" },
       { title: "NFS-e (Serviços)", url: "/documents/nfse" },
-      { title: "CT-e (Transporte)", url: "/documents/cte" },
     ]
   },
   {
@@ -134,7 +133,7 @@ export function AppSidebar() {
 
   const { data: access } = useQuery({
     queryKey: ["auth-me"],
-    queryFn: () => backendFetch<{ permissions: Array<{ permission_key: string } | string> }>("/auth/me"),
+    queryFn: () => backendFetch<{ permissions: Array<{ permission_key: string } | string>; isSuperadmin: boolean }>("/auth/me"),
     staleTime: 5 * 60_000,
   });
   const permissionSet = new Set((access?.permissions ?? []).map((permission) => typeof permission === "string" ? permission : permission.permission_key));
@@ -164,6 +163,9 @@ export function AppSidebar() {
   });
 
   const percentual = integracao?.percentual ?? 0;
+  const visibleItems = access?.isSuperadmin
+    ? [{ title: "Super Admin", icon: ShieldCheck, url: "/admin", subItems: undefined }, ...menuItems]
+    : menuItems;
 
 
   return (
@@ -180,7 +182,7 @@ export function AppSidebar() {
       <SidebarContent className="p-4 gap-2 bg-white">
         <SidebarGroup>
           <SidebarMenu>
-            {menuItems.filter((item) => item.subItems ? item.subItems.some((sub) => allowed(sub.url)) : allowed(item.url)).map((item) => {
+            {visibleItems.filter((item) => item.subItems ? item.subItems.some((sub) => allowed(sub.url)) : allowed(item.url)).map((item) => {
               const parentActive = isActive(item.url);
               return (
                 <SidebarMenuItem key={item.title}>

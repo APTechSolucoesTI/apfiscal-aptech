@@ -66,11 +66,15 @@ function documentVariants(value: string): string[] {
 export class TotvsSyncService {
   constructor(private readonly sqlServer: TotvsSqlServerService) {}
 
-  private async companyMap(organizationId: string): Promise<CompanyMap> {
-    const result = await supabaseAdmin.from("companies")
-      .select("id, organization_id, totvs_coligada_id")
+  private async companyMap(organizationId: string, connectionKey: string): Promise<CompanyMap> {
+    let query = supabaseAdmin.from("companies")
+      .select("id, organization_id, totvs_coligada_id, totvs_connection_key")
       .eq("organization_id", organizationId)
       .not("totvs_coligada_id", "is", null);
+    query = connectionKey === this.sqlServer.defaultKey()
+      ? query.or(`totvs_connection_key.eq.${connectionKey},totvs_connection_key.is.null`)
+      : query.eq("totvs_connection_key", connectionKey);
+    const result = await query;
     if (result.error) throw result.error;
     return new Map((result.data ?? []).map((company) => [Number(company.totvs_coligada_id), {
       id: company.id,
@@ -78,11 +82,12 @@ export class TotvsSyncService {
     }]));
   }
 
-  private async since(organizationId: string, definition: TotvsQueryDefinition, safetyWindowDays: number): Promise<Date> {
+  private async since(organizationId: string, connectionKey: string, definition: TotvsQueryDefinition, safetyWindowDays: number): Promise<Date> {
     if (!definition.incremental) return initialSyncDate();
     const checkpoint = await supabaseAdmin.from("totvs_sync_checkpoints")
       .select("source_watermark")
       .eq("organization_id", organizationId)
+      .eq("connection_key", connectionKey)
       .eq("entity", definition.entity)
       .maybeSingle();
     if (checkpoint.error) throw checkpoint.error;
@@ -90,12 +95,13 @@ export class TotvsSyncService {
     return new Date(watermark.getTime() - safetyWindowDays * 86_400_000);
   }
 
-  private async persistReferences(organizationId: string, definition: TotvsQueryDefinition, rows: Record<string, unknown>[]) {
+  private async persistReferences(organizationId: string, connectionKey: string, definition: TotvsQueryDefinition, rows: Record<string, unknown>[]) {
     const now = new Date().toISOString();
     const records = rows.map((row) => {
       const payload = jsonRecord(row);
       return {
         organization_id: organizationId,
+        connection_key: connectionKey,
         entity: definition.entity,
         coligada_id: number(row.coligada ?? row.codcoligada) ?? 0,
         external_key: definition.externalKey(row),
@@ -110,7 +116,7 @@ export class TotvsSyncService {
     const deduplicated = [...new Map(records.map((record) => [`${record.coligada_id}|${record.external_key}`, record])).values()];
     for (let offset = 0; offset < deduplicated.length; offset += 250) {
       const result = await supabaseAdmin.from("totvs_reference_records")
-        .upsert(deduplicated.slice(offset, offset + 250), { onConflict: "organization_id,entity,coligada_id,external_key" });
+        .upsert(deduplicated.slice(offset, offset + 250), { onConflict: "organization_id,connection_key,entity,coligada_id,external_key" });
       if (result.error) throw result.error;
     }
   }
@@ -401,13 +407,15 @@ export class TotvsSyncService {
   }
 
   async execute(runId: string): Promise<Record<string, unknown>> {
-    const run = await supabaseAdmin.from("totvs_sync_runs").select("organization_id").eq("id", runId).single();
+    const run = await supabaseAdmin.from("totvs_sync_runs").select("organization_id, connection_key").eq("id", runId).single();
     if (run.error) throw run.error;
     const organizationId = run.data.organization_id;
+    const connectionKey = run.data.connection_key || this.sqlServer.defaultKey();
     await supabaseAdmin.from("totvs_sync_runs").update({ status: "running", started_at: new Date().toISOString(), error_message: null }).eq("id", runId);
     const metrics: Record<string, unknown> = {
       entities: {},
       pending_schema_confirmation: TOTVS_PENDING_SCHEMA_ENTITIES,
+      connection_key: connectionKey,
       coligadas: [],
       errors: [],
     };
@@ -419,10 +427,10 @@ export class TotvsSyncService {
         .maybeSingle();
       if (settings.error) throw settings.error;
       if (!settings.data?.enabled || !settings.data.read_sync_enabled) throw new Error("A sincronização de leitura TOTVS está desativada.");
-      if (!this.sqlServer.configured()) throw new Error("As credenciais SQL Server do TOTVS RM não estão configuradas na API.");
+      if (!this.sqlServer.configured(connectionKey)) throw new Error(`As credenciais da conexão TOTVS ${connectionKey} não estão configuradas na API.`);
 
-      const companies = await this.companyMap(organizationId);
-      const allowedColigadas = this.sqlServer.coligadas();
+      const companies = await this.companyMap(organizationId, connectionKey);
+      const allowedColigadas = this.sqlServer.coligadas(connectionKey);
       const configuredColigadas = [...companies.keys()];
       const coligadas = allowedColigadas.filter((id) => configuredColigadas.includes(id));
       if (coligadas.length === 0) throw new Error("Associe ao menos uma empresa APFiscal a uma coligada TOTVS permitida.");
@@ -432,33 +440,35 @@ export class TotvsSyncService {
       metrics.source_coligadas = sourceColigadas;
 
       for (const definition of TOTVS_READ_QUERIES) {
-        const since = await this.since(organizationId, definition, settings.data.safety_window_days);
+        const since = await this.since(organizationId, connectionKey, definition, settings.data.safety_window_days);
         await supabaseAdmin.from("totvs_sync_checkpoints").upsert({
           organization_id: organizationId,
+          connection_key: connectionKey,
           entity: definition.entity,
           last_attempt_at: new Date().toISOString(),
           last_error: null,
-        }, { onConflict: "organization_id,entity" });
+        }, { onConflict: "organization_id,connection_key,entity" });
         try {
-          const rows = await this.sqlServer.queryReadOnly<Record<string, unknown>>(definition.sql(coligadaSql), definition.incremental ? { since } : {});
-          await this.persistReferences(organizationId, definition, rows);
+          const rows = await this.sqlServer.queryReadOnly<Record<string, unknown>>(definition.sql(coligadaSql), definition.incremental ? { since } : {}, connectionKey);
+          await this.persistReferences(organizationId, connectionKey, definition, rows);
           const materialized = await this.materialize(organizationId, definition, rows, companies);
           const watermark = definition.updatedAtField
             ? rows.map((row) => date(row[definition.updatedAtField!])).filter((value): value is Date => value !== null).sort((a, b) => b.getTime() - a.getTime())[0]
             : new Date();
           const checkpoint = await supabaseAdmin.from("totvs_sync_checkpoints").upsert({
             organization_id: organizationId,
+            connection_key: connectionKey,
             entity: definition.entity,
             last_success_at: new Date().toISOString(),
             source_watermark: (watermark ?? new Date()).toISOString(),
             rows_processed: rows.length,
             last_error: null,
-          }, { onConflict: "organization_id,entity" });
+          }, { onConflict: "organization_id,connection_key,entity" });
           if (checkpoint.error) throw checkpoint.error;
           (metrics.entities as Record<string, unknown>)[definition.entity] = { read: rows.length, materialized, since: definition.incremental ? since.toISOString() : null };
         } catch (error) {
           const errorText = errorMessage(error);
-          await supabaseAdmin.from("totvs_sync_checkpoints").upsert({ organization_id: organizationId, entity: definition.entity, last_error: errorText }, { onConflict: "organization_id,entity" });
+          await supabaseAdmin.from("totvs_sync_checkpoints").upsert({ organization_id: organizationId, connection_key: connectionKey, entity: definition.entity, last_error: errorText }, { onConflict: "organization_id,connection_key,entity" });
           (metrics.entities as Record<string, unknown>)[definition.entity] = { read: 0, materialized: 0, error: errorText };
           (metrics.errors as Array<Record<string, string>>).push({ entity: definition.entity, message: errorText });
         }

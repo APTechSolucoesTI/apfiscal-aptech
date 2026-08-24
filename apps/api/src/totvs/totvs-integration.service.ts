@@ -22,7 +22,7 @@ export class TotvsIntegrationService {
     try {
       const [document, items, headerAllocations, itemAllocations] = await Promise.all([
         supabaseAdmin.from("fiscal_documents")
-          .select("*, companies(id, organization_id, totvs_coligada_id), suppliers:supplier_id(id, erp_system, erp_code, erp_external_id)")
+          .select("*, companies(id, organization_id, totvs_coligada_id, totvs_connection_key), suppliers:supplier_id(id, erp_system, erp_code, erp_external_id)")
           .eq("id", run.data.fiscal_document_id)
           .single(),
         supabaseAdmin.from("fiscal_document_items")
@@ -48,6 +48,7 @@ export class TotvsIntegrationService {
 
       const payload = {
         schemaVersion: 1,
+        connectionKey: document.data.companies.totvs_connection_key ?? this.sqlServer.defaultKey(),
         coligada: document.data.companies.totvs_coligada_id,
         accessKey: document.data.chave_acesso,
         supplierCode: document.data.suppliers.erp_code,
@@ -58,7 +59,7 @@ export class TotvsIntegrationService {
       };
       await supabaseAdmin.from("totvs_integration_runs").update({ request_payload: payload }).eq("id", runId);
 
-      this.sqlServer.assertWritesEnabled();
+      this.sqlServer.assertWritesEnabled(document.data.companies.totvs_connection_key ?? this.sqlServer.defaultKey());
       throw new Error("Escrita bloqueada: o SQL homologado de inclusão de movimento do seu TOTVS RM ainda não foi fornecido.");
     } catch (error) {
       const errorText = error instanceof Error ? error.message : "Falha não identificada na integração TOTVS.";

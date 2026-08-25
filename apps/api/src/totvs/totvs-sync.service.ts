@@ -5,6 +5,7 @@ import { TOTVS_PENDING_SCHEMA_ENTITIES, TOTVS_READ_QUERIES, type TotvsQueryDefin
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
 import {
   rowsForTotvsScope,
+  sourceColigada,
   sourceColigadasForScopes,
   sourceFilial,
   type TotvsCompanyScope,
@@ -89,6 +90,15 @@ export class TotvsSyncService {
   }
 
   private async persistReferences(organizationId: string, connectionKey: string, definition: TotvsQueryDefinition, rows: Record<string, unknown>[]) {
+    if (!definition.incremental) {
+      const stale = await supabaseAdmin
+        .from("totvs_reference_records")
+        .delete()
+        .eq("organization_id", organizationId)
+        .eq("connection_key", connectionKey)
+        .eq("entity", definition.entity);
+      if (stale.error) throw stale.error;
+    }
     const now = new Date().toISOString();
     const records = rows.map((row) => {
       const payload = jsonRecord(row);
@@ -338,6 +348,25 @@ export class TotvsSyncService {
     for (const company of companies) {
       const companyRows = rowsForTotvsScope(rows, company, (row) => text(row.code), true)
         .filter((row) => text(row.code));
+      if (company.mode === "FILIAL") {
+        const validCodes = new Set(companyRows.map((row) => text(row.code)));
+        const foreignCodes = [...new Set(rows
+          .filter((row) =>
+            sourceColigada(row) === company.codColigada
+            && sourceFilial(row) !== null
+            && sourceFilial(row) !== company.codFilial,
+          )
+          .map((row) => text(row.code))
+          .filter((code) => code && !validCodes.has(code)))];
+        for (let offset = 0; offset < foreignCodes.length; offset += 250) {
+          const result = await supabaseAdmin
+            .from("locais_estoque")
+            .update({ ativo: false })
+            .eq("company_id", company.companyId)
+            .in("codigo", foreignCodes.slice(offset, offset + 250));
+          if (result.error) throw result.error;
+        }
+      }
       for (let offset = 0; offset < companyRows.length; offset += 250) {
         const chunk = companyRows.slice(offset, offset + 250);
         const codes = [...new Set(chunk.map((row) => text(row.code)))];

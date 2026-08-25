@@ -9,15 +9,19 @@ import { env } from "@/config/env";
 
 const PREFIX = "v1";
 
-export function certificateMatchesCompany(subjectCnpj: string | null, companyCnpj: string): boolean {
-  if (!subjectCnpj || !companyCnpj) return true;
-  return subjectCnpj.slice(0, 8) === companyCnpj.replace(/\D/g, "").slice(0, 8);
+export function certificateMatchesCompany(
+  subjectCnpj: string | null,
+  companyCnpj: string,
+): boolean {
+  const expected = companyCnpj.replace(/\D/g, "");
+  return Boolean(subjectCnpj && /^\d{14}$/.test(expected) && subjectCnpj === expected);
 }
 
 function encryptionKey(): Buffer {
   const raw = env("CERTIFICATE_ENCRYPTION_KEY");
   const key = /^[a-f\d]{64}$/i.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
-  if (key.length !== 32) throw new Error("CERTIFICATE_ENCRYPTION_KEY deve representar exatamente 32 bytes.");
+  if (key.length !== 32)
+    throw new Error("CERTIFICATE_ENCRYPTION_KEY deve representar exatamente 32 bytes.");
   return key;
 }
 
@@ -31,7 +35,8 @@ export class CertificateVaultService {
     try {
       const asn1 = forge.asn1.fromDer(buffer.toString("binary"));
       const pkcs12 = forge.pkcs12.pkcs12FromAsn1(asn1, false, password);
-      const certificateBags = pkcs12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] ?? [];
+      const certificateBags =
+        pkcs12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] ?? [];
       const certificate = certificateBags.find((bag) => bag.cert)?.cert;
 
       if (!certificate) throw new Error("Certificado ausente no arquivo PKCS#12.");
@@ -42,8 +47,12 @@ export class CertificateVaultService {
         return this.inspectWithOpenSsl(buffer, password);
       } catch (openSslError) {
         // Registra apenas o tipo da falha: nunca o arquivo, a senha ou o PEM.
-        this.logger.warn(`Leitura do certificado falhou (forge=${errorName(forgeError)}, openssl=${errorName(openSslError)}).`);
-        throw new BadRequestException("Não foi possível abrir o certificado. Confira o arquivo e a senha informada.");
+        this.logger.warn(
+          `Leitura do certificado falhou (forge=${errorName(forgeError)}, openssl=${errorName(openSslError)}).`,
+        );
+        throw new BadRequestException(
+          "Não foi possível abrir o certificado. Confira o arquivo e a senha informada.",
+        );
       }
     }
   }
@@ -57,8 +66,21 @@ export class CertificateVaultService {
       writeFileSync(passwordPath, password, { mode: 0o600 });
       const pem = execFileSync(
         "openssl",
-        ["pkcs12", "-in", certificatePath, "-clcerts", "-nokeys", "-passin", `file:${passwordPath}`],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10_000, maxBuffer: 1024 * 1024 },
+        [
+          "pkcs12",
+          "-in",
+          certificatePath,
+          "-clcerts",
+          "-nokeys",
+          "-passin",
+          `file:${passwordPath}`,
+        ],
+        {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+          timeout: 10_000,
+          maxBuffer: 1024 * 1024,
+        },
       );
       return this.certificateDetails(forge.pki.certificateFromPem(pem));
     } finally {
@@ -75,10 +97,10 @@ export class CertificateVaultService {
 
     const commonNames = certificate.subject.attributes
       .filter((attribute) => attribute.shortName === "CN" || attribute.name === "commonName")
-      .map((attribute) => typeof attribute.value === "string" ? attribute.value : "");
-    const subjectCnpj = commonNames
-      .map((commonName) => commonName.match(/(?:^|:)(\d{14})\b/)?.[1])
-      .find(Boolean) ?? null;
+      .map((attribute) => (typeof attribute.value === "string" ? attribute.value : ""));
+    const subjectCnpj =
+      commonNames.map((commonName) => commonName.match(/(?:^|:)(\d{14})\b/)?.[1]).find(Boolean) ??
+      null;
 
     return {
       validFrom: certificate.validity.notBefore,
@@ -93,15 +115,24 @@ export class CertificateVaultService {
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
     const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
-    return [PREFIX, iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), ciphertext.toString("base64url")].join(".");
+    return [
+      PREFIX,
+      iv.toString("base64url"),
+      cipher.getAuthTag().toString("base64url"),
+      ciphertext.toString("base64url"),
+    ].join(".");
   }
 
   decrypt(payload: string): string {
     const [version, iv, tag, ciphertext] = payload.split(".");
-    if (version !== PREFIX || !iv || !tag || !ciphertext) throw new Error("Senha de certificado armazenada em formato inválido.");
+    if (version !== PREFIX || !iv || !tag || !ciphertext)
+      throw new Error("Senha de certificado armazenada em formato inválido.");
     const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(iv, "base64url"));
     decipher.setAuthTag(Buffer.from(tag, "base64url"));
-    return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
+    return Buffer.concat([
+      decipher.update(Buffer.from(ciphertext, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
   }
 }
 

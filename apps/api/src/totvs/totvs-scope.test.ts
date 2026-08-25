@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  effectiveTotvsConnectionKey,
   resolveTotvsCompanyScopes,
   rowsForTotvsScope,
   sourceColigadasForScopes,
@@ -24,6 +25,19 @@ const companies: TotvsCompanyConfig[] = [
 ];
 
 describe("TOTVS scope resolution", () => {
+  it("derives the homologation connection without changing the stored base key", () => {
+    expect(effectiveTotvsConnectionKey("TOTVS_GRANJA", true)).toBe("TOTVS_GRANJA_HOMOLOG");
+    expect(effectiveTotvsConnectionKey("TOTVS_GRANJA", false)).toBe("TOTVS_GRANJA");
+    expect(effectiveTotvsConnectionKey("TOTVS_GRANJA_HOMOLOG", true)).toBe("TOTVS_GRANJA_HOMOLOG");
+    const [scope] = resolveTotvsCompanyScopes(
+      { mode: "FILIAL", mainColigadaId: 2, homologationMode: true },
+      companies,
+      "DEFAULT",
+    );
+    expect(scope.connectionKey).toBe("TOTVS_GRANJA_HOMOLOG");
+    expect(scope.baseConnectionKey).toBe("TOTVS_GRANJA");
+  });
+
   it("preserves one coligada per company in COLIGADA mode", () => {
     const scopes = resolveTotvsCompanyScopes(
       { mode: "COLIGADA", mainColigadaId: null },
@@ -68,10 +82,16 @@ describe("TOTVS scope resolution", () => {
       { coligada: 2, filial: 2, code: "ONLY-2", description: "Jacutinga" },
     ];
     expect(rowsForTotvsScope(rows, santa, (row) => String(row.code), true)).toEqual([
-      rows[0], rows[1], rows[2], rows[4],
+      rows[0],
+      rows[1],
+      rows[2],
+      rows[4],
     ]);
     expect(rowsForTotvsScope(rows, jacutinga, (row) => String(row.code), true)).toEqual([
-      rows[0], rows[1], rows[3], rows[5],
+      rows[0],
+      rows[1],
+      rows[3],
+      rows[5],
     ]);
   });
 
@@ -99,8 +119,9 @@ describe("TOTVS scope resolution", () => {
       { coligada: 2, filial: 3, code: "03.001" },
     ];
     const global = scopes.flatMap((scope) =>
-      rowsForTotvsScope(locations, scope, (row) => String(row.code), true)
-        .map((row) => `${scope.companyId}|${row.code}`),
+      rowsForTotvsScope(locations, scope, (row) => String(row.code), true).map(
+        (row) => `${scope.companyId}|${row.code}`,
+      ),
     );
     expect(global).toEqual(["santa|01.001", "jacutinga|02.001"]);
   });

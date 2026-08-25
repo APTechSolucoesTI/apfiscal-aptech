@@ -399,8 +399,20 @@ export default function TotvsSettingsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Empresas e escopo TOTVS</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">Empresas e escopo TOTVS</CardTitle>
+                {query.data.totvsStructure.homologationMode ? (
+                  <Badge className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-50">
+                    Ambiente de homologação
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">Ambiente principal</Badge>
+                )}
+              </div>
               <CardDescription>
+                {query.data.totvsStructure.homologationMode
+                  ? "As leituras e gravações usam automaticamente a conexão correspondente com sufixo _HOMOLOG. "
+                  : "As leituras e gravações usam as conexões principais. "}
                 {query.data.totvsStructure.mode === "FILIAL"
                   ? `Conta configurada Por Filial na coligada ${query.data.totvsStructure.mainColigadaId}. Informe o CODFILIAL de cada empresa.`
                   : "Conta configurada Por Coligada. Cada empresa usa sua própria CODCOLIGADA."}
@@ -489,17 +501,24 @@ export default function TotvsSettingsPage() {
                                 ...form,
                                 companyMappings: form.companyMappings.map((item) =>
                                   item.companyId === company.id
-                                    ? { ...item, coligadaId: value === "none" ? null : Number(value) }
+                                    ? {
+                                        ...item,
+                                        coligadaId: value === "none" ? null : Number(value),
+                                      }
                                     : item,
                                 ),
                               })
                             }
                           >
-                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Coligada</SelectItem>
                               {connection?.coligadas.map((id) => (
-                                <SelectItem key={id} value={String(id)}>Coligada {id}</SelectItem>
+                                <SelectItem key={id} value={String(id)}>
+                                  Coligada {id}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -769,12 +788,14 @@ export default function TotvsSettingsPage() {
                           size="sm"
                           disabled={syncCooldown.active}
                           onClick={() =>
-                          enqueueNfseSync(company.id)
-                            .then(() => toast.success("Consulta NFS-e adicionada à fila."))
-                            .catch(async (error: Error) => {
-                              toast.error(error.message);
-                              await queryClient.invalidateQueries({ queryKey: ["totvs-settings"] });
-                            })
+                            enqueueNfseSync(company.id)
+                              .then(() => toast.success("Consulta NFS-e adicionada à fila."))
+                              .catch(async (error: Error) => {
+                                toast.error(error.message);
+                                await queryClient.invalidateQueries({
+                                  queryKey: ["totvs-settings"],
+                                });
+                              })
                           }
                         >
                           <Play className="mr-2 h-4 w-4" />

@@ -16,6 +16,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { PlanLimitsService } from "@/plans/plan-limits.service";
 import { TotvsQueueService } from "@/totvs/totvs-queue.service";
 import { TotvsSqlServerService } from "@/totvs/totvs-sql-server.service";
+import { effectiveTotvsConnectionKey } from "@/totvs/totvs-scope";
 
 const updateUserSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
@@ -40,6 +41,7 @@ const totvsStructureSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("COLIGADA"), mainColigadaId: z.null() }),
   z.object({ mode: z.literal("FILIAL"), mainColigadaId: z.number().int().positive() }),
 ]);
+const totvsHomologationSchema = z.object({ enabled: z.boolean() });
 const accessSchema = z.object({ companyIds: z.array(z.string().uuid()) });
 const planSchema = z.object({
   key: z.string().regex(/^[a-z][a-z0-9_-]{1,39}$/),
@@ -94,7 +96,7 @@ export class SuperadminController {
         supabaseAdmin
           .from("organizations")
           .select(
-            "id, name, plan_key, max_users_override, max_companies_override, max_monthly_documents_override, max_totvs_connections_override, totvs_structure_mode, totvs_main_coligada_id, created_at",
+            "id, name, plan_key, max_users_override, max_companies_override, max_monthly_documents_override, max_totvs_connections_override, totvs_structure_mode, totvs_main_coligada_id, totvs_homologation_mode, created_at",
           )
           .order("name"),
         supabaseAdmin
@@ -304,17 +306,19 @@ export class SuperadminController {
     const input = companyConnectionSchema.parse(body);
     const company = await supabaseAdmin
       .from("companies")
-      .select("organization_id, organizations(totvs_structure_mode, totvs_main_coligada_id)")
+      .select(
+        "organization_id, organizations(totvs_structure_mode, totvs_main_coligada_id, totvs_homologation_mode)",
+      )
       .eq("id", id)
       .single();
     if (company.error) throw company.error;
     const organization = company.data.organizations as unknown as {
       totvs_structure_mode: "COLIGADA" | "FILIAL";
       totvs_main_coligada_id: number | null;
+      totvs_homologation_mode: boolean;
     };
-    const scopeId = organization.totvs_structure_mode === "FILIAL"
-      ? input.filialId
-      : input.coligadaId;
+    const scopeId =
+      organization.totvs_structure_mode === "FILIAL" ? input.filialId : input.coligadaId;
     if (Boolean(input.connectionKey) !== Boolean(scopeId))
       throw new BadRequestException(
         organization.totvs_structure_mode === "FILIAL"
@@ -326,13 +330,23 @@ export class SuperadminController {
     if (organization.totvs_structure_mode === "COLIGADA" && input.filialId !== null)
       throw new BadRequestException("Filial não pode ser usada no modo Por Coligada.");
     if (input.connectionKey) {
+      if (input.connectionKey.endsWith("_HOMOLOG"))
+        throw new BadRequestException(
+          "Vincule a conexão principal; o modo homologação é aplicado pela conta.",
+        );
+      const effectiveKey = effectiveTotvsConnectionKey(
+        input.connectionKey,
+        organization.totvs_homologation_mode,
+      );
       const connection = this.sqlServer
         .connections()
-        .find((item) => item.key === input.connectionKey && item.configured);
-      if (!connection) throw new BadRequestException("Conexão não disponível no ambiente.");
-      const coligada = organization.totvs_structure_mode === "FILIAL"
-        ? organization.totvs_main_coligada_id
-        : input.coligadaId;
+        .find((item) => item.key === effectiveKey && item.configured);
+      if (!connection)
+        throw new BadRequestException(`Conexão ${effectiveKey} não disponível no ambiente.`);
+      const coligada =
+        organization.totvs_structure_mode === "FILIAL"
+          ? organization.totvs_main_coligada_id
+          : input.coligadaId;
       if (!coligada || !connection.coligadas.includes(coligada))
         throw new BadRequestException("Coligada não permitida nessa conexão.");
       await this.planLimits.assertCanLinkTotvsConnection(
@@ -346,12 +360,44 @@ export class SuperadminController {
         totvs_connection_key: input.connectionKey,
         totvs_coligada_id:
           organization.totvs_structure_mode === "COLIGADA" ? input.coligadaId : null,
-        totvs_filial_id:
-          organization.totvs_structure_mode === "FILIAL" ? input.filialId : null,
+        totvs_filial_id: organization.totvs_structure_mode === "FILIAL" ? input.filialId : null,
       })
       .eq("id", id);
     if (result.error) throw result.error;
     await this.queue.refreshSchedulers();
+    return { ok: true };
+  }
+
+  @Patch("organizations/:id/totvs-homologation")
+  async updateTotvsHomologation(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    await this.assert(request.user.id);
+    const input = totvsHomologationSchema.parse(body);
+    if (input.enabled) {
+      const mappings = await supabaseAdmin
+        .from("companies")
+        .select("totvs_connection_key")
+        .eq("organization_id", id)
+        .not("totvs_connection_key", "is", null);
+      if (mappings.error) throw mappings.error;
+      const missing = [...new Set((mappings.data ?? []).map((item) => item.totvs_connection_key))]
+        .filter((key): key is string => Boolean(key))
+        .map((key) => effectiveTotvsConnectionKey(key, true))
+        .filter((key) => !this.sqlServer.configured(key));
+      if (missing.length)
+        throw new BadRequestException(
+          `Configure antes as conexões de homologação: ${missing.join(", ")}.`,
+        );
+    }
+    const result = await supabaseAdmin
+      .from("organizations")
+      .update({ totvs_homologation_mode: input.enabled })
+      .eq("id", id);
+    if (result.error) throw result.error;
+    await this.queue.refreshSchedulers(id);
     return { ok: true };
   }
 
@@ -365,9 +411,9 @@ export class SuperadminController {
     const input = totvsStructureSchema.parse(body);
     if (
       input.mode === "FILIAL" &&
-      !this.sqlServer.connections().some((connection) =>
-        connection.coligadas.includes(input.mainColigadaId),
-      )
+      !this.sqlServer
+        .connections()
+        .some((connection) => connection.coligadas.includes(input.mainColigadaId))
     )
       throw new BadRequestException("Coligada principal não disponível no ambiente.");
     const result = await supabaseAdmin.rpc("configure_totvs_structure", {
@@ -394,9 +440,19 @@ export class SuperadminController {
   ) {
     await this.assert(request.user.id);
     await this.planLimits.assertFeature(organizationId, "totvs_integration", "Integração TOTVS");
+    const organization = await supabaseAdmin
+      .from("organizations")
+      .select("totvs_homologation_mode")
+      .eq("id", organizationId)
+      .single();
+    if (organization.error) throw organization.error;
+    const effectiveKey = effectiveTotvsConnectionKey(
+      key,
+      Boolean(organization.data.totvs_homologation_mode),
+    );
     const connection = this.sqlServer
       .connections()
-      .find((item) => item.key === key && item.configured);
+      .find((item) => item.key === effectiveKey && item.configured);
     if (!connection) throw new BadRequestException("Conexão não disponível no ambiente.");
     const linked = await supabaseAdmin
       .from("companies")
@@ -412,7 +468,7 @@ export class SuperadminController {
       );
     return this.queue.enqueueSync({
       organizationId,
-      connectionKey: key,
+      connectionKey: effectiveKey,
       userId: request.user.id,
       trigger: "manual",
     });

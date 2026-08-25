@@ -6,6 +6,7 @@ export type TotvsSettingsPayload = {
   totvsStructure: {
     mode: "COLIGADA" | "FILIAL";
     mainColigadaId: number | null;
+    homologationMode: boolean;
   };
   settings: {
     enabled: boolean;
@@ -108,11 +109,13 @@ export type TotvsSettingsPayload = {
     defaultConnectionKey: string;
     connections: Array<{
       key: string;
+      effectiveKey: string;
       description: string;
       database: string | null;
       configured: boolean;
       writesEnabled: boolean;
       coligadas: number[];
+      homologation: boolean;
     }>;
   };
 };

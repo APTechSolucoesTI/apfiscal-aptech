@@ -24,7 +24,9 @@ beforeAll(() => {
   certificate.setIssuer(subject);
   certificate.sign(keys.privateKey, forge.md.sha256.create());
 
-  const pkcs12 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [certificate], password, { algorithm: "3des" });
+  const pkcs12 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [certificate], password, {
+    algorithm: "3des",
+  });
   pkcs12Buffer = Buffer.from(forge.asn1.toDer(pkcs12).getBytes(), "binary");
 });
 
@@ -62,8 +64,10 @@ describe("CertificateVaultService.inspectPkcs12", () => {
 });
 
 describe("certificateMatchesCompany", () => {
-  it("aceita certificado de matriz ou filial com a mesma raiz de CNPJ", () => {
-    expect(certificateMatchesCompany("08168210000286", "08.168.210/0001-03")).toBe(true);
+  it("aceita somente o CNPJ exato da empresa", () => {
+    expect(certificateMatchesCompany("08168210000103", "08.168.210/0001-03")).toBe(true);
+    expect(certificateMatchesCompany("08168210000286", "08.168.210/0001-03")).toBe(false);
+    expect(certificateMatchesCompany(null, "08.168.210/0001-03")).toBe(false);
   });
 
   it("rejeita certificado pertencente a outra raiz de CNPJ", () => {

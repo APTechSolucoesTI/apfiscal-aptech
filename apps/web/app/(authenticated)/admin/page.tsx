@@ -52,6 +52,7 @@ import {
   testAdminConnection,
   updateAdminCompanyConnection,
   updateAdminTotvsStructure,
+  updateAdminTotvsHomologation,
   updateAdminUser,
   updateAdminUserAccess,
   type AdminConnection,
@@ -150,6 +151,15 @@ export default function SuperadminPage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const homologationMutation = useMutation({
+    mutationFn: ({ organizationId, enabled }: { organizationId: string; enabled: boolean }) =>
+      updateAdminTotvsHomologation(organizationId, enabled),
+    onSuccess: async () => {
+      toast.success("Modo de homologação atualizado.");
+      await refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const testMutation = useMutation({
     mutationFn: testAdminConnection,
     onSuccess: (result) => toast.success(`Conexão validada no database ${result.database}.`),
@@ -232,9 +242,12 @@ export default function SuperadminPage() {
 
       <TotvsStructureCard
         data={data}
-        saving={structureMutation.isPending}
+        saving={structureMutation.isPending || homologationMutation.isPending}
         onSave={(organizationId, mode, mainColigadaId) =>
           structureMutation.mutate({ organizationId, mode, mainColigadaId })
+        }
+        onHomologationChange={(organizationId, enabled) =>
+          homologationMutation.mutate({ organizationId, enabled })
         }
       />
 
@@ -281,9 +294,11 @@ export default function SuperadminPage() {
                 <CompanyRow
                   key={company.id}
                   company={company}
-                  organization={data.organizations.find(
-                    (organization) => organization.id === company.organization_id,
-                  )!}
+                  organization={
+                    data.organizations.find(
+                      (organization) => organization.id === company.organization_id,
+                    )!
+                  }
                   connections={data.connections}
                   onSave={(connectionKey, coligadaId, filialId) =>
                     companyMutation.mutate({ id: company.id, connectionKey, coligadaId, filialId })
@@ -425,6 +440,7 @@ function TotvsStructureCard({
   data,
   saving,
   onSave,
+  onHomologationChange,
 }: {
   data: SuperadminPayload;
   saving: boolean;
@@ -433,9 +449,14 @@ function TotvsStructureCard({
     mode: "COLIGADA" | "FILIAL",
     mainColigadaId: number | null,
   ) => void;
+  onHomologationChange: (organizationId: string, enabled: boolean) => void;
 }) {
   const availableColigadas = [
-    ...new Set(data.connections.flatMap((connection) => connection.coligadas)),
+    ...new Set(
+      data.connections
+        .filter((connection) => !connection.key.endsWith("_HOMOLOG"))
+        .flatMap((connection) => connection.coligadas),
+    ),
   ].sort((a, b) => a - b);
   return (
     <Card>
@@ -460,6 +481,7 @@ function TotvsStructureCard({
             availableColigadas={availableColigadas}
             saving={saving}
             onSave={onSave}
+            onHomologationChange={onHomologationChange}
           />
         ))}
       </CardContent>
@@ -472,6 +494,7 @@ function TotvsStructureRow({
   availableColigadas,
   saving,
   onSave,
+  onHomologationChange,
 }: {
   organization: SuperadminPayload["organizations"][number];
   availableColigadas: number[];
@@ -481,6 +504,7 @@ function TotvsStructureRow({
     mode: "COLIGADA" | "FILIAL",
     mainColigadaId: number | null,
   ) => void;
+  onHomologationChange: (organizationId: string, enabled: boolean) => void;
 }) {
   const [mode, setMode] = useState(organization.totvs_structure_mode);
   const [mainColigadaId, setMainColigadaId] = useState<number | null>(
@@ -506,10 +530,12 @@ function TotvsStructureRow({
             value={mode}
             onValueChange={(value: "COLIGADA" | "FILIAL") => {
               setMode(value);
-              setMainColigadaId(value === "FILIAL" ? availableColigadas[0] ?? null : null);
+              setMainColigadaId(value === "FILIAL" ? (availableColigadas[0] ?? null) : null);
             }}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="COLIGADA">Por Coligada</SelectItem>
               <SelectItem value="FILIAL">Por Filial</SelectItem>
@@ -523,9 +549,13 @@ function TotvsStructureRow({
             disabled={mode !== "FILIAL"}
             onValueChange={(value) => setMainColigadaId(Number(value))}
           >
-            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none" disabled>Selecione</SelectItem>
+              <SelectItem value="none" disabled>
+                Selecione
+              </SelectItem>
               {availableColigadas.map((coligada) => (
                 <SelectItem key={coligada} value={String(coligada)}>
                   Coligada {coligada}
@@ -534,6 +564,20 @@ function TotvsStructureRow({
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+        <div>
+          <Label htmlFor={`homologation-${organization.id}`}>Modo homologação</Label>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Usa automaticamente a conexão com sufixo _HOMOLOG para leitura e escrita.
+          </p>
+        </div>
+        <Switch
+          id={`homologation-${organization.id}`}
+          checked={organization.totvs_homologation_mode}
+          disabled={saving}
+          onCheckedChange={(enabled) => onHomologationChange(organization.id, enabled)}
+        />
       </div>
       <div className="mt-3 flex justify-end">
         <Button
@@ -631,11 +675,7 @@ function CompanyRow({
   company: SuperadminPayload["companies"][number];
   organization: SuperadminPayload["organizations"][number];
   connections: AdminConnection[];
-  onSave: (
-    key: string | null,
-    coligada: number | null,
-    filial: number | null,
-  ) => void;
+  onSave: (key: string | null, coligada: number | null, filial: number | null) => void;
 }) {
   const [key, setKey] = useState(company.totvs_connection_key ?? "none");
   const connection = connections.find((item) => item.key === key);
@@ -657,11 +697,13 @@ function CompanyRow({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Sem conexão</SelectItem>
-            {connections.map((item) => (
-              <SelectItem key={item.key} value={item.key}>
-                {item.description}
-              </SelectItem>
-            ))}
+            {connections
+              .filter((item) => !item.key.endsWith("_HOMOLOG"))
+              .map((item) => (
+                <SelectItem key={item.key} value={item.key}>
+                  {item.description}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </TableCell>

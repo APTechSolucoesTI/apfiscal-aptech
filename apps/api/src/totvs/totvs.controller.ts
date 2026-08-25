@@ -17,6 +17,8 @@ import { TotvsQueueService } from "./totvs-queue.service";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
 import { NfseSyncService } from "@/nfse/nfse-sync.service";
 import { PlanLimitsService } from "@/plans/plan-limits.service";
+import { effectiveTotvsConnectionKey } from "./totvs-scope";
+import { TotvsScopeService } from "./totvs-scope.service";
 
 const settingsSchema = z.object({
   enabled: z.boolean(),
@@ -67,6 +69,7 @@ export class TotvsController {
     private readonly sqlServer: TotvsSqlServerService,
     private readonly nfse: NfseSyncService,
     private readonly plans: PlanLimitsService,
+    private readonly scopes: TotvsScopeService,
   ) {}
 
   private async organizationId(userId: string): Promise<string> {
@@ -83,11 +86,19 @@ export class TotvsController {
   }
 
   private async scopedConnections(organizationId: string) {
-    const companies = await supabaseAdmin
-      .from("companies")
-      .select("totvs_connection_key, totvs_coligada_id")
-      .eq("organization_id", organizationId);
+    const [companies, organization] = await Promise.all([
+      supabaseAdmin
+        .from("companies")
+        .select("totvs_connection_key, totvs_coligada_id")
+        .eq("organization_id", organizationId),
+      supabaseAdmin
+        .from("organizations")
+        .select("totvs_homologation_mode")
+        .eq("id", organizationId)
+        .single(),
+    ]);
     if (companies.error) throw companies.error;
+    if (organization.error) throw organization.error;
     const linkedKeys = new Set(
       (companies.data ?? [])
         .map((company) => company.totvs_connection_key)
@@ -97,7 +108,26 @@ export class TotvsController {
       (company) => !company.totvs_connection_key && company.totvs_coligada_id,
     );
     if (hasLegacyDefault || linkedKeys.size === 0) linkedKeys.add(this.sqlServer.defaultKey());
-    return this.sqlServer.connections().filter((connection) => linkedKeys.has(connection.key));
+    const configured = new Map(
+      this.sqlServer.connections().map((connection) => [connection.key, connection]),
+    );
+    return [...linkedKeys].map((baseKey) => {
+      const effectiveKey = effectiveTotvsConnectionKey(
+        baseKey,
+        Boolean(organization.data.totvs_homologation_mode),
+      );
+      const connection = configured.get(effectiveKey);
+      return {
+        key: baseKey,
+        effectiveKey,
+        description: connection?.description ?? effectiveKey.replaceAll("_", " "),
+        database: connection?.database ?? null,
+        configured: Boolean(connection?.configured),
+        writesEnabled: Boolean(connection?.writesEnabled),
+        coligadas: connection?.coligadas ?? [],
+        homologation: Boolean(organization.data.totvs_homologation_mode),
+      };
+    });
   }
 
   @RequirePermission("totvs.integration.view")
@@ -106,7 +136,7 @@ export class TotvsController {
     const organizationId = await this.organizationId(request.user.id);
     const organization = await supabaseAdmin
       .from("organizations")
-      .select("totvs_structure_mode, totvs_main_coligada_id")
+      .select("totvs_structure_mode, totvs_main_coligada_id, totvs_homologation_mode")
       .eq("id", organizationId)
       .single();
     if (organization.error) throw organization.error;
@@ -127,7 +157,9 @@ export class TotvsController {
         .maybeSingle(),
       supabaseAdmin
         .from("companies")
-        .select("id, razao_social, nome_fantasia, cnpj, totvs_coligada_id, totvs_filial_id, totvs_connection_key")
+        .select(
+          "id, razao_social, nome_fantasia, cnpj, totvs_coligada_id, totvs_filial_id, totvs_connection_key",
+        )
         .eq("organization_id", organizationId)
         .order("razao_social"),
       supabaseAdmin
@@ -200,6 +232,7 @@ export class TotvsController {
       totvsStructure: {
         mode: organization.data.totvs_structure_mode,
         mainColigadaId: organization.data.totvs_main_coligada_id,
+        homologationMode: Boolean(organization.data.totvs_homologation_mode),
       },
       companies: companies.data ?? [],
       runs: runs.data ?? [],
@@ -230,7 +263,7 @@ export class TotvsController {
     const input = settingsSchema.parse(body);
     const organization = await supabaseAdmin
       .from("organizations")
-      .select("totvs_structure_mode, totvs_main_coligada_id")
+      .select("totvs_structure_mode, totvs_main_coligada_id, totvs_homologation_mode")
       .eq("id", organizationId)
       .single();
     if (organization.error) throw organization.error;
@@ -248,9 +281,10 @@ export class TotvsController {
         "automatic_nfse",
         "Sincronização automática de NFS-e",
       );
+    const tenantConnections = await this.scopedConnections(organizationId);
     if (
       input.integrationEnabled &&
-      !this.sqlServer.connections().some((connection) => connection.writesEnabled)
+      !tenantConnections.some((connection) => connection.writesEnabled)
     ) {
       throw new BadRequestException(
         "Defina TOTVS_WRITES_ENABLED=true somente após homologar o SQL de escrita.",
@@ -276,16 +310,15 @@ export class TotvsController {
     const configured = new Map(
       this.sqlServer.connections().map((connection) => [connection.key, connection]),
     );
-    const scopedConnectionKeys = new Set(
-      (await this.scopedConnections(organizationId)).map((connection) => connection.key),
-    );
+    const scopedConnectionKeys = new Set(tenantConnections.map((connection) => connection.key));
     const filialMode = organization.data.totvs_structure_mode === "FILIAL";
     const pairs = input.companyMappings
-      .filter((mapping) =>
-        mapping.connectionKey && (filialMode ? mapping.filialId : mapping.coligadaId),
+      .filter(
+        (mapping) => mapping.connectionKey && (filialMode ? mapping.filialId : mapping.coligadaId),
       )
-      .map((mapping) =>
-        `${mapping.connectionKey}|${filialMode ? mapping.filialId : mapping.coligadaId}`,
+      .map(
+        (mapping) =>
+          `${mapping.connectionKey}|${filialMode ? mapping.filialId : mapping.coligadaId}`,
       );
     if (new Set(pairs).size !== pairs.length)
       throw new BadRequestException(
@@ -306,17 +339,19 @@ export class TotvsController {
         throw new BadRequestException(
           "A conexão TOTVS deve ser vinculada à organização pelo Super Admin.",
         );
-      const connection = configured.get(mapping.connectionKey);
+      const effectiveKey = effectiveTotvsConnectionKey(
+        mapping.connectionKey,
+        Boolean(organization.data.totvs_homologation_mode),
+      );
+      const connection = configured.get(effectiveKey);
       if (!connection?.configured)
         throw new BadRequestException(
-          `A conexão ${mapping.connectionKey} não está configurada no ambiente.`,
+          `A conexão ${effectiveKey} não está configurada no ambiente.`,
         );
-      const coligada = filialMode
-        ? organization.data.totvs_main_coligada_id
-        : mapping.coligadaId;
+      const coligada = filialMode ? organization.data.totvs_main_coligada_id : mapping.coligadaId;
       if (!coligada || !connection.coligadas.includes(coligada))
         throw new BadRequestException(
-          `A coligada ${coligada ?? "principal"} não é permitida em ${mapping.connectionKey}.`,
+          `A coligada ${coligada ?? "principal"} não é permitida em ${effectiveKey}.`,
         );
     }
     const saved = await supabaseAdmin.from("totvs_settings").upsert(
@@ -382,10 +417,10 @@ export class TotvsController {
       .parse(body ?? {});
     const key = connectionKey ?? this.sqlServer.defaultKey();
     const scoped = await this.scopedConnections(organizationId);
-    if (!scoped.some((connection) => connection.key === key))
-      throw new BadRequestException("Conexão fora do escopo desta organização.");
+    const connection = scoped.find((item) => item.key === key);
+    if (!connection) throw new BadRequestException("Conexão fora do escopo desta organização.");
     try {
-      const result = await this.sqlServer.testConnection(key);
+      const result = await this.sqlServer.testConnection(connection.effectiveKey);
       await supabaseAdmin.from("totvs_settings").upsert(
         {
           organization_id: organizationId,
@@ -431,9 +466,10 @@ export class TotvsController {
     if (linked.error) throw linked.error;
     if (!linked.data)
       throw new BadRequestException("Nenhuma empresa está vinculada a esta conexão TOTVS.");
+    const effectiveKey = await this.scopes.effectiveConnectionKey(organizationId, key);
     return this.queue.enqueueSync({
       organizationId,
-      connectionKey: key,
+      connectionKey: effectiveKey,
       userId: request.user.id,
       trigger: "manual",
     });

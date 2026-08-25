@@ -12,6 +12,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TotvsIntegrationService } from "./totvs-integration.service";
 import { TotvsSyncService } from "./totvs-sync.service";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
+import { TotvsScopeService } from "./totvs-scope.service";
 import { NfseSyncService } from "@/nfse/nfse-sync.service";
 import { cooldownException } from "@/common/sync-feedback";
 
@@ -53,6 +54,7 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     private readonly integrationService: TotvsIntegrationService,
     private readonly fiscalSyncService: FiscalSyncService,
     private readonly sqlServer: TotvsSqlServerService,
+    private readonly scopes: TotvsScopeService,
     private readonly nfseSyncService: NfseSyncService,
   ) {}
 
@@ -208,19 +210,10 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     if (organizationId) settingsQuery = settingsQuery.eq("organization_id", organizationId);
     const settings = await settingsQuery;
     if (settings.error) throw settings.error;
-    let companiesQuery = supabaseAdmin
-      .from("companies")
-      .select("organization_id, totvs_connection_key, totvs_coligada_id, totvs_filial_id")
-      .or("totvs_coligada_id.not.is.null,totvs_filial_id.not.is.null");
-    if (organizationId) companiesQuery = companiesQuery.eq("organization_id", organizationId);
-    const companies = await companiesQuery;
-    if (companies.error) throw companies.error;
     for (const setting of settings.data ?? []) {
       const assignedKeys = [
         ...new Set(
-          (companies.data ?? [])
-            .filter((company) => company.organization_id === setting.organization_id)
-            .map((company) => company.totvs_connection_key || this.sqlServer.defaultKey()),
+          (await this.scopes.resolve(setting.organization_id)).map((scope) => scope.connectionKey),
         ),
       ];
       for (let hour = 0; hour < 24; hour += 1) {
@@ -430,7 +423,11 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
       throw new ServiceUnavailableException(
         "Configure REDIS_URL para habilitar a fila totvs-integration.",
       );
-    const idempotencyKey = `${input.companyId}-${input.accessKey}`;
+    const scope = await this.scopes.company(input.organizationId, input.companyId);
+    const idempotencyKey =
+      scope.connectionKey === scope.baseConnectionKey
+        ? `${input.companyId}-${input.accessKey}`
+        : `${scope.connectionKey}-${input.companyId}-${input.accessKey}`;
     const previous = await supabaseAdmin
       .from("totvs_integration_runs")
       .select("id, status")
@@ -439,17 +436,11 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     if (previous.error) throw previous.error;
     if (previous.data)
       return { runId: previous.data.id, status: previous.data.status, idempotent: true };
-    const company = await supabaseAdmin
-      .from("companies")
-      .select("totvs_connection_key")
-      .eq("id", input.companyId)
-      .single();
-    if (company.error) throw company.error;
     const run = await supabaseAdmin
       .from("totvs_integration_runs")
       .insert({
         organization_id: input.organizationId,
-        connection_key: company.data.totvs_connection_key ?? this.sqlServer.defaultKey(),
+        connection_key: scope.connectionKey,
         company_id: input.companyId,
         fiscal_document_id: input.documentId,
         idempotency_key: idempotencyKey,

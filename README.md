@@ -74,34 +74,34 @@ Os health checks são `/api/health` no web e `/health/ready` na API. Alteraçõe
 
 Use [`.env.example`](./.env.example) como lista do Compose. Os arquivos específicos explicam cada variável: [`apps/web/.env.example`](./apps/web/.env.example) e [`apps/api/.env.example`](./apps/api/.env.example).
 
-| Variável | Serviço | Observação |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | web/build | URL pública do Supabase |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web/build | chave publishable/anon, nunca secret |
-| `NEXT_PUBLIC_APP_URL` | web | domínio HTTPS final |
-| `SUPABASE_URL` | API | URL alcançável pelo container |
-| `SUPABASE_PUBLISHABLE_KEY` | API | valida JWT e consultas com RLS |
-| `SUPABASE_SECRET_KEY` | API | segredo exclusivo do backend |
-| `SUPABASE_JWT_SECRET` | API | `JWT_SECRET` da instalação Supabase; usado apenas para token RLS efêmero |
-| `AUTH_SESSION_SECRET` | API + web | segredo próprio da sessão APFiscal; mínimo 32 caracteres |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | API | envio de confirmação, convite e redefinição de senha |
-| `CERTIFICATE_ENCRYPTION_KEY` | API | 32 bytes em base64; não rotacionar sem recriptografar senhas |
-| `NFE_ENVIRONMENT` | API | `1` produção, `2` homologação |
-| `APFISCAL_*` | API | credenciais opcionais do fallback legado |
-| `REDIS_URL` | API | Redis interno usado pelas filas BullMQ; o Compose já aponta para `apfiscal-redis` |
-| `TOTVS_SQL_HOST`, `TOTVS_SQL_PORT`, `TOTVS_SQL_DATABASE` | API | endereço TCP e banco do TOTVS RM |
-| `TOTVS_SQL_USER`, `TOTVS_SQL_PASSWORD` | API | login SQL dedicado, preferencialmente com permissão somente `SELECT` |
-| `TOTVS_SQL_ENCRYPT`, `TOTVS_SQL_TRUST_SERVER_CERTIFICATE` | API | TLS do SQL Server; aceite certificado não confiável apenas em rede controlada |
-| `TOTVS_COLIGADAS` | API | allowlist numérica, por padrão `1,2` |
-| `TOTVS_WRITES_ENABLED` | API | mantenha `false`; escrita exige SQL real homologado e versionado |
-| `NFE_RECONCILIATION_BATCH_SIZE` | API | resumos antigos revisados por ciclo; máximo seguro `10` para evitar rajadas contra a SEFAZ |
-| `TOTVS_CONNECTION_KEYS` | API | chaves das conexões disponíveis, separadas por vírgula; a conexão atual é `TOTVS_GRANJA` |
-| `TOTVS_DEFAULT_CONNECTION_KEY` | API | conexão usada para compatibilidade com as variáveis legadas; use `TOTVS_GRANJA` |
-| `TOTVS_CONNECTION_<CHAVE>_DESCRIPTION` | API | identificação legível do banco, sem armazenar credenciais no banco APFiscal |
-| `TOTVS_CONNECTION_<CHAVE>_*` | API | host, porta, database, usuário, senha, TLS, coligadas e trava de escrita de cada banco |
-| `SUPERADMIN_EMAIL`, `SUPERADMIN_INITIAL_PASSWORD` | API | bootstrap único do Super Admin; remova a senha do ambiente depois da primeira criação |
-| `NFSE_ADN_BASE_URL` | API | endpoint oficial da ADN NFS-e; o exemplo já contém a URL de produção |
-| `NFSE_ADN_MIN_INTERVAL_MINUTES` | API | intervalo mínimo de proteção entre consultas ADN; mantenha pelo menos `15` |
+| Variável                                                                           | Serviço   | Observação                                                                                 |
+| ---------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                         | web/build | URL pública do Supabase                                                                    |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                                             | web/build | chave publishable/anon, nunca secret                                                       |
+| `NEXT_PUBLIC_APP_URL`                                                              | web       | domínio HTTPS final                                                                        |
+| `SUPABASE_URL`                                                                     | API       | URL alcançável pelo container                                                              |
+| `SUPABASE_PUBLISHABLE_KEY`                                                         | API       | valida JWT e consultas com RLS                                                             |
+| `SUPABASE_SECRET_KEY`                                                              | API       | segredo exclusivo do backend                                                               |
+| `SUPABASE_JWT_SECRET`                                                              | API       | `JWT_SECRET` da instalação Supabase; usado apenas para token RLS efêmero                   |
+| `AUTH_SESSION_SECRET`                                                              | API + web | segredo próprio da sessão APFiscal; mínimo 32 caracteres                                   |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | API       | envio de confirmação, convite e redefinição de senha                                       |
+| `CERTIFICATE_ENCRYPTION_KEY`                                                       | API       | 32 bytes em base64; não rotacionar sem recriptografar senhas                               |
+| `NFE_ENVIRONMENT`                                                                  | API       | `1` produção, `2` homologação                                                              |
+| `APFISCAL_*`                                                                       | API       | credenciais opcionais do fallback legado                                                   |
+| `REDIS_URL`                                                                        | API       | Redis interno usado pelas filas BullMQ; o Compose já aponta para `apfiscal-redis`          |
+| `TOTVS_SQL_HOST`, `TOTVS_SQL_PORT`, `TOTVS_SQL_DATABASE`                           | API       | endereço TCP e banco do TOTVS RM                                                           |
+| `TOTVS_SQL_USER`, `TOTVS_SQL_PASSWORD`                                             | API       | login SQL dedicado, preferencialmente com permissão somente `SELECT`                       |
+| `TOTVS_SQL_ENCRYPT`, `TOTVS_SQL_TRUST_SERVER_CERTIFICATE`                          | API       | TLS do SQL Server; aceite certificado não confiável apenas em rede controlada              |
+| `TOTVS_COLIGADAS`                                                                  | API       | allowlist numérica, por padrão `1,2`                                                       |
+| `TOTVS_WRITES_ENABLED`                                                             | API       | mantenha `false`; escrita exige SQL real homologado e versionado                           |
+| `NFE_RECONCILIATION_BATCH_SIZE`                                                    | API       | resumos antigos revisados por ciclo; máximo seguro `10` para evitar rajadas contra a SEFAZ |
+| `TOTVS_CONNECTION_KEYS`                                                            | API       | chaves das conexões disponíveis, separadas por vírgula; a conexão atual é `TOTVS_GRANJA`   |
+| `TOTVS_DEFAULT_CONNECTION_KEY`                                                     | API       | conexão usada para compatibilidade com as variáveis legadas; use `TOTVS_GRANJA`            |
+| `TOTVS_CONNECTION_<CHAVE>_DESCRIPTION`                                             | API       | identificação legível do banco, sem armazenar credenciais no banco APFiscal                |
+| `TOTVS_CONNECTION_<CHAVE>_*`                                                       | API       | host, porta, database, usuário, senha, TLS, coligadas e trava de escrita de cada banco     |
+| `SUPERADMIN_EMAIL`, `SUPERADMIN_INITIAL_PASSWORD`                                  | API       | bootstrap único do Super Admin; remova a senha do ambiente depois da primeira criação      |
+| `NFSE_ADN_BASE_URL`                                                                | API       | endpoint oficial da ADN NFS-e; o exemplo já contém a URL de produção                       |
+| `NFSE_ADN_MIN_INTERVAL_MINUTES`                                                    | API       | intervalo mínimo de proteção entre consultas ADN; mantenha pelo menos `15`                 |
 
 O Compose repassa `NEXT_PUBLIC_APP_URL` à API como `PUBLIC_APP_URL`, garantindo que os e-mails da autenticação própria do APFiscal apontem para o domínio público correto. O login não usa Supabase Auth nem aceita usuários de outros sistemas do mesmo Supabase.
 
@@ -137,7 +137,7 @@ Para liberar leitura, crie no SQL Server um usuário dedicado com acesso apenas 
 
 As credenciais ficam exclusivamente no ambiente da API. O banco APFiscal armazena somente a chave da conexão vinculada à empresa, por exemplo `TOTVS_GRANJA`; senha, usuário e host nunca são persistidos nem devolvidos ao frontend. A descrição e o nome do database são metadados sanitizados exibidos para o Super Admin confirmar o alvo do teste.
 
-Para a conexão atual, configure `TOTVS_CONNECTION_KEYS=TOTVS_GRANJA`, `TOTVS_DEFAULT_CONNECTION_KEY=TOTVS_GRANJA` e as variáveis `TOTVS_CONNECTION_TOTVS_GRANJA_*` do `.env.example`. Para adicionar outro banco, inclua uma nova chave na lista e replique o bloco com outro prefixo. Depois do redeploy da API, o Super Admin testa a conexão e vincula cada empresa à conexão e coligada corretas. Usuários comuns veem e executam somente conexões já vinculadas à própria organização.
+Para a conexão atual, configure `TOTVS_CONNECTION_KEYS=TOTVS_GRANJA,TOTVS_GRANJA_HOMOLOG`, `TOTVS_DEFAULT_CONNECTION_KEY=TOTVS_GRANJA` e os blocos `TOTVS_CONNECTION_TOTVS_GRANJA_*` e `TOTVS_CONNECTION_TOTVS_GRANJA_HOMOLOG_*` do `.env.example`. O vínculo da empresa sempre guarda a chave principal. Quando o Super Admin ativa o modo homologação da organização, toda leitura e gravação resolve automaticamente a chave correspondente com sufixo `_HOMOLOG`; por exemplo, `TOTVS_GRANJA` passa a usar `TOTVS_GRANJA_HOMOLOG`. Para outro cliente, repita o mesmo padrão de pares. Depois do redeploy da API, o Super Admin testa as conexões e vincula cada empresa à conexão e ao escopo corretos. Usuários comuns veem e executam somente conexões já vinculadas à própria organização.
 
 As variáveis legadas `TOTVS_SQL_*` continuam aceitas apenas para a conexão padrão, permitindo atualizar o deploy atual sem interrupção. Migre para os blocos prefixados assim que possível.
 

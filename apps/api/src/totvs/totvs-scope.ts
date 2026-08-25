@@ -3,6 +3,7 @@ export type TotvsStructureMode = "COLIGADA" | "FILIAL";
 export type TotvsOrganizationConfig = {
   mode: TotvsStructureMode;
   mainColigadaId: number | null;
+  homologationMode?: boolean;
 };
 
 export type TotvsCompanyConfig = {
@@ -18,9 +19,18 @@ export type TotvsCompanyScope = {
   companyId: string;
   organizationId: string;
   connectionKey: string;
+  baseConnectionKey: string;
   codColigada: number;
   codFilial: number | null;
 };
+
+export function effectiveTotvsConnectionKey(baseKey: string, homologationMode = false): string {
+  if (!homologationMode || baseKey.endsWith("_HOMOLOG")) return baseKey;
+  const effective = `${baseKey}_HOMOLOG`;
+  if (effective.length > 63)
+    throw new Error("A chave TOTVS base é longa demais para o sufixo _HOMOLOG.");
+  return effective;
+}
 
 function positiveInteger(value: unknown): number | null {
   const parsed = Number(value);
@@ -33,31 +43,41 @@ export function resolveTotvsCompanyScopes(
   defaultConnectionKey: string,
 ): TotvsCompanyScope[] {
   return companies.flatMap((company): TotvsCompanyScope[] => {
-    const connectionKey = company.connectionKey ?? defaultConnectionKey;
+    const baseConnectionKey = company.connectionKey ?? defaultConnectionKey;
+    const connectionKey = effectiveTotvsConnectionKey(
+      baseConnectionKey,
+      organization.homologationMode,
+    );
     if (organization.mode === "FILIAL") {
       const codColigada = positiveInteger(organization.mainColigadaId);
       const codFilial = positiveInteger(company.filialId);
       if (!codColigada || !codFilial || !company.connectionKey) return [];
-      return [{
-        mode: organization.mode,
-        companyId: company.id,
-        organizationId: company.organizationId,
-        connectionKey,
-        codColigada,
-        codFilial,
-      }];
+      return [
+        {
+          mode: organization.mode,
+          companyId: company.id,
+          organizationId: company.organizationId,
+          connectionKey,
+          baseConnectionKey,
+          codColigada,
+          codFilial,
+        },
+      ];
     }
 
     const codColigada = positiveInteger(company.coligadaId);
     if (!codColigada) return [];
-    return [{
-      mode: organization.mode,
-      companyId: company.id,
-      organizationId: company.organizationId,
-      connectionKey,
-      codColigada,
-      codFilial: null,
-    }];
+    return [
+      {
+        mode: organization.mode,
+        companyId: company.id,
+        organizationId: company.organizationId,
+        connectionKey,
+        baseConnectionKey,
+        codColigada,
+        codFilial: null,
+      },
+    ];
   });
 }
 
@@ -98,12 +118,9 @@ export function rowsForTotvsScope(
     return [...merged.values()];
   }
 
+  apply((row) => sourceColigada(row) === scope.codColigada && sourceFilial(row) === null);
   apply(
-    (row) => sourceColigada(row) === scope.codColigada && sourceFilial(row) === null,
-  );
-  apply(
-    (row) =>
-      sourceColigada(row) === scope.codColigada && sourceFilial(row) === scope.codFilial,
+    (row) => sourceColigada(row) === scope.codColigada && sourceFilial(row) === scope.codFilial,
   );
   return [...merged.values()];
 }

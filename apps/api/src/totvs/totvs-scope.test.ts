@@ -87,6 +87,24 @@ describe("TOTVS scope resolution", () => {
     ).toEqual([products, products]);
   });
 
+  it("aggregates configured branches in Global without leaking them between companies", () => {
+    const scopes = resolveTotvsCompanyScopes(
+      { mode: "FILIAL", mainColigadaId: 2 },
+      companies,
+      "DEFAULT",
+    );
+    const locations = [
+      { coligada: 2, filial: 1, code: "01.001" },
+      { coligada: 2, filial: 2, code: "02.001" },
+      { coligada: 2, filial: 3, code: "03.001" },
+    ];
+    const global = scopes.flatMap((scope) =>
+      rowsForTotvsScope(locations, scope, (row) => String(row.code), true)
+        .map((row) => `${scope.companyId}|${row.code}`),
+    );
+    expect(global).toEqual(["santa|01.001", "jacutinga|02.001"]);
+  });
+
   it("does not resolve incomplete branch mappings", () => {
     expect(
       resolveTotvsCompanyScopes(
@@ -97,4 +115,3 @@ describe("TOTVS scope resolution", () => {
     ).toEqual([]);
   });
 });
-

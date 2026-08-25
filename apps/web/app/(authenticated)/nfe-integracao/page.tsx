@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   ReceiptText,
   ShieldAlert,
+  Clock3,
+  Send,
+  FileSearch,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,9 +65,12 @@ import {
   listarDocumentos,
   listarHistorico,
   manifestar,
+  manifestarEmLote,
+  listarManifestacoes,
   sincronizar,
   type DocumentoFiscal,
   type TipoEventoManifestacao,
+  type ResultadoManifestacaoLote,
 } from "@/services/apfiscalService";
 import {
   STATUS_LABEL,
@@ -117,6 +123,8 @@ function NfeIntegracao() {
   const [histPage, setHistPage] = useState(1);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [baixandoLote, setBaixandoLote] = useState(false);
+  const [manifestacaoLote, setManifestacaoLote] = useState(false);
+  const [resultadoLote, setResultadoLote] = useState<ResultadoManifestacaoLote | null>(null);
 
   const empresaFiltro = companyId === "todas" ? null : companyId;
 
@@ -141,6 +149,21 @@ function NfeIntegracao() {
     queryKey: ["apfiscal-historico", empresaFiltro, filtroHist],
     queryFn: () => listarHistorico(empresaFiltro, filtroHist),
   });
+
+  const { data: manifestacoes = [] } = useQuery({
+    queryKey: ["nfe-manifestacoes", empresaFiltro],
+    queryFn: () => listarManifestacoes(empresaFiltro),
+  });
+
+  const manifestacoesPorChave = useMemo(() => {
+    const grouped = new Map<string, typeof manifestacoes>();
+    for (const event of manifestacoes) {
+      const current = grouped.get(event.access_key) ?? [];
+      current.push(event);
+      grouped.set(event.access_key, current);
+    }
+    return grouped;
+  }, [manifestacoes]);
 
   const { data: fiscalSettings, isFetching: loadingFiscalSettings } = useQuery({
     queryKey: ["fiscal-provider-settings", empresaFiltro],
@@ -216,19 +239,51 @@ function NfeIntegracao() {
   };
 
   const handleManifestar = async () => {
-    if (!alvo) return;
+    const docsSelecionados = filtrados.filter((doc) => selecionados.has(doc.id));
+    if (!alvo && (!manifestacaoLote || docsSelecionados.length === 0)) return;
     setManifestando(true);
+    setResultadoLote(null);
     try {
-      await manifestar({
-        companyId: alvo.company_id,
-        chave: alvo.chave,
-        tipoEvento,
-        justificativa: tipoEvento === "210240" ? justificativa.trim() : null,
-      });
-      toast.success("Manifestação enviada à SEFAZ.");
-      setAlvo(null);
-      setJustificativa("");
+      if (alvo) {
+        const result = await manifestar({
+          companyId: alvo.company_id,
+          chave: alvo.chave,
+          tipoEvento,
+          justificativa: tipoEvento === "210240" ? justificativa.trim() : null,
+        });
+        toast.success(`${result.cStat} — ${result.xMotivo}`);
+        setAlvo(null);
+        setJustificativa("");
+      } else {
+        const groups = new Map<string, typeof docsSelecionados>();
+        for (const doc of docsSelecionados) {
+          const current = groups.get(doc.company_id) ?? [];
+          current.push(doc);
+          groups.set(doc.company_id, current);
+        }
+        const batches = await Promise.all(
+          [...groups.entries()].map(([targetCompanyId, docs]) =>
+            manifestarEmLote({
+              companyId: targetCompanyId,
+              chaves: docs.map((doc) => doc.chave),
+              tipoEvento,
+              justificativa: tipoEvento === "210240" ? justificativa.trim() : null,
+            }),
+          ),
+        );
+        const consolidated: ResultadoManifestacaoLote = {
+          total: batches.reduce((sum, item) => sum + item.total, 0),
+          processed: batches.reduce((sum, item) => sum + item.processed, 0),
+          idempotent: batches.reduce((sum, item) => sum + item.idempotent, 0),
+          failed: batches.reduce((sum, item) => sum + item.failed, 0),
+          results: batches.flatMap((item) => item.results),
+        };
+        setResultadoLote(consolidated);
+        setSelecionados(new Set());
+        toast.success(`${consolidated.processed} manifestação(ões) processada(s).`);
+      }
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-documentos"] });
+      await queryClient.invalidateQueries({ queryKey: ["nfe-manifestacoes"] });
       await queryClient.invalidateQueries({ queryKey: ["apfiscal-historico"] });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao manifestar documento.");
@@ -236,6 +291,22 @@ function NfeIntegracao() {
       setManifestando(false);
     }
   };
+
+  const indicadores = useMemo(() => {
+    let pending = 0;
+    let science = 0;
+    let waitingXml = 0;
+    let errors = 0;
+    for (const doc of documentos) {
+      const events = manifestacoesPorChave.get(doc.chave) ?? [];
+      const accepted = events.filter((event) => event.status === "accepted");
+      if (events.some((event) => event.status === "error" || event.status === "rejected") || doc.status === "erro") errors += 1;
+      if (accepted.some((event) => event.tipo === "ciencia")) science += 1;
+      if (doc.status === "aguardando_xml_completo") waitingXml += 1;
+      if (!accepted.some((event) => ["confirmacao", "desconhecimento", "nao_realizada"].includes(event.tipo))) pending += 1;
+    }
+    return { total: documentos.length, pending, science, waitingXml, errors };
+  }, [documentos, manifestacoesPorChave]);
 
   const handleBaixar = async (doc: DocumentoFiscal, tipo: "resumido" | "completo") => {
     try {
@@ -450,18 +521,26 @@ function NfeIntegracao() {
         className: "text-right",
         render: (doc) => (
           <div className="flex justify-end gap-1">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setAlvo(doc);
-                setTipoEvento("210210");
-                setJustificativa("");
-              }}
-            >
-              <FileCheck2 className="mr-1 h-3.5 w-3.5" />
-              Ciência
-            </Button>
+            {!((manifestacoesPorChave.get(doc.chave) ?? []).some(
+              (event) => event.status === "accepted" && ["confirmacao", "desconhecimento", "nao_realizada"].includes(event.tipo),
+            )) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setAlvo(doc);
+                  setTipoEvento(
+                    (manifestacoesPorChave.get(doc.chave) ?? []).some(
+                      (event) => event.status === "accepted" && event.tipo === "ciencia",
+                    ) ? "210200" : "210210",
+                  );
+                  setJustificativa("");
+                }}
+              >
+                <FileCheck2 className="mr-1 h-3.5 w-3.5" />
+                Manifestar
+              </Button>
+            )}
             {doc.xml_resumido_path && (
               <Button size="sm" variant="outline" onClick={() => handleBaixar(doc, "resumido")}>
                 <Download className="mr-1 h-3.5 w-3.5" />
@@ -489,8 +568,7 @@ function NfeIntegracao() {
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [companies, manifestacoesPorChave],
   );
 
   const {
@@ -541,10 +619,10 @@ function NfeIntegracao() {
                 Operação fiscal
               </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-                NF-e Resumida
+                Central de NF-e Resumidas
               </h1>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-                Consulte a SEFAZ pelo NFeWizard, acompanhe o NSU e gerencie XMLs em um só fluxo.
+                Analise resumos, registre manifestações e acompanhe a liberação do XML. Quando a NF-e fica completa, ela sai daqui automaticamente.
               </p>
             </div>
           </div>
@@ -606,6 +684,28 @@ function NfeIntegracao() {
         </div>
       </section>
 
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Resumo das NF-e resumidas">
+        {[
+          { label: "Resumos ativos", value: indicadores.total, icon: ReceiptText, tone: "text-slate-700 bg-slate-100" },
+          { label: "Aguardando ação", value: indicadores.pending, icon: Clock3, tone: "text-amber-700 bg-amber-100" },
+          { label: "Ciência registrada", value: indicadores.science, icon: FileCheck2, tone: "text-blue-700 bg-blue-100" },
+          { label: "Aguardando XML", value: indicadores.waitingXml, icon: FileSearch, tone: "text-indigo-700 bg-indigo-100" },
+          { label: "Com ocorrência", value: indicadores.errors, icon: AlertTriangle, tone: "text-red-700 bg-red-100" },
+        ].map((item) => (
+          <Card key={item.label} className="shadow-none">
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.tone}`}>
+                <item.icon className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-2xl font-semibold tracking-tight text-slate-950">{item.value}</p>
+                <p className="text-xs text-slate-500">{item.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
       <Tabs defaultValue="documentos">
         <TabsList>
           <TabsTrigger value="documentos">Documentos</TabsTrigger>
@@ -616,7 +716,7 @@ function NfeIntegracao() {
           <Card>
             <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-base">Documentos fiscais</CardTitle>
+                <CardTitle className="text-base">Resumos em acompanhamento</CardTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {filtrados.length} documento(s) no filtro atual
                 </p>
@@ -631,6 +731,20 @@ function NfeIntegracao() {
                     setPage(1);
                   }}
                 />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setManifestacaoLote(true);
+                    setResultadoLote(null);
+                    setTipoEvento("210210");
+                    setJustificativa("");
+                  }}
+                  disabled={selecionados.size === 0}
+                  title={selecionados.size === 0 ? "Selecione ao menos uma NF-e resumida" : undefined}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Manifestar{selecionados.size > 0 ? ` (${selecionados.size})` : ""}
+                </Button>
                 <Button
                   variant="outline"
                   onClick={handleBaixarLote}
@@ -754,6 +868,29 @@ function NfeIntegracao() {
                                   <span className="font-semibold">Atualizado em:</span>{" "}
                                   {fmtData(doc.updated_at)}
                                 </div>
+                                <div className="mt-2 border-t border-slate-200 pt-2">
+                                  <span className="font-semibold">Linha do tempo:</span>
+                                  {(manifestacoesPorChave.get(doc.chave) ?? []).length === 0 ? (
+                                    <p className="mt-1 text-slate-500">Resumo recebido. Aguardando análise.</p>
+                                  ) : (
+                                    <div className="mt-2 space-y-2">
+                                      {(manifestacoesPorChave.get(doc.chave) ?? []).map((event) => (
+                                        <div key={event.id} className="flex gap-2 rounded-md border border-slate-200 bg-white p-2">
+                                          <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${event.status === "accepted" ? "bg-emerald-500" : event.status === "requested" ? "bg-amber-500" : "bg-red-500"}`} />
+                                          <div>
+                                            <p className="font-medium text-slate-800">{event.descricao_evento ?? event.tipo}</p>
+                                            <p className="text-slate-500">
+                                              {fmtData(event.event_at ?? event.requested_at)}
+                                              {event.response_cstat ? ` · cStat ${event.response_cstat}` : ""}
+                                              {event.protocolo ? ` · Protocolo ${event.protocolo}` : ""}
+                                            </p>
+                                            {event.response_xmotivo && <p className="text-slate-600">{event.response_xmotivo}</p>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -849,11 +986,22 @@ function NfeIntegracao() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={Boolean(alvo)} onOpenChange={(o) => !o && setAlvo(null)}>
+      <Dialog
+        open={Boolean(alvo) || manifestacaoLote}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAlvo(null);
+            setManifestacaoLote(false);
+            setResultadoLote(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Manifestação do destinatário</DialogTitle>
-            <DialogDescription className="font-mono text-xs">{alvo?.chave}</DialogDescription>
+            <DialogDescription className={alvo ? "font-mono text-xs" : undefined}>
+              {alvo?.chave ?? `${selecionados.size} NF-e selecionada(s), com resultado individual por chave.`}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-2">
@@ -888,19 +1036,43 @@ function NfeIntegracao() {
                 </p>
               </div>
             )}
+            {resultadoLote && (
+              <div className="rounded-lg border bg-slate-50 p-3">
+                <p className="text-sm font-medium text-slate-900">
+                  {resultadoLote.processed} processada(s), {resultadoLote.idempotent} já registrada(s) e {resultadoLote.failed} com falha
+                </p>
+                <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                  {resultadoLote.results.map((result) => (
+                    <div key={result.accessKey} className="rounded-md bg-white p-2 text-xs shadow-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate font-mono" title={result.accessKey}>{result.accessKey}</span>
+                        <Badge variant="outline" className={result.success && result.accepted !== false ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}>
+                          {result.success && result.accepted !== false ? "Processada" : "Falha"}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-slate-600">{result.cStat ? `${result.cStat} — ` : ""}{result.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAlvo(null)}>
-              Cancelar
+            <Button variant="outline" onClick={() => {
+              setAlvo(null);
+              setManifestacaoLote(false);
+              setResultadoLote(null);
+            }}>
+              {resultadoLote ? "Fechar" : "Cancelar"}
             </Button>
-            <Button
+            {!resultadoLote && <Button
               onClick={handleManifestar}
               disabled={!podeConfirmar || manifestando}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {manifestando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Confirmar manifestação
-            </Button>
+            </Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

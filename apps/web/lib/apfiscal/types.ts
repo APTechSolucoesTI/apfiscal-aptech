@@ -47,6 +47,38 @@ export type DocumentoFiscal = {
   updated_at: string;
 };
 
+export type ManifestacaoNfe = {
+  id: string;
+  company_id: string;
+  integration_document_id: string | null;
+  fiscal_document_id: string | null;
+  access_key: string;
+  tipo: "ciencia" | "confirmacao" | "desconhecimento" | "nao_realizada";
+  tp_evento: string | null;
+  descricao_evento: string | null;
+  status: "requested" | "accepted" | "rejected" | "error";
+  response_cstat: string | null;
+  response_xmotivo: string | null;
+  protocolo: string | null;
+  event_at: string | null;
+  requested_at: string;
+};
+
+export type ResultadoManifestacaoLote = {
+  total: number;
+  processed: number;
+  idempotent: number;
+  failed: number;
+  results: Array<{
+    accessKey: string;
+    success: boolean;
+    accepted?: boolean;
+    cStat?: string;
+    message: string;
+    idempotent?: boolean;
+  }>;
+};
+
 export type HistoricoIntegracao = {
   id: string;
   company_id: string;
@@ -64,6 +96,7 @@ export type ResultadoSincronizacao = {
   documentosConhecidos: number;
   xmlsResumidosBaixados: number;
   xmlsCompletosBaixados: number;
+  eventosManifestacaoProcessados: number;
   notasImportadas: number;
   duplicatas: number;
   aguardandoXmlCompleto: number;

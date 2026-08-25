@@ -15,6 +15,14 @@ export type DistributionResult = {
   documents: Array<{ nsu: string; schema: string; xml: string }>;
 };
 
+export type ManifestationResult = {
+  cStat: string;
+  xMotivo: string;
+  protocol?: string;
+  eventAt?: string;
+  rawResponse?: unknown;
+};
+
 export interface NfeProvider {
   readonly kind: NfeProviderKind;
   testConnection(companyId: string): Promise<{ ok: boolean; message: string }>;
@@ -27,5 +35,5 @@ export interface NfeProvider {
     accessKey: string;
     event: "ciencia" | "confirmacao" | "desconhecimento" | "nao_realizada";
     justification?: string;
-  }): Promise<{ cStat: string; xMotivo: string }>;
+  }): Promise<ManifestationResult>;
 }

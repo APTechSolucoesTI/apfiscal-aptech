@@ -13,6 +13,8 @@ import type {
   CertificadoResumo,
   DocumentoFiscal,
   HistoricoIntegracao,
+  ManifestacaoNfe,
+  ResultadoManifestacaoLote,
   IntegracaoResumo,
   ResultadoCertificadoUpload,
   ResultadoSincronizacao,
@@ -23,6 +25,8 @@ export type {
   CertificadoResumo,
   DocumentoFiscal,
   HistoricoIntegracao,
+  ManifestacaoNfe,
+  ResultadoManifestacaoLote,
   IntegracaoResumo,
   ResultadoCertificadoUpload,
   ResultadoSincronizacao,
@@ -75,16 +79,49 @@ export function manifestar(input: {
   });
 }
 
+export function manifestarEmLote(input: {
+  companyId: string;
+  chaves: string[];
+  tipoEvento: TipoEventoManifestacao;
+  justificativa?: string | null;
+}) {
+  const event = ({ "210210": "ciencia", "210200": "confirmacao", "210220": "desconhecimento", "210240": "nao_realizada" } as const)[input.tipoEvento];
+  return backendFetch<ResultadoManifestacaoLote>(
+    `/fiscal-integration/manifest-batch/${input.companyId}`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        documents: input.chaves.map((accessKey) => ({
+          accessKey,
+          event,
+          justification: input.justificativa ?? undefined,
+        })),
+      }),
+    },
+  );
+}
+
 export function baixarXml(documentoId: string, tipo: "resumido" | "completo") {
   return baixarXmlDocumento({ data: { documentoId, tipo } });
 }
 
 export async function listarDocumentos(companyId: string | null): Promise<DocumentoFiscal[]> {
-  let query = supabase.from("documentos_fiscais_integracao").select("*").order("nsu", { ascending: false });
+  let query = supabase
+    .from("documentos_fiscais_integracao")
+    .select("*")
+    .is("xml_completo_path", null)
+    .neq("status", "completa")
+    .or("tipo_documento.is.null,tipo_documento.neq.Evento")
+    .order("nsu", { ascending: false });
   if (companyId) query = query.eq("company_id", companyId);
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as unknown as DocumentoFiscal[];
+}
+
+export async function listarManifestacoes(companyId: string | null): Promise<ManifestacaoNfe[]> {
+  const suffix = companyId ? `?companyId=${encodeURIComponent(companyId)}` : "";
+  return backendFetch<ManifestacaoNfe[]>(`/fiscal-integration/manifestations${suffix}`);
 }
 
 export async function listarHistorico(

@@ -5,8 +5,11 @@ import { importarNfeXml } from "@/legacy/lib/nfe-import.server";
 import {
   isFullNfeDocument,
   nfeAccessKey,
+  nfeDistributedKind,
   nfeDistributionMetadata,
+  wouldDowngradeCompleteDocument,
 } from "./fiscal-document-reconciliation";
+import { MANIFESTATION_EVENT, manifestationAccepted, type ManifestationKind } from "./nfe-lifecycle";
 
 type DistributedDocument = DistributionResult["documents"][number];
 
@@ -28,6 +31,7 @@ export type ReconciliationCounters = {
   knownDocuments: number;
   summariesDownloaded: number;
   fullXmlDownloaded: number;
+  eventsProcessed: number;
   notesImported: number;
   duplicates: number;
   waitingForFullXml: number;
@@ -90,6 +94,7 @@ export class FiscalDocumentReconciliationService {
             situacao: metadata.situation,
             tipo_evento: metadata.eventType,
             data_recebimento: metadata.receivedAt,
+            ...(row.xml_completo_path ? { status: "completa" as const } : {}),
             status_download: row.xml_completo_path ? "completo_disponivel" : "resumo_disponivel",
           })
           .eq("id", row.id);
@@ -152,6 +157,12 @@ export class FiscalDocumentReconciliationService {
         .eq("company_id", input.companyId)
         .eq("chave", input.key);
       if (linked.error) throw linked.error;
+      const linkedEvents = await supabaseAdmin
+        .from("manifestations")
+        .update({ fiscal_document_id: imported.documentId })
+        .eq("company_id", input.companyId)
+        .eq("access_key", input.key);
+      if (linkedEvents.error) throw linkedEvents.error;
     }
     const promoted = await supabaseAdmin
       .from("documentos_fiscais_integracao")
@@ -184,6 +195,22 @@ export class FiscalDocumentReconciliationService {
     const normalizedNsu = String(input.document.nsu).replace(/^0+(?=\d)/, "");
     const path = `${input.companyId}/${normalizedNsu}-${full ? "completa" : "resumida"}-${key}.xml`;
     try {
+      const current = await supabaseAdmin
+        .from("documentos_fiscais_integracao")
+        .select("id, xml_completo_path")
+        .eq("company_id", input.companyId)
+        .eq("chave", key)
+        .maybeSingle();
+      if (current.error) throw current.error;
+      // Uma reentrega de resNFe nunca pode rebaixar uma NF-e que já foi
+      // promovida para completa.
+      if (
+        wouldDowngradeCompleteDocument({
+          incomingKind: nfeDistributedKind(input.document),
+          currentFullXmlPath: current.data?.xml_completo_path,
+        })
+      )
+        return key;
       const upload = await supabaseAdmin.storage
         .from("fiscal-xml")
         .upload(path, Buffer.from(input.document.xml), {
@@ -242,6 +269,112 @@ export class FiscalDocumentReconciliationService {
     }
   }
 
+  private async persistDistributedEvent(input: {
+    organizationId: string;
+    companyId: string;
+    providerKind: NfeProviderKind;
+    document: DistributedDocument;
+    counters: ReconciliationCounters;
+  }) {
+    const metadata = nfeDistributionMetadata(input.document);
+    const key = metadata.key;
+    if (!key || !metadata.eventType) return;
+    const kind = (Object.entries(MANIFESTATION_EVENT).find(
+      ([, event]) => event.code === metadata.eventType,
+    )?.[0] ?? null) as ManifestationKind | null;
+    if (!kind) return;
+    const normalizedNsu = String(input.document.nsu).replace(/^0+(?=\d)/, "");
+    const path = `${input.companyId}/events/${normalizedNsu}-${metadata.eventType}-${key}.xml`;
+    const upload = await supabaseAdmin.storage
+      .from("fiscal-xml")
+      .upload(path, Buffer.from(input.document.xml), {
+        contentType: "application/xml",
+        upsert: true,
+      });
+    if (upload.error) throw upload.error;
+
+    let summary = await supabaseAdmin
+      .from("documentos_fiscais_integracao")
+      .select("id, fiscal_document_id, xml_completo_path")
+      .eq("company_id", input.companyId)
+      .eq("chave", key)
+      .maybeSingle();
+    if (summary.error) throw summary.error;
+    if (!summary.data) {
+      const created = await supabaseAdmin
+        .from("documentos_fiscais_integracao")
+        .insert({
+          organization_id: input.organizationId,
+          company_id: input.companyId,
+          nsu: Number(input.document.nsu),
+          chave: key,
+          tipo_documento: "Evento",
+          schema_documento: "event-only",
+          status: "resumida",
+          status_download: "pendente",
+          ultima_sincronizacao: new Date().toISOString(),
+        })
+        .select("id, fiscal_document_id, xml_completo_path")
+        .single();
+      if (created.error) throw created.error;
+      summary = created;
+    }
+    if (!summary.data) throw new Error("Não foi possível vincular o evento ao resumo da NF-e.");
+    const summaryRow = summary.data;
+    const accepted = manifestationAccepted(metadata.situation) || Boolean(metadata.protocol);
+    const existing = await supabaseAdmin
+      .from("manifestations")
+      .select("id, source")
+      .eq("company_id", input.companyId)
+      .eq("access_key", key)
+      .eq("tipo", kind)
+      .eq("sequence", metadata.eventSequence)
+      .maybeSingle();
+    if (existing.error) throw existing.error;
+    const eventData = {
+      organization_id: input.organizationId,
+      company_id: input.companyId,
+      integration_document_id: summaryRow.id,
+      fiscal_document_id: summaryRow.fiscal_document_id,
+      access_key: key,
+      tipo: kind,
+      tp_evento: metadata.eventType,
+      descricao_evento: metadata.eventDescription ?? MANIFESTATION_EVENT[kind].description,
+      sequence: metadata.eventSequence,
+      provider: input.providerKind,
+      source: existing.data?.source ?? "distribution",
+      status: accepted ? "accepted" : "rejected",
+      requested_at: metadata.eventAt ?? metadata.receivedAt ?? new Date().toISOString(),
+      response_cstat: metadata.situation,
+      response_xmotivo: metadata.eventReason,
+      response_payload: { xml_path: path },
+      protocolo: metadata.protocol,
+      event_at: metadata.eventAt ?? metadata.receivedAt,
+    };
+    const persisted = existing.data
+      ? await supabaseAdmin.from("manifestations").update(eventData).eq("id", existing.data.id)
+      : await supabaseAdmin.from("manifestations").insert(eventData);
+    if (persisted.error) throw persisted.error;
+    if (!summaryRow.xml_completo_path) {
+      const status = accepted && ["ciencia", "confirmacao"].includes(kind)
+        ? "aguardando_xml_completo"
+        : "resumida";
+      const updated = await supabaseAdmin
+        .from("documentos_fiscais_integracao")
+        .update({
+          status,
+          status_manifestacao: accepted ? kind : null,
+          protocolo: metadata.protocol,
+          mensagem_sefaz: accepted ? null : metadata.eventReason,
+          ultima_sincronizacao: new Date().toISOString(),
+        })
+        .eq("id", summaryRow.id)
+        .is("xml_completo_path", null);
+      if (updated.error) throw updated.error;
+    }
+    input.counters.eventsProcessed += 1;
+  }
+
   private async backfillStoredFullXml(input: {
     companyId: string;
     providerKind: NfeProviderKind;
@@ -261,7 +394,20 @@ export class FiscalDocumentReconciliationService {
       rows.map((row) => row.chave),
     );
     for (const row of rows) {
-      if (canonical.has(row.chave) || !row.xml_completo_path) continue;
+      if (!row.xml_completo_path) continue;
+      if (canonical.has(row.chave)) {
+        const repaired = await supabaseAdmin
+          .from("documentos_fiscais_integracao")
+          .update({
+            status: "completa",
+            status_download: "completo_disponivel",
+            mensagem_sefaz: null,
+            ultima_sincronizacao: new Date().toISOString(),
+          })
+          .eq("id", row.id);
+        if (repaired.error) throw repaired.error;
+        continue;
+      }
       try {
         const downloaded = await supabaseAdmin.storage
           .from("fiscal-xml")
@@ -347,11 +493,13 @@ export class FiscalDocumentReconciliationService {
       knownDocuments: 0,
       summariesDownloaded: 0,
       fullXmlDownloaded: 0,
+      eventsProcessed: 0,
       notesImported: 0,
       duplicates: 0,
       waitingForFullXml: 0,
       errors: [],
     };
+    const events: DistributedDocument[] = [];
     for (const document of input.incoming) {
       const key = nfeAccessKey(document.xml);
       if (!key) {
@@ -359,6 +507,10 @@ export class FiscalDocumentReconciliationService {
           nsu: Number(document.nsu),
           mensagem: "Documento descoberto sem chave de acesso válida.",
         });
+        continue;
+      }
+      if (nfeDistributedKind(document) === "event") {
+        events.push(document);
         continue;
       }
       const current = uniqueIncoming.get(key);
@@ -370,6 +522,18 @@ export class FiscalDocumentReconciliationService {
     ]);
     counters.newDocuments = [...uniqueIncoming.keys()].filter((key) => !existing.has(key)).length;
     counters.knownDocuments = uniqueIncoming.size - counters.newDocuments;
+
+    for (const event of events) {
+      try {
+        await this.persistDistributedEvent({ ...input, document: event, counters });
+      } catch (error) {
+        counters.errors.push({
+          chave: nfeAccessKey(event.xml) ?? undefined,
+          nsu: Number(event.nsu),
+          mensagem: errorMessage(error),
+        });
+      }
+    }
 
     for (const document of uniqueIncoming.values()) {
       await this.persistDistributedDocument({ ...input, document, counters });

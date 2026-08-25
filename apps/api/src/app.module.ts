@@ -19,6 +19,7 @@ import { FiscalSyncService } from "@/fiscal/fiscal-sync.service";
 import { NfeWizardProvider } from "@/fiscal/providers/nfewizard.provider";
 import { ApfiscalProvider } from "@/fiscal/providers/apfiscal.provider";
 import { FiscalDocumentReconciliationService } from "@/fiscal/fiscal-document-reconciliation.service";
+import { NfeManifestationService } from "@/fiscal/nfe-manifestation.service";
 import { TotvsController } from "@/totvs/totvs.controller";
 import { TotvsSqlServerService } from "@/totvs/totvs-sql-server.service";
 import { TotvsSyncService } from "@/totvs/totvs-sync.service";
@@ -55,6 +56,7 @@ import { FiscalDocumentsService } from "@/fiscal-documents/fiscal-documents.serv
     CertificateVaultService,
     FiscalSyncService,
     FiscalDocumentReconciliationService,
+    NfeManifestationService,
     NfeWizardProvider,
     ApfiscalProvider,
     TotvsSqlServerService,

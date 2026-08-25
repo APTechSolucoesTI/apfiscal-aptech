@@ -1132,46 +1132,103 @@ export type Database = {
       }
       manifestations: {
         Row: {
+          access_key: string
+          company_id: string
           created_at: string | null
-          fiscal_document_id: string
+          descricao_evento: string | null
+          event_at: string | null
+          fiscal_document_id: string | null
           id: string
+          integration_document_id: string | null
+          organization_id: string
+          protocolo: string | null
           provider: string | null
+          request_payload: Json | null
           requested_at: string
           response_cstat: string | null
+          response_payload: Json | null
           response_xmotivo: string | null
           sequence: number
+          source: string
+          status: string
           tipo: string
-          usuario_id: string
+          tp_evento: string | null
+          updated_at: string
+          usuario_id: string | null
         }
         Insert: {
+          access_key: string
+          company_id: string
           created_at?: string | null
-          fiscal_document_id: string
+          descricao_evento?: string | null
+          event_at?: string | null
+          fiscal_document_id?: string | null
           id?: string
+          integration_document_id?: string | null
+          organization_id: string
+          protocolo?: string | null
           provider?: string | null
+          request_payload?: Json | null
           requested_at?: string
           response_cstat?: string | null
+          response_payload?: Json | null
           response_xmotivo?: string | null
           sequence?: number
+          source?: string
+          status?: string
           tipo: string
-          usuario_id: string
+          tp_evento?: string | null
+          updated_at?: string
+          usuario_id?: string | null
         }
         Update: {
+          access_key?: string
+          company_id?: string
           created_at?: string | null
-          fiscal_document_id?: string
+          descricao_evento?: string | null
+          event_at?: string | null
+          fiscal_document_id?: string | null
           id?: string
+          integration_document_id?: string | null
+          organization_id?: string
+          protocolo?: string | null
           provider?: string | null
+          request_payload?: Json | null
           requested_at?: string
           response_cstat?: string | null
+          response_payload?: Json | null
           response_xmotivo?: string | null
           sequence?: number
+          source?: string
+          status?: string
           tipo?: string
-          usuario_id?: string
+          tp_evento?: string | null
+          updated_at?: string
+          usuario_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "manifestations_company_id_fkey"
+            columns: ["company_id"]
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "manifestations_fiscal_document_id_fkey"
             columns: ["fiscal_document_id"]
             referencedRelation: "fiscal_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manifestations_integration_document_id_fkey"
+            columns: ["integration_document_id"]
+            referencedRelation: "documentos_fiscais_integracao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manifestations_organization_id_fkey"
+            columns: ["organization_id"]
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]

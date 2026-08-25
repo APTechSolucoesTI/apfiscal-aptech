@@ -12,6 +12,13 @@ export function assertReadOnlySql(statement: string): void {
   if (!/^SELECT\b/i.test(normalized) || MUTATING_SQL.test(normalized)) throw new Error("A camada de leitura TOTVS recusou um comando que não é SELECT.");
 }
 
+export function assertTotvsWriteDatabase(database: string | null): asserts database is "CorporeRM_Teste" {
+  if (database !== "CorporeRM_Teste")
+    throw new Error(
+      `Escrita recusada: a conexão aponta para ${database ?? "um banco não informado"}, não para CorporeRM_Teste.`,
+    );
+}
+
 const flag = (value: string | undefined, fallback: boolean) => value?.trim() ? ["1", "true", "yes", "on"].includes(value.trim().toLowerCase()) : fallback;
 const coligadas = (value: string | undefined) => [...new Set((value ?? "1,2").split(",").map((item) => Number(item.trim())).filter((item) => Number.isInteger(item) && item > 0))];
 function normalizeKey(value: string | undefined, fallback = "TOTVS_GRANJA") {
@@ -104,7 +111,28 @@ export class TotvsSqlServerService implements OnModuleDestroy {
   }
 
   assertWritesEnabled(key = this.defaultKey()) {
-    if (!this.writesEnabled(key)) throw new Error(`Escritas no TOTVS RM estão bloqueadas para ${key}.`);
+    const config = this.config(key);
+    if (!config.writesEnabled) throw new Error(`Escritas no TOTVS RM estão bloqueadas para ${key}.`);
+    assertTotvsWriteDatabase(config.database);
+  }
+
+  async writeTransaction<T>(key: string, work: (transaction: sql.Transaction) => Promise<T>): Promise<T> {
+    this.assertWritesEnabled(key);
+    const pool = await this.pool(key);
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+    try {
+      const target = await new sql.Request(transaction).query<{ database_name: string }>(
+        "SELECT DB_NAME() AS database_name",
+      );
+      assertTotvsWriteDatabase(target.recordset[0]?.database_name ?? null);
+      const result = await work(transaction);
+      await transaction.commit();
+      return result;
+    } catch (error) {
+      await transaction.rollback().catch(() => undefined);
+      throw error;
+    }
   }
 
   async onModuleDestroy() {

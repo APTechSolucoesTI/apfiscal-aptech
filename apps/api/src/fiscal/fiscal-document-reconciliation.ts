@@ -14,6 +14,21 @@ export function isFullNfeDocument(document: Pick<DistributedDocument, "schema" |
   );
 }
 
+export function nfeDistributedKind(
+  document: Pick<DistributedDocument, "schema" | "xml">,
+): "summary" | "full" | "event" {
+  if (isFullNfeDocument(document)) return "full";
+  if (/resEvento|procEvento|evento/i.test(`${document.schema}\n${document.xml}`)) return "event";
+  return "summary";
+}
+
+export function wouldDowngradeCompleteDocument(input: {
+  incomingKind: "summary" | "full" | "event";
+  currentFullXmlPath?: string | null;
+}): boolean {
+  return input.incomingKind === "summary" && Boolean(input.currentFullXmlPath);
+}
+
 function xmlText(xml: string, tag: string): string | null {
   const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return (
@@ -39,7 +54,7 @@ export function nfeDistributionMetadata(document: Pick<DistributedDocument, "sch
   const full = isFullNfeDocument(document);
   return {
     key,
-    documentType: /resEvento|procEvento|evento/i.test(`${document.schema}\n${document.xml}`)
+    documentType: nfeDistributedKind(document) === "event"
       ? "Evento"
       : full
         ? "NF-e completa"
@@ -55,6 +70,10 @@ export function nfeDistributionMetadata(document: Pick<DistributedDocument, "sch
     protocol: xmlText(document.xml, "nProt"),
     situation: xmlText(document.xml, "cSitNFe") ?? xmlText(document.xml, "cStat"),
     eventType: xmlText(document.xml, "tpEvento"),
+    eventSequence: Number(xmlText(document.xml, "nSeqEvento")) || 1,
+    eventDescription: xmlText(document.xml, "xEvento") ?? xmlText(document.xml, "descEvento"),
+    eventReason: xmlText(document.xml, "xMotivo"),
+    eventAt: xmlText(document.xml, "dhRegEvento") ?? xmlText(document.xml, "dhEvento"),
     receivedAt: xmlText(document.xml, "dhRecbto"),
     full,
   };

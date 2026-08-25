@@ -3,6 +3,8 @@ import {
   isFullNfeDocument,
   nfeAccessKey,
   nfeDistributionMetadata,
+  nfeDistributedKind,
+  wouldDowngradeCompleteDocument,
 } from "./fiscal-document-reconciliation";
 
 const key = "35123456789012345678901234567890123456789012";
@@ -19,6 +21,30 @@ describe("NF-e reconciliation helpers", () => {
         schema: "resNFe_v1.01.xsd",
         xml: `<resNFe><chNFe>${key}</chNFe></resNFe>`,
       }),
+    ).toBe(false);
+  });
+
+  it("separates distribution events from summaries and full XML", () => {
+    expect(
+      nfeDistributedKind({
+        schema: "procEventoNFe_v1.00.xsd",
+        xml: `<procEventoNFe><evento><infEvento><chNFe>${key}</chNFe><tpEvento>210210</tpEvento></infEvento></evento></procEventoNFe>`,
+      }),
+    ).toBe("event");
+    expect(
+      nfeDistributedKind({ schema: "resNFe_v1.01.xsd", xml: `<resNFe><chNFe>${key}</chNFe></resNFe>` }),
+    ).toBe("summary");
+  });
+
+  it("prevents a repeated resNFe from downgrading an existing complete NF-e", () => {
+    expect(
+      wouldDowngradeCompleteDocument({
+        incomingKind: "summary",
+        currentFullXmlPath: "company/complete.xml",
+      }),
+    ).toBe(true);
+    expect(
+      wouldDowngradeCompleteDocument({ incomingKind: "full", currentFullXmlPath: "old.xml" }),
     ).toBe(false);
   });
 

@@ -29,7 +29,27 @@ describe("parseDistributionResponse", () => {
 });
 
 describe("parseEventResponse", () => {
-  it("encontra o status dentro de envelopes aninhados", () => {
-    expect(parseEventResponse({ envelope: { retEvento: { cStat: "135", xMotivo: "Evento registrado" } } })).toEqual({ cStat: "135", xMotivo: "Evento registrado" });
+  it("usa o resultado interno do evento, não o status 128 do lote", () => {
+    const result = parseEventResponse({
+      retEnvEvento: {
+        cStat: "128",
+        xMotivo: "Lote processado",
+        retEvento: {
+          infEvento: {
+            tpEvento: "210210",
+            cStat: "135",
+            xMotivo: "Evento registrado",
+            nProt: "135260000000001",
+            dhRegEvento: "2026-08-25T10:00:00-03:00",
+          },
+        },
+      },
+    });
+    expect(result).toMatchObject({
+      cStat: "135",
+      xMotivo: "Evento registrado",
+      protocol: "135260000000001",
+      eventAt: "2026-08-25T10:00:00-03:00",
+    });
   });
 });

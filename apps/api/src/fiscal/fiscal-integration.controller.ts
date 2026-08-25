@@ -4,10 +4,10 @@ import {
   Controller,
   Delete,
   Get,
-  NotFoundException,
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UseInterceptors,
@@ -21,6 +21,7 @@ import { RbacService } from "@/common/rbac.service";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { CertificateVaultService, certificateMatchesCompany } from "./certificate-vault.service";
 import { FiscalSyncService } from "./fiscal-sync.service";
+import { NfeManifestationService } from "./nfe-manifestation.service";
 import { enviarCertificado } from "@/legacy/lib/apfiscal/certificado.server";
 
 const providerSchema = z.enum(["nfewizard", "apifiscal"]);
@@ -34,12 +35,23 @@ const manifestationSchema = z.object({
   accessKey: z.string().regex(/^\d{44}$/),
   event: z.enum(["ciencia", "confirmacao", "desconhecimento", "nao_realizada"]),
   justification: z.string().trim().min(15).max(255).optional(),
+}).superRefine((input, context) => {
+  if (input.event === "nao_realizada" && !input.justification)
+    context.addIssue({
+      code: "custom",
+      path: ["justification"],
+      message: "Informe a justificativa da operação não realizada.",
+    });
+});
+const batchManifestationSchema = z.object({
+  documents: z.array(manifestationSchema).min(1).max(50),
 });
 
 @Controller("fiscal-integration")
 export class FiscalIntegrationController {
   constructor(
     private readonly syncService: FiscalSyncService,
+    private readonly manifestations: NfeManifestationService,
     private readonly vault: CertificateVaultService,
     private readonly rbac: RbacService,
   ) {}
@@ -331,104 +343,48 @@ export class FiscalIntegrationController {
   ) {
     await this.assertCompany(request, companyId);
     const input = manifestationSchema.parse(body);
-    const integration = await supabaseAdmin
-      .from("empresa_integracoes_fiscais")
-      .select("primary_provider")
-      .eq("company_id", companyId)
-      .single();
-    if (integration.error) throw integration.error;
-    const document = await supabaseAdmin
-      .from("fiscal_documents")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("chave_acesso", input.accessKey)
-      .maybeSingle();
-    if (document.error) throw document.error;
-    if (!document.data) throw new NotFoundException("NF-e não encontrada para esta empresa.");
+    return this.manifestations.manifest({
+      companyId,
+      accessKey: input.accessKey,
+      event: input.event,
+      justification: input.justification,
+      userId: request.user.id,
+    });
+  }
 
-    const previous = await supabaseAdmin
+  @RequirePermission("nfe.integration.view")
+  @Get("manifestations")
+  async listManifestations(
+    @Query("companyId") companyId: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    if (companyId) await this.assertCompany(request, companyId);
+    let query = request.supabase
       .from("manifestations")
-      .select("id, response_cstat, response_xmotivo")
-      .eq("fiscal_document_id", document.data.id)
-      .eq("tipo", input.event)
-      .eq("sequence", 1)
-      .maybeSingle();
-    if (previous.error) throw previous.error;
-    if (previous.data?.response_cstat) {
-      await supabaseAdmin
-        .from("documentos_fiscais_integracao")
-        .update({
-          status_manifestacao: input.event,
-          ultima_sincronizacao: new Date().toISOString(),
-        })
-        .eq("company_id", companyId)
-        .eq("chave", input.accessKey);
-      return { ...previous.data, idempotent: true };
-    }
+      .select(
+        "id, company_id, integration_document_id, fiscal_document_id, access_key, tipo, tp_evento, descricao_evento, status, response_cstat, response_xmotivo, protocolo, event_at, requested_at",
+      )
+      .order("requested_at", { ascending: false })
+      .limit(1000);
+    if (companyId) query = query.eq("company_id", companyId);
+    const result = await query;
+    if (result.error) throw result.error;
+    return result.data ?? [];
+  }
 
-    let pendingId = previous.data?.id;
-    if (!pendingId) {
-      const pending = await supabaseAdmin
-        .from("manifestations")
-        .insert({
-          fiscal_document_id: document.data.id,
-          tipo: input.event,
-          usuario_id: request.user.id,
-          provider: integration.data.primary_provider,
-          sequence: 1,
-          requested_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-      if (pending.error) throw pending.error;
-      pendingId = pending.data.id;
-    } else {
-      const retry = await supabaseAdmin
-        .from("manifestations")
-        .update({
-          usuario_id: request.user.id,
-          provider: integration.data.primary_provider,
-          requested_at: new Date().toISOString(),
-          response_xmotivo: null,
-        })
-        .eq("id", pendingId);
-      if (retry.error) throw retry.error;
-    }
-
-    try {
-      const result = await this.syncService.provider(integration.data.primary_provider).manifest({
-        companyId,
-        accessKey: input.accessKey,
-        event: input.event,
-        justification: input.justification,
-      });
-      const update = await supabaseAdmin
-        .from("manifestations")
-        .update({
-          response_cstat: result.cStat,
-          response_xmotivo: result.xMotivo,
-        })
-        .eq("id", pendingId);
-      if (update.error) throw update.error;
-      const summaryUpdate = await supabaseAdmin
-        .from("documentos_fiscais_integracao")
-        .update({
-          status_manifestacao: input.event,
-          ultima_sincronizacao: new Date().toISOString(),
-        })
-        .eq("company_id", companyId)
-        .eq("chave", input.accessKey);
-      if (summaryUpdate.error) throw summaryUpdate.error;
-      return { ...result, idempotent: false };
-    } catch (error) {
-      await supabaseAdmin
-        .from("manifestations")
-        .update({
-          response_xmotivo:
-            error instanceof Error ? error.message : "Falha não identificada no envio do evento.",
-        })
-        .eq("id", pendingId);
-      throw error;
-    }
+  @RequirePermission("documents.nfe.manage")
+  @Post("manifest-batch/:companyId")
+  async manifestBatch(
+    @Param("companyId") companyId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    await this.assertCompany(request, companyId);
+    const input = batchManifestationSchema.parse(body);
+    return this.manifestations.manifestBatch({
+      companyId,
+      documents: input.documents,
+      userId: request.user.id,
+    });
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertReadOnlySql } from "./totvs-sql-server.service";
+import { assertReadOnlySql, assertTotvsWriteDatabase } from "./totvs-sql-server.service";
 import { TOTVS_PENDING_SCHEMA_ENTITIES, TOTVS_READ_QUERIES } from "./totvs-queries";
 
 describe("TOTVS SQL read-only guard", () => {
@@ -20,5 +20,14 @@ describe("TOTVS SQL read-only guard", () => {
     for (const definition of TOTVS_READ_QUERIES) {
       expect(() => assertReadOnlySql(definition.sql("1,2"))).not.toThrow();
     }
+  });
+});
+
+describe("TOTVS write target guard", () => {
+  it("allows only the exact homologation database", () => {
+    expect(() => assertTotvsWriteDatabase("CorporeRM_Teste")).not.toThrow();
+    expect(() => assertTotvsWriteDatabase("CorporeRM")).toThrow(/Escrita recusada/);
+    expect(() => assertTotvsWriteDatabase("corporerm_teste")).toThrow(/Escrita recusada/);
+    expect(() => assertTotvsWriteDatabase(null)).toThrow(/Escrita recusada/);
   });
 });

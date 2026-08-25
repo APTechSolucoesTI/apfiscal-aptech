@@ -70,9 +70,40 @@ export function parseDistributionResponse(response: unknown, currentNsu: string)
   };
 }
 
-export function parseEventResponse(response: unknown): { cStat: string; xMotivo: string } {
+function eventResultRecord(root: unknown): JsonObject | null {
+  const candidates: JsonObject[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) return value.forEach(visit);
+    const record = object(value);
+    if (!record) return;
+    const keys = Object.keys(record).map((key) => key.replace(/^@_/, "").toLowerCase());
+    if (keys.includes("cstat")) candidates.push(record);
+    Object.values(record).forEach(visit);
+  };
+  visit(root);
+  const hasDirect = (candidate: JsonObject, names: readonly string[]) => {
+    const wanted = new Set(names.map((name) => name.toLowerCase()));
+    return Object.keys(candidate).some((key) => wanted.has(key.replace(/^@_/, "").toLowerCase()));
+  };
+  return (
+    candidates.find(
+      (candidate) =>
+        hasDirect(candidate, ["tpEvento"]) ||
+        hasDirect(candidate, ["nProt"]) ||
+        hasDirect(candidate, ["dhRegEvento"]),
+    ) ??
+    candidates.at(-1) ??
+    null
+  );
+}
+
+export function parseEventResponse(response: unknown) {
+  const event = eventResultRecord(response) ?? response;
   return {
-    cStat: scalar(response, ["cStat"]) ?? "999",
-    xMotivo: scalar(response, ["xMotivo"]) ?? "Resposta da SEFAZ sem motivo informado.",
+    cStat: scalar(event, ["cStat"]) ?? "999",
+    xMotivo: scalar(event, ["xMotivo"]) ?? "Resposta da SEFAZ sem motivo informado.",
+    protocol: scalar(event, ["nProt"]),
+    eventAt: scalar(event, ["dhRegEvento", "dhEvento"]),
+    rawResponse: response,
   };
 }

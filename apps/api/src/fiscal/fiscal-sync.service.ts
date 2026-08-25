@@ -60,6 +60,25 @@ export class FiscalSyncService {
     return { provider: kind, ...(await this.provider(kind).testConnection(companyId)) };
   }
 
+  async refreshDocument(companyId: string, accessKey: string) {
+    const config = await this.config(companyId);
+    if (!config.ativo)
+      throw new ServiceUnavailableException(
+        "A integração fiscal está desativada para esta empresa.",
+      );
+    if (!providerConfigured(config, config.primary_provider))
+      throw new ProviderPreparationError(missingProviderMessage(config.primary_provider));
+    const provider = this.provider(config.primary_provider);
+    const response = await provider.getDocumentByKey(companyId, accessKey);
+    return this.reconciliation.reconcile({
+      organizationId: config.organization_id,
+      companyId,
+      providerKind: config.primary_provider,
+      provider,
+      incoming: response.documents,
+    });
+  }
+
   async sync(companyId: string) {
     const startedAt = Date.now();
     const workerId = randomUUID();
@@ -177,6 +196,7 @@ export class FiscalSyncService {
           known_documents: counters.knownDocuments,
           summaries_downloaded: counters.summariesDownloaded,
           full_xml_downloaded: counters.fullXmlDownloaded,
+          manifestation_events_processed: counters.eventsProcessed,
           canonical_notes_imported: counters.notesImported,
           duplicates: counters.duplicates,
           waiting_for_full_xml: counters.waitingForFullXml,
@@ -194,6 +214,7 @@ export class FiscalSyncService {
         documentosConhecidos: counters.knownDocuments,
         xmlsResumidosBaixados: counters.summariesDownloaded,
         xmlsCompletosBaixados: counters.fullXmlDownloaded,
+        eventosManifestacaoProcessados: counters.eventsProcessed,
         notasImportadas: counters.notesImported,
         duplicatas: counters.duplicates,
         aguardandoXmlCompleto: counters.waitingForFullXml,

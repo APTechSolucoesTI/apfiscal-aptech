@@ -3,6 +3,10 @@
 import { backendFetch } from "@/lib/backend";
 
 export type TotvsSettingsPayload = {
+  totvsStructure: {
+    mode: "COLIGADA" | "FILIAL";
+    mainColigadaId: number | null;
+  };
   settings: {
     enabled: boolean;
     read_sync_enabled: boolean;
@@ -21,6 +25,7 @@ export type TotvsSettingsPayload = {
     cnpj: string;
     totvs_connection_key: string | null;
     totvs_coligada_id: number | null;
+    totvs_filial_id: number | null;
   }>;
   runs: Array<{
     id: string;
@@ -127,6 +132,7 @@ export function saveTotvsSettings(input: {
     companyId: string;
     connectionKey: string | null;
     coligadaId: number | null;
+    filialId: number | null;
   }>;
   nfeSchedules: Array<{ companyId: string; enabled: boolean; intervalMinutes: number }>;
   nfseSchedules: Array<{

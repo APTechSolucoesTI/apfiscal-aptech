@@ -37,6 +37,7 @@ const settingsSchema = z.object({
         .regex(/^[A-Z][A-Z0-9_]{1,63}$/)
         .nullable(),
       coligadaId: z.number().int().positive().nullable(),
+      filialId: z.number().int().positive().nullable(),
     }),
   ),
   nfeSchedules: z.array(
@@ -103,6 +104,12 @@ export class TotvsController {
   @Get("settings")
   async settings(@Req() request: AuthenticatedRequest) {
     const organizationId = await this.organizationId(request.user.id);
+    const organization = await supabaseAdmin
+      .from("organizations")
+      .select("totvs_structure_mode, totvs_main_coligada_id")
+      .eq("id", organizationId)
+      .single();
+    if (organization.error) throw organization.error;
     const [
       settings,
       companies,
@@ -120,7 +127,7 @@ export class TotvsController {
         .maybeSingle(),
       supabaseAdmin
         .from("companies")
-        .select("id, razao_social, nome_fantasia, cnpj, totvs_coligada_id, totvs_connection_key")
+        .select("id, razao_social, nome_fantasia, cnpj, totvs_coligada_id, totvs_filial_id, totvs_connection_key")
         .eq("organization_id", organizationId)
         .order("razao_social"),
       supabaseAdmin
@@ -190,6 +197,10 @@ export class TotvsController {
         schedule_hours: [6, 8, 12, 16, 20],
         safety_window_days: 3,
       },
+      totvsStructure: {
+        mode: organization.data.totvs_structure_mode,
+        mainColigadaId: organization.data.totvs_main_coligada_id,
+      },
       companies: companies.data ?? [],
       runs: runs.data ?? [],
       checkpoints: checkpoints.data ?? [],
@@ -217,6 +228,12 @@ export class TotvsController {
   async saveSettings(@Body() body: unknown, @Req() request: AuthenticatedRequest) {
     const organizationId = await this.organizationId(request.user.id);
     const input = settingsSchema.parse(body);
+    const organization = await supabaseAdmin
+      .from("organizations")
+      .select("totvs_structure_mode, totvs_main_coligada_id")
+      .eq("id", organizationId)
+      .single();
+    if (organization.error) throw organization.error;
     if (input.enabled)
       await this.plans.assertFeature(organizationId, "totvs_integration", "Integração TOTVS");
     if (input.nfeSchedules.some((schedule) => schedule.enabled))
@@ -262,15 +279,29 @@ export class TotvsController {
     const scopedConnectionKeys = new Set(
       (await this.scopedConnections(organizationId)).map((connection) => connection.key),
     );
+    const filialMode = organization.data.totvs_structure_mode === "FILIAL";
     const pairs = input.companyMappings
-      .filter((mapping) => mapping.connectionKey && mapping.coligadaId)
-      .map((mapping) => `${mapping.connectionKey}|${mapping.coligadaId}`);
+      .filter((mapping) =>
+        mapping.connectionKey && (filialMode ? mapping.filialId : mapping.coligadaId),
+      )
+      .map((mapping) =>
+        `${mapping.connectionKey}|${filialMode ? mapping.filialId : mapping.coligadaId}`,
+      );
     if (new Set(pairs).size !== pairs.length)
       throw new BadRequestException(
-        "Cada par conexão/coligada pode ser associado a somente uma empresa.",
+        filialMode
+          ? "Cada par conexão/filial pode ser associado a somente uma empresa."
+          : "Cada par conexão/coligada pode ser associado a somente uma empresa.",
       );
     for (const mapping of input.companyMappings) {
-      if (!mapping.connectionKey || !mapping.coligadaId) continue;
+      const scopeId = filialMode ? mapping.filialId : mapping.coligadaId;
+      if (Boolean(mapping.connectionKey) !== Boolean(scopeId))
+        throw new BadRequestException(
+          filialMode
+            ? "Informe conexão e filial juntas, ou remova ambas."
+            : "Informe conexão e coligada juntas, ou remova ambas.",
+        );
+      if (!mapping.connectionKey || !scopeId) continue;
       if (!scopedConnectionKeys.has(mapping.connectionKey))
         throw new BadRequestException(
           "A conexão TOTVS deve ser vinculada à organização pelo Super Admin.",
@@ -280,9 +311,12 @@ export class TotvsController {
         throw new BadRequestException(
           `A conexão ${mapping.connectionKey} não está configurada no ambiente.`,
         );
-      if (!connection.coligadas.includes(mapping.coligadaId))
+      const coligada = filialMode
+        ? organization.data.totvs_main_coligada_id
+        : mapping.coligadaId;
+      if (!coligada || !connection.coligadas.includes(coligada))
         throw new BadRequestException(
-          `A coligada ${mapping.coligadaId} não é permitida em ${mapping.connectionKey}.`,
+          `A coligada ${coligada ?? "principal"} não é permitida em ${mapping.connectionKey}.`,
         );
     }
     const saved = await supabaseAdmin.from("totvs_settings").upsert(
@@ -303,7 +337,8 @@ export class TotvsController {
       _mappings: input.companyMappings.map((mapping) => ({
         companyId: mapping.companyId,
         connectionKey: mapping.connectionKey,
-        coligadaId: mapping.coligadaId,
+        coligadaId: filialMode ? null : mapping.coligadaId,
+        filialId: filialMode ? mapping.filialId : null,
       })),
     });
     if (mappings.error) throw mappings.error;

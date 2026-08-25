@@ -63,6 +63,8 @@ export type SuperadminPayload = {
     max_companies_override: number | null;
     max_monthly_documents_override: number | null;
     max_totvs_connections_override: number | null;
+    totvs_structure_mode: "COLIGADA" | "FILIAL";
+    totvs_main_coligada_id: number | null;
     created_at: string | null;
   }>;
   companies: Array<{
@@ -73,6 +75,7 @@ export type SuperadminPayload = {
     cnpj: string;
     totvs_connection_key: string | null;
     totvs_coligada_id: number | null;
+    totvs_filial_id: number | null;
   }>;
   memberships: Array<{
     user_id: string;
@@ -133,9 +136,23 @@ export const inviteAdminUser = (input: {
 }) => backendFetch("/superadmin/users", { method: "POST", body: JSON.stringify(input) });
 export const updateAdminCompanyConnection = (
   id: string,
-  input: { connectionKey: string | null; coligadaId: number | null },
+  input: {
+    connectionKey: string | null;
+    coligadaId: number | null;
+    filialId: number | null;
+  },
 ) =>
   backendFetch<{ ok: true }>(`/superadmin/companies/${id}/connection`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+export const updateAdminTotvsStructure = (
+  id: string,
+  input:
+    | { mode: "COLIGADA"; mainColigadaId: null }
+    | { mode: "FILIAL"; mainColigadaId: number },
+) =>
+  backendFetch<{ ok: true }>(`/superadmin/organizations/${id}/totvs-structure`, {
     method: "PATCH",
     body: JSON.stringify(input),
   });

@@ -210,8 +210,8 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
     if (settings.error) throw settings.error;
     let companiesQuery = supabaseAdmin
       .from("companies")
-      .select("organization_id, totvs_connection_key, totvs_coligada_id")
-      .not("totvs_coligada_id", "is", null);
+      .select("organization_id, totvs_connection_key, totvs_coligada_id, totvs_filial_id")
+      .or("totvs_coligada_id.not.is.null,totvs_filial_id.not.is.null");
     if (organizationId) companiesQuery = companiesQuery.eq("organization_id", organizationId);
     const companies = await companiesQuery;
     if (companies.error) throw companies.error;

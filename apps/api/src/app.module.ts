@@ -24,6 +24,7 @@ import { TotvsSqlServerService } from "@/totvs/totvs-sql-server.service";
 import { TotvsSyncService } from "@/totvs/totvs-sync.service";
 import { TotvsIntegrationService } from "@/totvs/totvs-integration.service";
 import { TotvsQueueService } from "@/totvs/totvs-queue.service";
+import { TotvsScopeService } from "@/totvs/totvs-scope.service";
 import { SuperadminController } from "@/superadmin/superadmin.controller";
 import { SuperadminBootstrapService } from "@/superadmin/superadmin-bootstrap.service";
 import { PlanLimitsService } from "@/plans/plan-limits.service";
@@ -60,6 +61,7 @@ import { FiscalDocumentsService } from "@/fiscal-documents/fiscal-documents.serv
     TotvsSyncService,
     TotvsIntegrationService,
     TotvsQueueService,
+    TotvsScopeService,
     SuperadminBootstrapService,
     PlanLimitsService,
     NacionalAdnNfseProvider,

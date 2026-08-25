@@ -6,6 +6,7 @@ import {
   Activity,
   Building2,
   Database,
+  GitBranch,
   Loader2,
   Pencil,
   Play,
@@ -50,6 +51,7 @@ import {
   syncAdminConnection,
   testAdminConnection,
   updateAdminCompanyConnection,
+  updateAdminTotvsStructure,
   updateAdminUser,
   updateAdminUserAccess,
   type AdminConnection,
@@ -113,13 +115,37 @@ export default function SuperadminPage() {
       id,
       connectionKey,
       coligadaId,
+      filialId,
     }: {
       id: string;
       connectionKey: string | null;
       coligadaId: number | null;
-    }) => updateAdminCompanyConnection(id, { connectionKey, coligadaId }),
+      filialId: number | null;
+    }) => updateAdminCompanyConnection(id, { connectionKey, coligadaId, filialId }),
     onSuccess: async () => {
       toast.success("Vínculo TOTVS atualizado.");
+      await refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const structureMutation = useMutation({
+    mutationFn: ({
+      organizationId,
+      mode,
+      mainColigadaId,
+    }: {
+      organizationId: string;
+      mode: "COLIGADA" | "FILIAL";
+      mainColigadaId: number | null;
+    }) =>
+      updateAdminTotvsStructure(
+        organizationId,
+        mode === "FILIAL"
+          ? { mode, mainColigadaId: mainColigadaId! }
+          : { mode, mainColigadaId: null },
+      ),
+    onSuccess: async () => {
+      toast.success("Estrutura TOTVS atualizada. Revise os vínculos das empresas.");
       await refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -204,6 +230,14 @@ export default function SuperadminPage() {
 
       <PlanManagement data={data} />
 
+      <TotvsStructureCard
+        data={data}
+        saving={structureMutation.isPending}
+        onSave={(organizationId, mode, mainColigadaId) =>
+          structureMutation.mutate({ organizationId, mode, mainColigadaId })
+        }
+      />
+
       <section>
         <h2 className="mb-3 text-base font-semibold">Conexões disponíveis no ambiente</h2>
         <div className="grid gap-3 lg:grid-cols-2">
@@ -228,8 +262,7 @@ export default function SuperadminPage() {
         <CardHeader>
           <CardTitle className="text-base">Empresas e bancos TOTVS</CardTitle>
           <CardDescription>
-            Somente a chave e a coligada são persistidas. O plano da conta também controla quantas
-            conexões podem ser vinculadas.
+            Cada conta usa coligadas independentes ou uma coligada principal separada por filial.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -240,6 +273,7 @@ export default function SuperadminPage() {
                 <TableHead>CNPJ</TableHead>
                 <TableHead>Conexão</TableHead>
                 <TableHead>Coligada</TableHead>
+                <TableHead>Filial</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -247,9 +281,12 @@ export default function SuperadminPage() {
                 <CompanyRow
                   key={company.id}
                   company={company}
+                  organization={data.organizations.find(
+                    (organization) => organization.id === company.organization_id,
+                  )!}
                   connections={data.connections}
-                  onSave={(connectionKey, coligadaId) =>
-                    companyMutation.mutate({ id: company.id, connectionKey, coligadaId })
+                  onSave={(connectionKey, coligadaId, filialId) =>
+                    companyMutation.mutate({ id: company.id, connectionKey, coligadaId, filialId })
                   }
                 />
               ))}
@@ -384,6 +421,141 @@ function Metric({
   );
 }
 
+function TotvsStructureCard({
+  data,
+  saving,
+  onSave,
+}: {
+  data: SuperadminPayload;
+  saving: boolean;
+  onSave: (
+    organizationId: string,
+    mode: "COLIGADA" | "FILIAL",
+    mainColigadaId: number | null,
+  ) => void;
+}) {
+  const availableColigadas = [
+    ...new Set(data.connections.flatMap((connection) => connection.coligadas)),
+  ].sort((a, b) => a - b);
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-blue-50 p-2 text-blue-700">
+            <GitBranch className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Estrutura TOTVS das contas</CardTitle>
+            <CardDescription>
+              Por Coligada preserva modelo atual. Por Filial compartilha uma coligada principal.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 lg:grid-cols-2">
+        {data.organizations.map((organization) => (
+          <TotvsStructureRow
+            key={organization.id}
+            organization={organization}
+            availableColigadas={availableColigadas}
+            saving={saving}
+            onSave={onSave}
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TotvsStructureRow({
+  organization,
+  availableColigadas,
+  saving,
+  onSave,
+}: {
+  organization: SuperadminPayload["organizations"][number];
+  availableColigadas: number[];
+  saving: boolean;
+  onSave: (
+    organizationId: string,
+    mode: "COLIGADA" | "FILIAL",
+    mainColigadaId: number | null,
+  ) => void;
+}) {
+  const [mode, setMode] = useState(organization.totvs_structure_mode);
+  const [mainColigadaId, setMainColigadaId] = useState<number | null>(
+    organization.totvs_main_coligada_id,
+  );
+  const changed =
+    mode !== organization.totvs_structure_mode ||
+    mainColigadaId !== organization.totvs_main_coligada_id;
+  return (
+    <div className="rounded-lg border border-slate-200 p-4">
+      <div className="mb-3">
+        <p className="font-medium text-slate-900">{organization.name}</p>
+        <p className="text-xs text-slate-500">
+          {mode === "FILIAL"
+            ? "Empresas separadas por CODFILIAL"
+            : "Cada empresa possui sua CODCOLIGADA"}
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label>Estrutura TOTVS</Label>
+          <Select
+            value={mode}
+            onValueChange={(value: "COLIGADA" | "FILIAL") => {
+              setMode(value);
+              setMainColigadaId(value === "FILIAL" ? availableColigadas[0] ?? null : null);
+            }}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="COLIGADA">Por Coligada</SelectItem>
+              <SelectItem value="FILIAL">Por Filial</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Coligada principal TOTVS</Label>
+          <Select
+            value={mainColigadaId ? String(mainColigadaId) : "none"}
+            disabled={mode !== "FILIAL"}
+            onValueChange={(value) => setMainColigadaId(Number(value))}
+          >
+            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none" disabled>Selecione</SelectItem>
+              {availableColigadas.map((coligada) => (
+                <SelectItem key={coligada} value={String(coligada)}>
+                  Coligada {coligada}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button
+          size="sm"
+          disabled={!changed || saving || (mode === "FILIAL" && !mainColigadaId)}
+          onClick={() => {
+            if (
+              confirm(
+                "Alterar a estrutura TOTVS remove os vínculos atuais das empresas. Depois, configure a coligada ou filial de cada empresa. Continuar?",
+              )
+            )
+              onSave(organization.id, mode, mainColigadaId);
+          }}
+        >
+          {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Salvar estrutura
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ConnectionCard({
   connection,
   companies,
@@ -452,15 +624,22 @@ function ConnectionCard({
 
 function CompanyRow({
   company,
+  organization,
   connections,
   onSave,
 }: {
   company: SuperadminPayload["companies"][number];
+  organization: SuperadminPayload["organizations"][number];
   connections: AdminConnection[];
-  onSave: (key: string | null, coligada: number | null) => void;
+  onSave: (
+    key: string | null,
+    coligada: number | null,
+    filial: number | null,
+  ) => void;
 }) {
   const [key, setKey] = useState(company.totvs_connection_key ?? "none");
   const connection = connections.find((item) => item.key === key);
+  const filialMode = organization.totvs_structure_mode === "FILIAL";
   return (
     <TableRow>
       <TableCell className="font-medium">{company.nome_fantasia || company.razao_social}</TableCell>
@@ -470,7 +649,7 @@ function CompanyRow({
           value={key}
           onValueChange={(value) => {
             setKey(value);
-            if (value === "none") onSave(null, null);
+            if (value === "none") onSave(null, null, null);
           }}
         >
           <SelectTrigger className="w-52">
@@ -493,8 +672,8 @@ function CompanyRow({
               ? String(company.totvs_coligada_id)
               : "none"
           }
-          disabled={!connection}
-          onValueChange={(value) => value !== "none" && onSave(key, Number(value))}
+          disabled={!connection || filialMode}
+          onValueChange={(value) => value !== "none" && onSave(key, Number(value), null)}
         >
           <SelectTrigger className="w-36">
             <SelectValue />
@@ -508,6 +687,27 @@ function CompanyRow({
             ))}
           </SelectContent>
         </Select>
+      </TableCell>
+      <TableCell>
+        {filialMode ? (
+          <div className="flex items-center gap-2">
+            <Input
+              className="w-28"
+              type="number"
+              min={1}
+              defaultValue={company.totvs_filial_id ?? ""}
+              disabled={!connection}
+              aria-label={`Filial TOTVS de ${company.nome_fantasia || company.razao_social}`}
+              onBlur={(event) => {
+                const filial = Number(event.target.value);
+                if (Number.isInteger(filial) && filial > 0) onSave(key, null, filial);
+              }}
+            />
+            <Badge variant="outline">Coligada {organization.totvs_main_coligada_id}</Badge>
+          </div>
+        ) : (
+          <span className="text-sm text-slate-400">Não aplicável</span>
+        )}
       </TableCell>
     </TableRow>
   );

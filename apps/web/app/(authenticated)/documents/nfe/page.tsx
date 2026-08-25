@@ -26,6 +26,10 @@ import {
   Trash2,
   Upload,
   PlugZap,
+  FileCheck2,
+  WalletCards,
+  Building2,
+  AlertCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +64,7 @@ import {
 import { NfeAprovacaoDialog } from "@/components/nfe/NfeAprovacaoDialog";
 import { NFE_STATUS_ORDER, statusConfig, podeAprovar, type NfeStatus } from "@/lib/nfe-status";
 import { backendFetch } from "@/lib/backend";
+import { FiscalSummaryCards } from "@/components/fiscal/FiscalSummaryCards";
 
 type FiscalDoc = {
   id: string;
@@ -376,9 +381,13 @@ function NFeList() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const totalIntegradas = docs.filter((d) => d.status === "integrado_totvs").length;
-  const totalPending = docs.filter(
+  const totalIntegradas = rows.filter((d) => d.status === "integrado_totvs").length;
+  const totalPending = rows.filter(
     (d) => (d.status ?? "pendente_confirmacao") === "pendente_confirmacao",
+  ).length;
+  const totalValue = rows.reduce((sum, document) => sum + document.valor_num, 0);
+  const readyForTotvs = rows.filter((document) =>
+    ["pronta_para_integracao", "integrado_totvs"].includes(document.status ?? ""),
   ).length;
 
   const columns: Col[] = useMemo(
@@ -557,15 +566,18 @@ function NFeList() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-5">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">NF-e Completa</h1>
-          <p className="text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            Documentos fiscais
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">NF-e Completa</h1>
+          <p className="mt-1 text-sm text-slate-600">
             XML completo, itens, impostos, vínculos e preparação para o TOTVS.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => {
               setImportFiles([]);
@@ -591,13 +603,47 @@ function NFeList() {
             Baixar XMLs (Lote){selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
           </Button>
         </div>
-      </div>
+      </header>
+
+      <FiscalSummaryCards
+        label="Resumo das NF-e"
+        items={[
+          {
+            label: "Documentos no filtro",
+            value: rows.length.toLocaleString("pt-BR"),
+            detail: `${docs.length.toLocaleString("pt-BR")} no total`,
+            icon: FileCheck2,
+            tone: "bg-blue-50 text-blue-700",
+          },
+          {
+            label: "Valor das notas",
+            value: totalValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+            detail: "Somatório do filtro atual",
+            icon: WalletCards,
+            tone: "bg-emerald-50 text-emerald-700",
+          },
+          {
+            label: "Prontas ou integradas",
+            value: readyForTotvs.toLocaleString("pt-BR"),
+            detail: `${totalIntegradas.toLocaleString("pt-BR")} integradas no TOTVS`,
+            icon: Building2,
+            tone: "bg-amber-50 text-amber-700",
+          },
+          {
+            label: "Exigem atenção",
+            value: totalPending.toLocaleString("pt-BR"),
+            detail: totalPending ? "Pendentes de confirmação" : "Nenhuma pendência no filtro",
+            icon: AlertCircle,
+            tone: totalPending ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-600",
+          },
+        ]}
+      />
 
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex flex-1 items-center gap-2">
-              <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_auto_240px_210px_auto]">
+              <div className="relative min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Buscar por número, fornecedor ou chave..."
@@ -662,7 +708,7 @@ function NFeList() {
               </Popover>
 
               <Select value={companyId} onValueChange={setCompanyId}>
-                <SelectTrigger className="w-[260px] bg-white border-slate-200">
+                <SelectTrigger className="w-full bg-white border-slate-200">
                   <SelectValue placeholder="Empresa" />
                 </SelectTrigger>
                 <SelectContent>
@@ -676,7 +722,7 @@ function NFeList() {
               </Select>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[210px] bg-white border-slate-200">
+                <SelectTrigger className="w-full bg-white border-slate-200">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -748,6 +794,8 @@ function NFeList() {
               </p>
             </div>
           ) : (
+            <>
+            <div className="hidden overflow-x-auto lg:block">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-slate-100 bg-slate-50/30">
@@ -795,6 +843,67 @@ function NFeList() {
                 ))}
               </TableBody>
             </Table>
+            </div>
+            <div className="divide-y divide-slate-100 lg:hidden">
+              {pagedDocs.map((doc) => {
+                const currentStatus = statusConfig(doc.status);
+                return (
+                  <article key={doc.id} className="space-y-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={selectedIds.has(doc.id)}
+                        onCheckedChange={() => toggleRow(doc.id)}
+                        aria-label={`Selecionar NF-e ${doc.numero ?? doc.id}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-semibold text-slate-950">
+                            NF-e {doc.numero ?? "sem número"}
+                            <span className="ml-1 text-xs font-normal text-slate-500">
+                              Série {doc.serie ?? "—"}
+                            </span>
+                          </p>
+                          <Badge
+                            variant="secondary"
+                            className={`border text-xs ${currentStatus.badge}`}
+                          >
+                            {currentStatus.label}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 truncate text-sm text-slate-700">
+                          {doc.emitente_nome ?? doc.emitente_cnpj ?? "Emitente não informado"}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {doc.empresa_nome || "Empresa não informada"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 pl-7">
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          {doc.data_emissao
+                            ? new Date(doc.data_emissao).toLocaleDateString("pt-BR")
+                            : "Data não informada"}
+                        </p>
+                        <p className="font-semibold text-slate-950">
+                          {doc.valor_num.toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Abrir
+                        </Link>
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            </>
           )}
           <div className="px-4">
             <TablePagination

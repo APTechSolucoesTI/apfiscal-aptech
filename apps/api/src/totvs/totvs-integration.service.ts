@@ -1,10 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
+import { TotvsScopeService } from "./totvs-scope.service";
 
 @Injectable()
 export class TotvsIntegrationService {
-  constructor(private readonly sqlServer: TotvsSqlServerService) {}
+  constructor(
+    private readonly sqlServer: TotvsSqlServerService,
+    private readonly scopes: TotvsScopeService,
+  ) {}
 
   async execute(runId: string) {
     const run = await supabaseAdmin.from("totvs_integration_runs")
@@ -22,7 +26,7 @@ export class TotvsIntegrationService {
     try {
       const [document, items, headerAllocations, itemAllocations] = await Promise.all([
         supabaseAdmin.from("fiscal_documents")
-          .select("*, companies(id, organization_id, totvs_coligada_id, totvs_connection_key), suppliers:supplier_id(id, erp_system, erp_code, erp_external_id)")
+          .select("*, companies(id, organization_id), suppliers:supplier_id(id, erp_system, erp_code, erp_external_id)")
           .eq("id", run.data.fiscal_document_id)
           .single(),
         supabaseAdmin.from("fiscal_document_items")
@@ -41,15 +45,17 @@ export class TotvsIntegrationService {
       if (headerAllocations.error) throw headerAllocations.error;
       if (itemAllocations.error) throw itemAllocations.error;
       if (document.data.status !== "pronta_para_integracao") throw new Error("A NF-e precisa estar pronta para integração antes de entrar no TOTVS RM.");
-      if (!document.data.companies?.totvs_coligada_id) throw new Error("A empresa não possui coligada TOTVS associada.");
+      const scope = await this.scopes.company(run.data.organization_id, run.data.company_id);
       if (!document.data.suppliers?.erp_code) throw new Error("O fornecedor não possui código CODCFO do TOTVS RM.");
       const unlinkedItems = (items.data ?? []).filter((item) => !item.product_id || !item.produtos?.erp_code);
       if (unlinkedItems.length > 0) throw new Error(`${unlinkedItems.length} item(ns) não possuem produto/código TOTVS vinculado.`);
 
       const payload = {
         schemaVersion: 1,
-        connectionKey: document.data.companies.totvs_connection_key ?? this.sqlServer.defaultKey(),
-        coligada: document.data.companies.totvs_coligada_id,
+        connectionKey: scope.connectionKey,
+        structureMode: scope.mode,
+        coligada: scope.codColigada,
+        filial: scope.codFilial,
         accessKey: document.data.chave_acesso,
         supplierCode: document.data.suppliers.erp_code,
         document: document.data,
@@ -59,7 +65,7 @@ export class TotvsIntegrationService {
       };
       await supabaseAdmin.from("totvs_integration_runs").update({ request_payload: payload }).eq("id", runId);
 
-      this.sqlServer.assertWritesEnabled(document.data.companies.totvs_connection_key ?? this.sqlServer.defaultKey());
+      this.sqlServer.assertWritesEnabled(scope.connectionKey);
       throw new Error("Escrita bloqueada: o SQL homologado de inclusão de movimento do seu TOTVS RM ainda não foi fornecido.");
     } catch (error) {
       const errorText = error instanceof Error ? error.message : "Falha não identificada na integração TOTVS.";

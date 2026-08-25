@@ -22,6 +22,7 @@ export type TotvsQueryDefinition = {
   updatedAtField?: string;
   externalKey(row: Record<string, unknown>): string;
   displayName(row: Record<string, unknown>): string | null;
+  filialAware?: boolean;
   sql(coligadas: string): string;
 };
 
@@ -165,6 +166,7 @@ export const TOTVS_READ_QUERIES: readonly TotvsQueryDefinition[] = [
   },
   {
     entity: "stock_locations", incremental: false,
+    filialAware: true,
     externalKey: (row) => composite(row.coligada, row.filial, row.code), displayName: (row) => text(row.description) || null,
     sql: (c) => `SELECT CODCOLIGADA AS coligada, CODFILIAL AS filial, CODLOC AS code,
       NOME AS description, NIVELESTOQUE AS stock_level, IDUNDNEGOCIO AS business_unit_id,

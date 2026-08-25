@@ -34,7 +34,12 @@ const companyConnectionSchema = z.object({
     .regex(/^[A-Z][A-Z0-9_]{1,63}$/)
     .nullable(),
   coligadaId: z.number().int().positive().nullable(),
+  filialId: z.number().int().positive().nullable(),
 });
+const totvsStructureSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("COLIGADA"), mainColigadaId: z.null() }),
+  z.object({ mode: z.literal("FILIAL"), mainColigadaId: z.number().int().positive() }),
+]);
 const accessSchema = z.object({ companyIds: z.array(z.string().uuid()) });
 const planSchema = z.object({
   key: z.string().regex(/^[a-z][a-z0-9_-]{1,39}$/),
@@ -89,13 +94,13 @@ export class SuperadminController {
         supabaseAdmin
           .from("organizations")
           .select(
-            "id, name, plan_key, max_users_override, max_companies_override, max_monthly_documents_override, max_totvs_connections_override, created_at",
+            "id, name, plan_key, max_users_override, max_companies_override, max_monthly_documents_override, max_totvs_connections_override, totvs_structure_mode, totvs_main_coligada_id, created_at",
           )
           .order("name"),
         supabaseAdmin
           .from("companies")
           .select(
-            "id, organization_id, razao_social, nome_fantasia, cnpj, totvs_connection_key, totvs_coligada_id",
+            "id, organization_id, razao_social, nome_fantasia, cnpj, totvs_connection_key, totvs_coligada_id, totvs_filial_id",
           )
           .order("razao_social"),
         supabaseAdmin
@@ -297,20 +302,38 @@ export class SuperadminController {
   ) {
     await this.assert(request.user.id);
     const input = companyConnectionSchema.parse(body);
-    if (Boolean(input.connectionKey) !== Boolean(input.coligadaId))
-      throw new BadRequestException("Informe conexão e coligada juntas, ou remova ambas.");
     const company = await supabaseAdmin
       .from("companies")
-      .select("organization_id")
+      .select("organization_id, organizations(totvs_structure_mode, totvs_main_coligada_id)")
       .eq("id", id)
       .single();
     if (company.error) throw company.error;
+    const organization = company.data.organizations as unknown as {
+      totvs_structure_mode: "COLIGADA" | "FILIAL";
+      totvs_main_coligada_id: number | null;
+    };
+    const scopeId = organization.totvs_structure_mode === "FILIAL"
+      ? input.filialId
+      : input.coligadaId;
+    if (Boolean(input.connectionKey) !== Boolean(scopeId))
+      throw new BadRequestException(
+        organization.totvs_structure_mode === "FILIAL"
+          ? "Informe conexão e filial juntas, ou remova ambas."
+          : "Informe conexão e coligada juntas, ou remova ambas.",
+      );
+    if (organization.totvs_structure_mode === "FILIAL" && input.coligadaId !== null)
+      throw new BadRequestException("No modo Por Filial, a coligada vem da conta.");
+    if (organization.totvs_structure_mode === "COLIGADA" && input.filialId !== null)
+      throw new BadRequestException("Filial não pode ser usada no modo Por Coligada.");
     if (input.connectionKey) {
       const connection = this.sqlServer
         .connections()
         .find((item) => item.key === input.connectionKey && item.configured);
       if (!connection) throw new BadRequestException("Conexão não disponível no ambiente.");
-      if (!connection.coligadas.includes(input.coligadaId!))
+      const coligada = organization.totvs_structure_mode === "FILIAL"
+        ? organization.totvs_main_coligada_id
+        : input.coligadaId;
+      if (!coligada || !connection.coligadas.includes(coligada))
         throw new BadRequestException("Coligada não permitida nessa conexão.");
       await this.planLimits.assertCanLinkTotvsConnection(
         company.data.organization_id,
@@ -319,10 +342,41 @@ export class SuperadminController {
     }
     const result = await supabaseAdmin
       .from("companies")
-      .update({ totvs_connection_key: input.connectionKey, totvs_coligada_id: input.coligadaId })
+      .update({
+        totvs_connection_key: input.connectionKey,
+        totvs_coligada_id:
+          organization.totvs_structure_mode === "COLIGADA" ? input.coligadaId : null,
+        totvs_filial_id:
+          organization.totvs_structure_mode === "FILIAL" ? input.filialId : null,
+      })
       .eq("id", id);
     if (result.error) throw result.error;
     await this.queue.refreshSchedulers();
+    return { ok: true };
+  }
+
+  @Patch("organizations/:id/totvs-structure")
+  async updateTotvsStructure(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    await this.assert(request.user.id);
+    const input = totvsStructureSchema.parse(body);
+    if (
+      input.mode === "FILIAL" &&
+      !this.sqlServer.connections().some((connection) =>
+        connection.coligadas.includes(input.mainColigadaId),
+      )
+    )
+      throw new BadRequestException("Coligada principal não disponível no ambiente.");
+    const result = await supabaseAdmin.rpc("configure_totvs_structure", {
+      _organization_id: id,
+      _mode: input.mode,
+      _main_coligada_id: input.mainColigadaId,
+    });
+    if (result.error) throw result.error;
+    await this.queue.refreshSchedulers(id);
     return { ok: true };
   }
 

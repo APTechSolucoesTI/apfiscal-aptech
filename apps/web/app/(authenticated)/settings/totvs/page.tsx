@@ -56,6 +56,7 @@ type FormState = {
     companyId: string;
     connectionKey: string | null;
     coligadaId: number | null;
+    filialId: number | null;
   }>;
   nfeSchedules: Array<{ companyId: string; enabled: boolean; intervalMinutes: number }>;
   nfseSchedules: Array<{
@@ -131,6 +132,7 @@ export default function TotvsSettingsPage() {
         companyId: company.id,
         connectionKey: company.totvs_connection_key,
         coligadaId: company.totvs_coligada_id,
+        filialId: company.totvs_filial_id,
       })),
       nfeSchedules: query.data.companies.map((company) => {
         const schedule = query.data.nfeSchedules.find((item) => item.company_id === company.id);
@@ -397,10 +399,11 @@ export default function TotvsSettingsPage() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Empresas, conexões e coligadas</CardTitle>
+              <CardTitle className="text-base">Empresas e escopo TOTVS</CardTitle>
               <CardDescription>
-                A empresa escolhe uma conexão disponível nos secrets e uma coligada permitida nessa
-                conexão.
+                {query.data.totvsStructure.mode === "FILIAL"
+                  ? `Conta configurada Por Filial na coligada ${query.data.totvsStructure.mainColigadaId}. Informe o CODFILIAL de cada empresa.`
+                  : "Conta configurada Por Coligada. Cada empresa usa sua própria CODCOLIGADA."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -432,6 +435,7 @@ export default function TotvsSettingsPage() {
                                       ...item,
                                       connectionKey: value === "none" ? null : value,
                                       coligadaId: null,
+                                      filialId: null,
                                     }
                                   : item,
                               ),
@@ -450,32 +454,56 @@ export default function TotvsSettingsPage() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <Select
-                          disabled={!connection}
-                          value={mapping?.coligadaId ? String(mapping.coligadaId) : "none"}
-                          onValueChange={(value) =>
-                            setForm({
-                              ...form,
-                              companyMappings: form.companyMappings.map((item) =>
-                                item.companyId === company.id
-                                  ? { ...item, coligadaId: value === "none" ? null : Number(value) }
-                                  : item,
-                              ),
-                            })
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Coligada</SelectItem>
-                            {connection?.coligadas.map((id) => (
-                              <SelectItem key={id} value={String(id)}>
-                                Coligada {id}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {query.data.totvsStructure.mode === "FILIAL" ? (
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min={1}
+                              disabled={!connection}
+                              value={mapping?.filialId ?? ""}
+                              placeholder="CODFILIAL"
+                              aria-label={`Filial TOTVS de ${company.nome_fantasia || company.razao_social}`}
+                              onChange={(event) =>
+                                setForm({
+                                  ...form,
+                                  companyMappings: form.companyMappings.map((item) =>
+                                    item.companyId === company.id
+                                      ? {
+                                          ...item,
+                                          filialId: event.target.value
+                                            ? Number(event.target.value)
+                                            : null,
+                                        }
+                                      : item,
+                                  ),
+                                })
+                              }
+                            />
+                          </div>
+                        ) : (
+                          <Select
+                            disabled={!connection}
+                            value={mapping?.coligadaId ? String(mapping.coligadaId) : "none"}
+                            onValueChange={(value) =>
+                              setForm({
+                                ...form,
+                                companyMappings: form.companyMappings.map((item) =>
+                                  item.companyId === company.id
+                                    ? { ...item, coligadaId: value === "none" ? null : Number(value) }
+                                    : item,
+                                ),
+                              })
+                            }
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Coligada</SelectItem>
+                              {connection?.coligadas.map((id) => (
+                                <SelectItem key={id} value={String(id)}>Coligada {id}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
                     </div>
                   );

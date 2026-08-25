@@ -2,11 +2,17 @@ import { createHash, randomUUID } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TOTVS_PENDING_SCHEMA_ENTITIES, TOTVS_READ_QUERIES, type TotvsQueryDefinition } from "./totvs-queries";
-import { mergeGlobalRows } from "./totvs-global-rows";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
+import {
+  rowsForTotvsScope,
+  sourceColigadasForScopes,
+  sourceFilial,
+  type TotvsCompanyScope,
+} from "./totvs-scope";
+import { TotvsScopeService } from "./totvs-scope.service";
 
 type JsonRecord = Record<string, string | number | boolean | null>;
-type CompanyMap = Map<number, { id: string; organization_id: string }>;
+type CompanyScopes = TotvsCompanyScope[];
 
 function text(value: unknown): string {
   return String(value ?? "").trim();
@@ -64,23 +70,10 @@ function documentVariants(value: string): string[] {
 
 @Injectable()
 export class TotvsSyncService {
-  constructor(private readonly sqlServer: TotvsSqlServerService) {}
-
-  private async companyMap(organizationId: string, connectionKey: string): Promise<CompanyMap> {
-    let query = supabaseAdmin.from("companies")
-      .select("id, organization_id, totvs_coligada_id, totvs_connection_key")
-      .eq("organization_id", organizationId)
-      .not("totvs_coligada_id", "is", null);
-    query = connectionKey === this.sqlServer.defaultKey()
-      ? query.or(`totvs_connection_key.eq.${connectionKey},totvs_connection_key.is.null`)
-      : query.eq("totvs_connection_key", connectionKey);
-    const result = await query;
-    if (result.error) throw result.error;
-    return new Map((result.data ?? []).map((company) => [Number(company.totvs_coligada_id), {
-      id: company.id,
-      organization_id: company.organization_id,
-    }]));
-  }
+  constructor(
+    private readonly sqlServer: TotvsSqlServerService,
+    private readonly scopes: TotvsScopeService,
+  ) {}
 
   private async since(organizationId: string, connectionKey: string, definition: TotvsQueryDefinition, safetyWindowDays: number): Promise<Date> {
     if (!definition.incremental) return initialSyncDate();
@@ -104,6 +97,7 @@ export class TotvsSyncService {
         connection_key: connectionKey,
         entity: definition.entity,
         coligada_id: number(row.coligada ?? row.codcoligada) ?? 0,
+        filial_id: sourceFilial(row) ?? 0,
         external_key: definition.externalKey(row),
         name: definition.displayName(row),
         active: row.inactive == null ? text(row.ativo).toUpperCase() !== "N" : Number(row.inactive) !== 1,
@@ -113,18 +107,23 @@ export class TotvsSyncService {
         synced_at: now,
       };
     }).filter((record) => record.external_key.length > 0);
-    const deduplicated = [...new Map(records.map((record) => [`${record.coligada_id}|${record.external_key}`, record])).values()];
+    const deduplicated = [...new Map(records.map((record) => [
+      `${record.coligada_id}|${record.filial_id}|${record.external_key}`,
+      record,
+    ])).values()];
     for (let offset = 0; offset < deduplicated.length; offset += 250) {
       const result = await supabaseAdmin.from("totvs_reference_records")
-        .upsert(deduplicated.slice(offset, offset + 250), { onConflict: "organization_id,connection_key,entity,coligada_id,external_key" });
+        .upsert(deduplicated.slice(offset, offset + 250), {
+          onConflict: "organization_id,connection_key,entity,coligada_id,filial_id,external_key",
+        });
       if (result.error) throw result.error;
     }
   }
 
-  private async materializeSuppliers(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materializeSuppliers(organizationId: string, rows: Record<string, unknown>[], companies: CompanyScopes) {
     let materialized = 0;
-    for (const [coligada, company] of companies) {
-      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.codigo));
+    for (const company of companies) {
+      const companyRows = rowsForTotvsScope(rows, company, (row) => text(row.codigo), false);
       for (const row of companyRows) {
         const document = text(row.cpf_cnpj).replace(/\D/g, "");
         if (!document) continue;
@@ -132,13 +131,13 @@ export class TotvsSyncService {
         const existing = await supabaseAdmin.from("suppliers")
           .select("id, erp_metadata, origem")
           .eq("organization_id", organizationId)
-          .eq("company_id", company.id)
+          .eq("company_id", company.companyId)
           .in("cnpj_cpf", documentVariants(document))
           .maybeSingle();
         if (existing.error) throw existing.error;
         const values = {
           organization_id: organizationId,
-          company_id: company.id,
+          company_id: company.companyId,
           cnpj_cpf: document,
           tipo_pessoa: Number(row.tipo_pessoa_id) === 1 ? "fisica" : "juridica",
           razao_social: text(row.razao_social) || document,
@@ -163,10 +162,15 @@ export class TotvsSyncService {
     return materialized;
   }
 
-  private async materializeAddresses(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materializeAddresses(organizationId: string, rows: Record<string, unknown>[], companies: CompanyScopes) {
     let materialized = 0;
-    for (const [coligada, company] of companies) {
-      const companyRows = mergeGlobalRows(rows, coligada, (row) => `${text(row.codigo)}|${text(row.tipo)}`);
+    for (const company of companies) {
+      const companyRows = rowsForTotvsScope(
+        rows,
+        company,
+        (row) => `${text(row.codigo)}|${text(row.tipo)}`,
+        false,
+      );
       for (const row of companyRows) {
         if (text(row.tipo) !== "Principal") continue;
         const result = await supabaseAdmin.from("suppliers").update({
@@ -178,7 +182,7 @@ export class TotvsSyncService {
           uf: text(row.uf) || null,
           cep: text(row.cep).replace(/\D/g, "") || null,
           erp_synced_at: new Date().toISOString(),
-        }).eq("organization_id", organizationId).eq("company_id", company.id).eq("erp_system", "totvs_rm").eq("erp_code", text(row.codigo));
+        }).eq("organization_id", organizationId).eq("company_id", company.companyId).eq("erp_system", "totvs_rm").eq("erp_code", text(row.codigo));
         if (result.error) throw result.error;
         materialized += 1;
       }
@@ -186,20 +190,20 @@ export class TotvsSyncService {
     return materialized;
   }
 
-  private async materializeCostCenters(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materializeCostCenters(organizationId: string, rows: Record<string, unknown>[], companies: CompanyScopes) {
     let materialized = 0;
-    for (const [coligada, company] of companies) {
-      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.codigo));
+    for (const company of companies) {
+      const companyRows = rowsForTotvsScope(rows, company, (row) => text(row.codigo), false);
       for (const row of companyRows) {
         const code = text(row.codigo);
         const existing = await supabaseAdmin.from("centros_custo")
           .select("id")
           .eq("organization_id", organizationId)
-          .eq("company_id", company.id)
+          .eq("company_id", company.companyId)
           .eq("codigo", code)
           .maybeSingle();
         if (existing.error) throw existing.error;
-        const values = { organization_id: organizationId, company_id: company.id, codigo: code, descricao: text(row.nome) || code, ativo: text(row.ativo) !== "N" };
+        const values = { organization_id: organizationId, company_id: company.companyId, codigo: code, descricao: text(row.nome) || code, ativo: text(row.ativo) !== "N" };
         const result = existing.data
           ? await supabaseAdmin.from("centros_custo").update(values).eq("id", existing.data.id)
           : await supabaseAdmin.from("centros_custo").insert(values);
@@ -210,24 +214,24 @@ export class TotvsSyncService {
     return materialized;
   }
 
-  private async materializeProductClassifications(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materializeProductClassifications(organizationId: string, rows: Record<string, unknown>[], companies: CompanyScopes) {
     const tables = ["familias", "grupos", "subgrupos"] as const;
     let materialized = 0;
-    for (const [coligada, company] of companies) {
-      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.code));
+    for (const company of companies) {
+      const companyRows = rowsForTotvsScope(rows, company, (row) => text(row.code), false);
       for (let level = 1; level <= tables.length; level += 1) {
         const table = tables[level - 1];
         const levelRows = companyRows.filter((row) => text(row.code) && text(row.code).split(".").length === level);
         for (let offset = 0; offset < levelRows.length; offset += 250) {
           const chunk = levelRows.slice(offset, offset + 250);
           const codes = [...new Set(chunk.map((row) => text(row.code)))];
-          const existing = await supabaseAdmin.from(table).select("id, codigo").eq("company_id", company.id).in("codigo", codes);
+          const existing = await supabaseAdmin.from(table).select("id, codigo").eq("company_id", company.companyId).in("codigo", codes);
           if (existing.error) throw existing.error;
           const ids = new Map((existing.data ?? []).map((row) => [row.codigo, row.id]));
           const records = chunk.map((row) => ({
             id: ids.get(text(row.code)) ?? randomUUID(),
             organization_id: organizationId,
-            company_id: company.id,
+            company_id: company.companyId,
             codigo: text(row.code),
             descricao: text(row.description) || text(row.code),
           }));
@@ -277,19 +281,19 @@ export class TotvsSyncService {
     return { familyIds: maps[0], groupIds: maps[1], subgroupIds: maps[2] };
   }
 
-  private async materializeProducts(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materializeProducts(organizationId: string, rows: Record<string, unknown>[], companies: CompanyScopes) {
     let materialized = 0;
-    for (const [coligada, company] of companies) {
-      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.code))
+    for (const company of companies) {
+      const companyRows = rowsForTotvsScope(rows, company, (row) => text(row.code), false)
         .filter((row) => text(row.code) && text(row.id_product));
-      const { familyIds, groupIds, subgroupIds } = await this.ensureProductClassificationLinks(organizationId, company.id, companyRows);
+      const { familyIds, groupIds, subgroupIds } = await this.ensureProductClassificationLinks(organizationId, company.companyId, companyRows);
 
       for (let offset = 0; offset < companyRows.length; offset += 200) {
         const chunk = companyRows.slice(offset, offset + 200);
         const codes = [...new Set(chunk.map((row) => text(row.code)))];
         const existing = await supabaseAdmin.from("produtos")
           .select("id, codigo_interno, erp_metadata")
-          .eq("company_id", company.id)
+          .eq("company_id", company.companyId)
           .in("codigo_interno", codes);
         if (existing.error) throw existing.error;
         const byCode = new Map((existing.data ?? []).map((row) => [row.codigo_interno, row]));
@@ -303,7 +307,7 @@ export class TotvsSyncService {
           return {
             id: current?.id ?? randomUUID(),
             organization_id: organizationId,
-            company_id: company.id,
+            company_id: company.companyId,
             codigo_interno: code,
             descricao: text(row.description) || text(row.fantasy_name) || code,
             unidade: text(row.sales_unit) || text(row.control_unit) || text(row.purchase_unit) || "UN",
@@ -329,20 +333,21 @@ export class TotvsSyncService {
     return materialized;
   }
 
-  private async materializeStockLocations(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materializeStockLocations(organizationId: string, rows: Record<string, unknown>[], companies: CompanyScopes) {
     let materialized = 0;
-    for (const [coligada, company] of companies) {
-      const companyRows = mergeGlobalRows(rows, coligada, (row) => text(row.code)).filter((row) => text(row.code));
+    for (const company of companies) {
+      const companyRows = rowsForTotvsScope(rows, company, (row) => text(row.code), true)
+        .filter((row) => text(row.code));
       for (let offset = 0; offset < companyRows.length; offset += 250) {
         const chunk = companyRows.slice(offset, offset + 250);
         const codes = [...new Set(chunk.map((row) => text(row.code)))];
-        const existing = await supabaseAdmin.from("locais_estoque").select("id, codigo").eq("company_id", company.id).in("codigo", codes);
+        const existing = await supabaseAdmin.from("locais_estoque").select("id, codigo").eq("company_id", company.companyId).in("codigo", codes);
         if (existing.error) throw existing.error;
         const ids = new Map((existing.data ?? []).map((row) => [row.codigo, row.id]));
         const records = chunk.map((row) => ({
           id: ids.get(text(row.code)) ?? randomUUID(),
           organization_id: organizationId,
-          company_id: company.id,
+          company_id: company.companyId,
           codigo: text(row.code),
           descricao: text(row.description) || text(row.code),
           tipo: Number(row.stock_level) > 0 ? "analitico" : "sintetico",
@@ -357,27 +362,27 @@ export class TotvsSyncService {
     return materialized;
   }
 
-  private async materializeFinancialPlan(organizationId: string, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materializeFinancialPlan(organizationId: string, rows: Record<string, unknown>[], companies: CompanyScopes) {
     const validRows = rows.map((row) => ({ code: text(row.code), description: text(row.description) }))
       .filter((row) => /^\d{2}(?:\.\d{3}(?:\.\d{4})?)?$/.test(row.code))
       .sort((a, b) => a.code.split(".").length - b.code.split(".").length || a.code.localeCompare(b.code));
     const parentCodes = new Set(validRows.map((row) => row.code.includes(".") ? row.code.slice(0, row.code.lastIndexOf(".")) : null).filter((value): value is string => Boolean(value)));
     let materialized = 0;
-    for (const company of companies.values()) {
+    for (const company of companies) {
       const ids = new Map<string, string>();
       for (const row of validRows) {
         const parentCode = row.code.includes(".") ? row.code.slice(0, row.code.lastIndexOf(".")) : null;
         let parentId = parentCode ? ids.get(parentCode) ?? null : null;
         if (parentCode && !parentId) {
-          const parent = await supabaseAdmin.from("plano_contas").select("id").eq("company_id", company.id).eq("codigo", parentCode).maybeSingle();
+          const parent = await supabaseAdmin.from("plano_contas").select("id").eq("company_id", company.companyId).eq("codigo", parentCode).maybeSingle();
           if (parent.error) throw parent.error;
           parentId = parent.data?.id ?? null;
         }
-        const existing = await supabaseAdmin.from("plano_contas").select("id").eq("company_id", company.id).eq("codigo", row.code).maybeSingle();
+        const existing = await supabaseAdmin.from("plano_contas").select("id").eq("company_id", company.companyId).eq("codigo", row.code).maybeSingle();
         if (existing.error) throw existing.error;
         const values = {
           organization_id: organizationId,
-          company_id: company.id,
+          company_id: company.companyId,
           conta_pai_id: parentId,
           codigo: row.code,
           descricao: row.description || row.code,
@@ -395,7 +400,7 @@ export class TotvsSyncService {
     return materialized;
   }
 
-  private async materialize(organizationId: string, definition: TotvsQueryDefinition, rows: Record<string, unknown>[], companies: CompanyMap) {
+  private async materialize(organizationId: string, definition: TotvsQueryDefinition, rows: Record<string, unknown>[], companies: CompanyScopes) {
     if (definition.entity === "suppliers") return this.materializeSuppliers(organizationId, rows, companies);
     if (definition.entity === "supplier_addresses") return this.materializeAddresses(organizationId, rows, companies);
     if (definition.entity === "cost_centers") return this.materializeCostCenters(organizationId, rows, companies);
@@ -429,12 +434,14 @@ export class TotvsSyncService {
       if (!settings.data?.enabled || !settings.data.read_sync_enabled) throw new Error("A sincronização de leitura TOTVS está desativada.");
       if (!this.sqlServer.configured(connectionKey)) throw new Error(`As credenciais da conexão TOTVS ${connectionKey} não estão configuradas na API.`);
 
-      const companies = await this.companyMap(organizationId, connectionKey);
+      const companies = (await this.scopes.resolve(organizationId)).filter(
+        (scope) => scope.connectionKey === connectionKey,
+      );
       const allowedColigadas = this.sqlServer.coligadas(connectionKey);
-      const configuredColigadas = [...companies.keys()];
+      const configuredColigadas = [...new Set(companies.map((company) => company.codColigada))];
       const coligadas = allowedColigadas.filter((id) => configuredColigadas.includes(id));
       if (coligadas.length === 0) throw new Error("Associe ao menos uma empresa APFiscal a uma coligada TOTVS permitida.");
-      const sourceColigadas = [...new Set([0, ...coligadas])];
+      const sourceColigadas = sourceColigadasForScopes(companies);
       const coligadaSql = sourceColigadas.join(",");
       metrics.coligadas = coligadas;
       metrics.source_coligadas = sourceColigadas;

@@ -54,6 +54,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { FiscalStatusBadge, TotvsStatusBadge } from "@/components/fiscal/FiscalStatusBadge";
+import { FiscalSummaryCards } from "@/components/fiscal/FiscalSummaryCards";
 import { TablePagination } from "@/components/common/TablePagination";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { baixarXmlUnico, baixarXmlsZip } from "@/lib/xml-zip";
@@ -344,8 +345,9 @@ export default function NfsePage() {
         </div>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumo das NFS-e">
-        {[
+      <FiscalSummaryCards
+        label="Resumo das NFS-e"
+        items={[
           {
             label: "Documentos no filtro",
             value: rows.length.toLocaleString("pt-BR"),
@@ -374,23 +376,8 @@ export default function NfsePage() {
             icon: AlertCircle,
             tone: errors ? "text-red-700 bg-red-50" : "text-slate-600 bg-slate-50",
           },
-        ].map((item) => (
-          <Card key={item.label} className="border-slate-200 shadow-none">
-            <CardContent className="flex items-start gap-3 p-4">
-              <div className={`rounded-lg p-2 ${item.tone}`}>
-                <item.icon className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500">{item.label}</p>
-                <p className="mt-1 text-xl font-semibold tabular-nums text-slate-950">
-                  {item.value}
-                </p>
-                <p className="mt-0.5 text-[11px] text-slate-500">{item.detail}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
+        ]}
+      />
 
       <Card className="overflow-hidden border-slate-200 shadow-sm">
         <div className="border-b border-slate-100 bg-slate-50/70 p-4">

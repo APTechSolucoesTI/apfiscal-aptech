@@ -9,23 +9,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Plus,
-  Search,
-  Filter,
-  Loader2,
-  Info,
-  ArrowUpDown,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { Plus, Search, Filter, Loader2, Info, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -53,12 +40,7 @@ import {
 import { fetchCompanyByCnpj, fetchAddressByCep } from "@/lib/client-actions";
 import { toast } from "sonner";
 import { useServerFn } from "@/lib/api-action";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSortableData } from "@/hooks/use-sortable-data";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
@@ -123,7 +105,8 @@ function maskCnpj(raw: string) {
   if (c.length > 2) out = `${c.slice(0, 2)}.${c.slice(2)}`;
   if (c.length > 5) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5)}`;
   if (c.length > 8) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8)}`;
-  if (c.length > 12) out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+  if (c.length > 12)
+    out = `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
   return out;
 }
 
@@ -132,9 +115,10 @@ function isValidCnpj(raw: string): boolean {
   if (c.length !== 14) return false;
   if (/^(\d)\1{13}$/.test(c)) return false;
   const calc = (base: string) => {
-    const weights = base.length === 12
-      ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-      : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const weights =
+      base.length === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
     const sum = base.split("").reduce((acc, d, i) => acc + parseInt(d, 10) * weights[i], 0);
     const r = sum % 11;
     return r < 2 ? 0 : 11 - r;
@@ -233,7 +217,9 @@ function Companies() {
       return;
     }
     const formatted = formatCnpj(cleanCnpj);
-    const exists = companies.some((c) => c.cnpj.replace(/\D/g, "") === cleanCnpj && c.id !== editingId);
+    const exists = companies.some(
+      (c) => c.cnpj.replace(/\D/g, "") === cleanCnpj && c.id !== editingId,
+    );
     if (exists) {
       toast.error("Já existe uma empresa cadastrada com este CNPJ.");
       return;
@@ -276,8 +262,6 @@ function Companies() {
       void handleFetchCnpj(masked);
     }
   };
-
-
 
   const handleCepBlur = async () => {
     const cleanCep = formData.cep.replace(/\D/g, "");
@@ -339,8 +323,13 @@ function Companies() {
           .select()
           .single();
         if (error) {
-          const detail = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
-            .filter(Boolean).join(" · ");
+          const detail = [
+            error.message,
+            (error as { details?: string }).details,
+            (error as { hint?: string }).hint,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           throw new Error(detail || "Erro ao atualizar empresa.");
         }
         return { data, mode: "update" as const };
@@ -357,14 +346,23 @@ function Companies() {
         .select()
         .single();
       if (error) {
-        const detail = [error.message, (error as { details?: string }).details, (error as { hint?: string }).hint]
-          .filter(Boolean).join(" · ");
+        const detail = [
+          error.message,
+          (error as { details?: string }).details,
+          (error as { hint?: string }).hint,
+        ]
+          .filter(Boolean)
+          .join(" · ");
         throw new Error(detail || "Erro ao salvar empresa.");
       }
       return { data, mode: "insert" as const };
     },
     onSuccess: (res) => {
-      toast.success(res.mode === "update" ? "Empresa atualizada com sucesso!" : "Empresa cadastrada com sucesso!");
+      toast.success(
+        res.mode === "update"
+          ? "Empresa atualizada com sucesso!"
+          : "Empresa cadastrada com sucesso!",
+      );
       queryClient.invalidateQueries({ queryKey: ["companies"] });
       setIsAddDialogOpen(false);
       resetForm();
@@ -412,44 +410,149 @@ function Companies() {
     },
   });
 
-  type Col = ColumnDef & { sortKey?: keyof CompanyRow; className?: string; headClassName?: string; render: (r: CompanyRow) => ReactNode };
-  const columns: Col[] = useMemo(() => [
-    { key: "empresa", label: "Empresa", sortKey: "nome_fantasia", headClassName: "text-slate-500 font-semibold", render: (company) => (
-      <div>
-        <div className="font-medium text-slate-900">{company.nome_fantasia || company.razao_social}</div>
-        <div className="text-xs text-slate-500 truncate max-w-[240px]">{company.razao_social}</div>
-      </div>
-    ) },
-    { key: "cnpj", label: "CNPJ", sortKey: "cnpj", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 font-mono text-xs", render: (c) => c.cnpj },
-    { key: "uf", label: "UF", sortKey: "uf", headClassName: "text-slate-500 font-semibold", render: (c) => (
-      <span className="inline-flex items-center rounded-md border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">{c.uf || "-"}</span>
-    ) },
-    { key: "municipio", label: "Município", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-sm", render: (c) => c.municipio || "-" },
-    { key: "ie", label: "Insc. Estadual", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-xs", render: (c) => c.inscricao_estadual || "-" },
-    { key: "regime", label: "Regime", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-xs capitalize", render: (c) => c.regime_tributario || "-" },
-    { key: "responsavel", label: "Responsável", headClassName: "text-slate-500 font-semibold", className: "text-slate-600 text-xs", render: (c) => c.responsavel || "-" },
-    { key: "actions", label: "Ações", alwaysVisible: true, headClassName: "text-right text-slate-500 font-semibold", className: "text-right", render: (company) => (
-      <div className="flex justify-end gap-1">
-        <Button variant="ghost" size="icon" title="Editar empresa" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => openEdit(company)}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" title="Detalhes" className="h-8 w-8 text-slate-500 hover:bg-slate-100" onClick={() => { setSelectedCompany(company); setIsDetailsOpen(true); }}>
-          <Info className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" title="Excluir empresa" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => requestDelete(company)}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    ) },
-  ], []);
+  type Col = ColumnDef & {
+    sortKey?: keyof CompanyRow;
+    className?: string;
+    headClassName?: string;
+    render: (r: CompanyRow) => ReactNode;
+  };
+  const columns: Col[] = useMemo(
+    () => [
+      {
+        key: "empresa",
+        label: "Empresa",
+        sortKey: "nome_fantasia",
+        headClassName: "text-slate-500 font-semibold",
+        render: (company) => (
+          <div>
+            <div className="font-medium text-slate-900">
+              {company.nome_fantasia || company.razao_social}
+            </div>
+            <div className="text-xs text-slate-500 truncate max-w-[240px]">
+              {company.razao_social}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: "cnpj",
+        label: "CNPJ",
+        sortKey: "cnpj",
+        headClassName: "text-slate-500 font-semibold",
+        className: "text-slate-600 font-mono text-xs",
+        render: (c) => c.cnpj,
+      },
+      {
+        key: "uf",
+        label: "UF",
+        sortKey: "uf",
+        headClassName: "text-slate-500 font-semibold",
+        render: (c) => (
+          <span className="inline-flex items-center rounded-md border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+            {c.uf || "-"}
+          </span>
+        ),
+      },
+      {
+        key: "municipio",
+        label: "Município",
+        headClassName: "text-slate-500 font-semibold",
+        className: "text-slate-600 text-sm",
+        render: (c) => c.municipio || "-",
+      },
+      {
+        key: "ie",
+        label: "Insc. Estadual",
+        headClassName: "text-slate-500 font-semibold",
+        className: "text-slate-600 text-xs",
+        render: (c) => c.inscricao_estadual || "-",
+      },
+      {
+        key: "regime",
+        label: "Regime",
+        headClassName: "text-slate-500 font-semibold",
+        className: "text-slate-600 text-xs capitalize",
+        render: (c) => c.regime_tributario || "-",
+      },
+      {
+        key: "responsavel",
+        label: "Responsável",
+        headClassName: "text-slate-500 font-semibold",
+        className: "text-slate-600 text-xs",
+        render: (c) => c.responsavel || "-",
+      },
+      {
+        key: "actions",
+        label: "Ações",
+        alwaysVisible: true,
+        headClassName: "text-right text-slate-500 font-semibold",
+        className: "text-right",
+        render: (company) => (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Editar empresa"
+              className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+              onClick={() => openEdit(company)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Detalhes"
+              className="h-8 w-8 text-slate-500 hover:bg-slate-100"
+              onClick={() => {
+                setSelectedCompany(company);
+                setIsDetailsOpen(true);
+              }}
+            >
+              <Info className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Excluir empresa"
+              className="h-8 w-8 text-red-600 hover:bg-red-50"
+              onClick={() => requestDelete(company)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
 
-  const { visibleColumns, allColumns, isVisible, toggleVisible, moveColumn, reset, pageSize, setPageSize } = useColumnPreferences("companies", columns);
-  const visibleCols = useMemo(() => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [visibleColumns, columns]);
-  const orderedCols = useMemo(() => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean), [allColumns, columns]);
+  const {
+    visibleColumns,
+    allColumns,
+    isVisible,
+    toggleVisible,
+    moveColumn,
+    reset,
+    pageSize,
+    setPageSize,
+  } = useColumnPreferences("companies", columns);
+  const visibleCols = useMemo(
+    () => visibleColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean),
+    [visibleColumns, columns],
+  );
+  const orderedCols = useMemo(
+    () => allColumns.map((c) => columns.find((x) => x.key === c.key)!).filter(Boolean),
+    [allColumns, columns],
+  );
 
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [search, pageSize, sortedCompanies.length]);
-  const pagedCompanies = useMemo(() => sortedCompanies.slice((page - 1) * pageSize, page * pageSize), [sortedCompanies, page, pageSize]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize, sortedCompanies.length]);
+  const pagedCompanies = useMemo(
+    () => sortedCompanies.slice((page - 1) * pageSize, page * pageSize),
+    [sortedCompanies, page, pageSize],
+  );
 
   return (
     <div className="space-y-6">
@@ -470,10 +573,14 @@ function Companies() {
               <Plus className="mr-2 h-4 w-4" /> Nova Empresa
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[700px] h-[90vh] flex flex-col p-0">
-            <DialogHeader className="p-6 pb-0">
+          <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[700px] flex-col overflow-hidden p-0 sm:h-[90vh]">
+            <DialogHeader className="p-4 pb-0 sm:p-6 sm:pb-0">
               <DialogTitle className="text-xl flex items-center gap-2">
-                {editingId ? <Pencil className="h-5 w-5 text-blue-600" /> : <Plus className="h-5 w-5 text-blue-600" />}
+                {editingId ? (
+                  <Pencil className="h-5 w-5 text-blue-600" />
+                ) : (
+                  <Plus className="h-5 w-5 text-blue-600" />
+                )}
                 {editingId ? "Editar Empresa" : "Cadastrar Nova Empresa"}
               </DialogTitle>
               <DialogDescription>
@@ -481,30 +588,48 @@ function Companies() {
               </DialogDescription>
             </DialogHeader>
 
-            <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col overflow-hidden">
-              <div className="px-6 border-b">
-                <TabsList className="w-full justify-start rounded-none h-12 bg-transparent gap-6 p-0">
-                  <TabsTrigger value="cadastrais" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
+            <Tabs
+              value={tab}
+              onValueChange={setTab}
+              className="flex min-w-0 flex-1 flex-col overflow-hidden"
+            >
+              <div className="overflow-x-auto border-b px-4 sm:px-6">
+                <TabsList className="h-12 w-max min-w-full justify-start gap-2 rounded-none bg-transparent p-0 sm:gap-6">
+                  <TabsTrigger
+                    value="cadastrais"
+                    className="shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
+                  >
                     Dados Cadastrais
                   </TabsTrigger>
-                  <TabsTrigger value="endereco" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
+                  <TabsTrigger
+                    value="endereco"
+                    className="shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
+                  >
                     Endereço
                   </TabsTrigger>
-                  <TabsTrigger value="fiscais" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
+                  <TabsTrigger
+                    value="fiscais"
+                    className="shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
+                  >
                     Dados Fiscais
                   </TabsTrigger>
-                  <TabsTrigger value="integracao" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none">
+                  <TabsTrigger
+                    value="integracao"
+                    className="shrink-0 rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent shadow-none"
+                  >
                     Integração Fiscal (NF-e)
                   </TabsTrigger>
                 </TabsList>
               </div>
 
-              <ScrollArea className="flex-1">
-                <div className="p-6">
+              <ScrollArea className="min-w-0 flex-1">
+                <div className="min-w-0 p-4 sm:p-6">
                   <TabsContent value="cadastrais" className="mt-0 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="grid gap-2">
-                        <Label htmlFor="cnpj">CNPJ <span className="text-red-500">*</span></Label>
+                        <Label htmlFor="cnpj">
+                          CNPJ <span className="text-red-500">*</span>
+                        </Label>
                         <div className="relative">
                           <Input
                             id="cnpj"
@@ -523,32 +648,65 @@ function Companies() {
                         </div>
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="razao">Razão Social <span className="text-red-500">*</span></Label>
-                        <Input id="razao" value={formData.razao} onChange={(e) => setFormData({ ...formData, razao: e.target.value })} />
+                        <Label htmlFor="razao">
+                          Razão Social <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="razao"
+                          value={formData.razao}
+                          onChange={(e) => setFormData({ ...formData, razao: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="fantasia">Nome Fantasia</Label>
-                        <Input id="fantasia" value={formData.fantasia} onChange={(e) => setFormData({ ...formData, fantasia: e.target.value })} />
+                        <Input
+                          id="fantasia"
+                          value={formData.fantasia}
+                          onChange={(e) => setFormData({ ...formData, fantasia: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="responsavel">Responsável pela Empresa</Label>
-                        <Input id="responsavel" value={formData.responsavel} onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })} />
+                        <Input
+                          id="responsavel"
+                          value={formData.responsavel}
+                          onChange={(e) =>
+                            setFormData({ ...formData, responsavel: e.target.value })
+                          }
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="email">E-mail do Responsável</Label>
-                        <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                        <Input
+                          id="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="telefone">Telefone</Label>
-                        <Input id="telefone" value={formData.telefone} onChange={(e) => setFormData({ ...formData, telefone: e.target.value })} />
+                        <Input
+                          id="telefone"
+                          value={formData.telefone}
+                          onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="ie">Inscrição Estadual</Label>
-                        <Input id="ie" value={formData.ie} onChange={(e) => setFormData({ ...formData, ie: e.target.value })} />
+                        <Input
+                          id="ie"
+                          value={formData.ie}
+                          onChange={(e) => setFormData({ ...formData, ie: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="im">Inscrição Municipal</Label>
-                        <Input id="im" value={formData.im} onChange={(e) => setFormData({ ...formData, im: e.target.value })} />
+                        <Input
+                          id="im"
+                          value={formData.im}
+                          onChange={(e) => setFormData({ ...formData, im: e.target.value })}
+                        />
                       </div>
                     </div>
                   </TabsContent>
@@ -556,9 +714,21 @@ function Companies() {
                   <TabsContent value="endereco" className="mt-0 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="grid gap-2">
-                        <Label htmlFor="cep">CEP <span className="text-red-500">*</span></Label>
+                        <Label htmlFor="cep">
+                          CEP <span className="text-red-500">*</span>
+                        </Label>
                         <div className="relative">
-                          <Input id="cep" placeholder="00000-000" value={maskCep(formData.cep)} onChange={(e) => setFormData({ ...formData, cep: maskCep(e.target.value) })} onBlur={handleCepBlur} className="font-mono" maxLength={9} />
+                          <Input
+                            id="cep"
+                            placeholder="00000-000"
+                            value={maskCep(formData.cep)}
+                            onChange={(e) =>
+                              setFormData({ ...formData, cep: maskCep(e.target.value) })
+                            }
+                            onBlur={handleCepBlur}
+                            className="font-mono"
+                            maxLength={9}
+                          />
                           {isLoadingCep && (
                             <div className="absolute right-3 top-1/2 -translate-y-1/2">
                               <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
@@ -567,28 +737,67 @@ function Companies() {
                         </div>
                       </div>
                       <div className="grid gap-2 md:col-span-2">
-                        <Label htmlFor="logradouro">Logradouro <span className="text-red-500">*</span></Label>
-                        <Input id="logradouro" value={formData.logradouro} onChange={(e) => setFormData({ ...formData, logradouro: e.target.value })} />
+                        <Label htmlFor="logradouro">
+                          Logradouro <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="logradouro"
+                          value={formData.logradouro}
+                          onChange={(e) => setFormData({ ...formData, logradouro: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="numero">Número <span className="text-red-500">*</span></Label>
-                        <Input id="numero" value={formData.numero} onChange={(e) => setFormData({ ...formData, numero: e.target.value })} />
+                        <Label htmlFor="numero">
+                          Número <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="numero"
+                          value={formData.numero}
+                          onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="complemento">Complemento</Label>
-                        <Input id="complemento" value={formData.complemento} onChange={(e) => setFormData({ ...formData, complemento: e.target.value })} />
+                        <Input
+                          id="complemento"
+                          value={formData.complemento}
+                          onChange={(e) =>
+                            setFormData({ ...formData, complemento: e.target.value })
+                          }
+                        />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="bairro">Bairro <span className="text-red-500">*</span></Label>
-                        <Input id="bairro" value={formData.bairro} onChange={(e) => setFormData({ ...formData, bairro: e.target.value })} />
+                        <Label htmlFor="bairro">
+                          Bairro <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="bairro"
+                          value={formData.bairro}
+                          onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2 md:col-span-2">
-                        <Label htmlFor="municipio">Cidade <span className="text-red-500">*</span></Label>
-                        <Input id="municipio" value={formData.municipio} onChange={(e) => setFormData({ ...formData, municipio: e.target.value })} />
+                        <Label htmlFor="municipio">
+                          Cidade <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="municipio"
+                          value={formData.municipio}
+                          onChange={(e) => setFormData({ ...formData, municipio: e.target.value })}
+                        />
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="uf">UF <span className="text-red-500">*</span></Label>
-                        <Input id="uf" value={formData.uf} maxLength={2} onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })} />
+                        <Label htmlFor="uf">
+                          UF <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="uf"
+                          value={formData.uf}
+                          maxLength={2}
+                          onChange={(e) =>
+                            setFormData({ ...formData, uf: e.target.value.toUpperCase() })
+                          }
+                        />
                       </div>
                     </div>
                   </TabsContent>
@@ -602,7 +811,8 @@ function Companies() {
                         </div>
                         {formData.cnaes && formData.cnaes.length > 0 && (
                           <Badge variant="outline" className="text-slate-600">
-                            {formData.cnaes.length} {formData.cnaes.length === 1 ? "atividade" : "atividades"}
+                            {formData.cnaes.length}{" "}
+                            {formData.cnaes.length === 1 ? "atividade" : "atividades"}
                           </Badge>
                         )}
                       </div>
@@ -625,16 +835,23 @@ function Companies() {
                                       ★ Principal
                                     </Badge>
                                   ) : (
-                                    <Badge variant="outline" className="text-slate-500 whitespace-nowrap">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-slate-500 whitespace-nowrap"
+                                    >
                                       Secundário
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className={`text-sm font-mono font-semibold ${cnae.main ? "text-blue-900" : "text-slate-700"}`}>
+                                  <div
+                                    className={`text-sm font-mono font-semibold ${cnae.main ? "text-blue-900" : "text-slate-700"}`}
+                                  >
                                     {cnae.code}
                                   </div>
-                                  <div className={`text-sm break-words ${cnae.main ? "text-blue-800 font-medium" : "text-slate-600"}`}>
+                                  <div
+                                    className={`text-sm break-words ${cnae.main ? "text-blue-800 font-medium" : "text-slate-600"}`}
+                                  >
                                     {cnae.text}
                                   </div>
                                 </div>
@@ -656,7 +873,7 @@ function Companies() {
               </ScrollArea>
             </Tabs>
 
-            <DialogFooter className="p-6 pt-2 bg-slate-50">
+            <DialogFooter className="bg-slate-50 p-4 pt-2 sm:p-6 sm:pt-2">
               <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancelar
               </Button>
@@ -670,8 +887,10 @@ function Companies() {
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...
                   </>
+                ) : editingId ? (
+                  "Atualizar Empresa"
                 ) : (
-                  editingId ? "Atualizar Empresa" : "Salvar Empresa"
+                  "Salvar Empresa"
                 )}
               </Button>
             </DialogFooter>
@@ -695,7 +914,15 @@ function Companies() {
               <Button variant="outline" size="sm">
                 <Filter className="mr-2 h-4 w-4" /> Filtros
               </Button>
-              <ColumnSettings columns={orderedCols} isVisible={isVisible} toggleVisible={toggleVisible} moveColumn={moveColumn} reset={reset} pageSize={pageSize} onPageSizeChange={setPageSize} />
+              <ColumnSettings
+                columns={orderedCols}
+                isVisible={isVisible}
+                toggleVisible={toggleVisible}
+                moveColumn={moveColumn}
+                reset={reset}
+                pageSize={pageSize}
+                onPageSizeChange={setPageSize}
+              />
             </div>
           </div>
         </CardHeader>
@@ -707,9 +934,14 @@ function Companies() {
                   <TableHead
                     key={c.key}
                     className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer hover:text-blue-600" : ""}`}
-                    onClick={c.sortKey ? () => requestSort(c.sortKey as keyof CompanyRow) : undefined}
+                    onClick={
+                      c.sortKey ? () => requestSort(c.sortKey as keyof CompanyRow) : undefined
+                    }
                   >
-                    <div className="flex items-center gap-1">{c.label}{c.sortKey && <ArrowUpDown className="h-3 w-3" />}</div>
+                    <div className="flex items-center gap-1">
+                      {c.label}
+                      {c.sortKey && <ArrowUpDown className="h-3 w-3" />}
+                    </div>
                   </TableHead>
                 ))}
               </TableRow>
@@ -717,13 +949,20 @@ function Companies() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={visibleCols.length} className="text-center py-10 text-slate-500">
-                    <Loader2 className="h-5 w-5 animate-spin inline-block mr-2" /> Carregando empresas...
+                  <TableCell
+                    colSpan={visibleCols.length}
+                    className="text-center py-10 text-slate-500"
+                  >
+                    <Loader2 className="h-5 w-5 animate-spin inline-block mr-2" /> Carregando
+                    empresas...
                   </TableCell>
                 </TableRow>
               ) : sortedCompanies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={visibleCols.length} className="text-center py-10 text-slate-500">
+                  <TableCell
+                    colSpan={visibleCols.length}
+                    className="text-center py-10 text-slate-500"
+                  >
                     Nenhuma empresa cadastrada. Clique em <b>Nova Empresa</b> para começar.
                   </TableCell>
                 </TableRow>
@@ -731,14 +970,21 @@ function Companies() {
                 pagedCompanies.map((company) => (
                   <TableRow key={company.id} className="border-slate-100 hover:bg-slate-50">
                     {visibleCols.map((c) => (
-                      <TableCell key={c.key} className={c.className}>{c.render(company)}</TableCell>
+                      <TableCell key={c.key} className={c.className}>
+                        {c.render(company)}
+                      </TableCell>
                     ))}
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-          <TablePagination page={page} pageSize={pageSize} total={sortedCompanies.length} onPageChange={setPage} />
+          <TablePagination
+            page={page}
+            pageSize={pageSize}
+            total={sortedCompanies.length}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
 
@@ -770,7 +1016,9 @@ function Companies() {
                   <Field
                     label="Logradouro"
                     value={
-                      [selectedCompany.logradouro, selectedCompany.numero].filter(Boolean).join(", ") || null
+                      [selectedCompany.logradouro, selectedCompany.numero]
+                        .filter(Boolean)
+                        .join(", ") || null
                     }
                   />
                   <Field label="Complemento" value={selectedCompany.complemento} />
@@ -788,10 +1036,14 @@ function Companies() {
                           {c.main ? (
                             <Badge className="bg-blue-600 whitespace-nowrap">Principal</Badge>
                           ) : (
-                            <Badge variant="outline" className="text-slate-500 whitespace-nowrap">Secundário</Badge>
+                            <Badge variant="outline" className="text-slate-500 whitespace-nowrap">
+                              Secundário
+                            </Badge>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-mono font-medium text-slate-700">{c.code}</div>
+                            <div className="text-sm font-mono font-medium text-slate-700">
+                              {c.code}
+                            </div>
                             <div className="text-sm text-slate-600 break-words">{c.text}</div>
                           </div>
                         </div>
@@ -828,19 +1080,17 @@ function Companies() {
                   </div>
                 ) : deleteCheck && deleteCheck.count > 0 ? (
                   <>
-                    <p className="text-red-600 font-medium">
-                      Não é possível excluir esta empresa.
-                    </p>
+                    <p className="text-red-600 font-medium">Não é possível excluir esta empresa.</p>
                     <p>
                       A empresa <b>{deleteTarget?.razao_social}</b> possui{" "}
-                      <b>{deleteCheck.count}</b> documento(s) fiscal(is) vinculado(s).
-                      Apenas empresas sem movimentação podem ser excluídas.
+                      <b>{deleteCheck.count}</b> documento(s) fiscal(is) vinculado(s). Apenas
+                      empresas sem movimentação podem ser excluídas.
                     </p>
                   </>
                 ) : (
                   <p>
-                    Confirma a exclusão da empresa <b>{deleteTarget?.razao_social}</b>?
-                    Esta ação não pode ser desfeita.
+                    Confirma a exclusão da empresa <b>{deleteTarget?.razao_social}</b>? Esta ação
+                    não pode ser desfeita.
                   </p>
                 )}
               </div>
@@ -858,9 +1108,13 @@ function Companies() {
                 }}
               >
                 {deleteMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Excluindo...</>
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Excluindo...
+                  </>
                 ) : (
-                  <><Trash2 className="h-4 w-4 mr-2" /> Excluir</>
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                  </>
                 )}
               </AlertDialogAction>
             )}
@@ -871,7 +1125,15 @@ function Companies() {
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string | null | undefined; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string | null | undefined;
+  mono?: boolean;
+}) {
   return (
     <div className="space-y-1">
       <Label className="text-slate-500">{label}</Label>

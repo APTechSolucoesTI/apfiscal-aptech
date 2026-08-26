@@ -1,13 +1,34 @@
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { TotvsRmWriterService, type RmDocument, type RmItem } from "./totvs-rm-writer.service";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
 import { TotvsScopeService } from "./totvs-scope.service";
+
+type RelatedCode = { codigo?: string | null } | null;
+function setting(key: string, suffix: string, fallback: string) {
+  return (
+    process.env[`TOTVS_CONNECTION_${key}_${suffix}`]?.trim() ||
+    process.env[`TOTVS_${suffix}`]?.trim() ||
+    fallback
+  );
+}
+
+function positiveIntegerSetting(key: string, suffix: string, fallback: number) {
+  const value = Number(setting(key, suffix, String(fallback)));
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(
+      `A configuração TOTVS_CONNECTION_${key}_${suffix} deve ser um número inteiro positivo.`,
+    );
+  }
+  return value;
+}
 
 @Injectable()
 export class TotvsIntegrationService {
   constructor(
     private readonly sqlServer: TotvsSqlServerService,
     private readonly scopes: TotvsScopeService,
+    private readonly writer: TotvsRmWriterService,
   ) {}
 
   async execute(runId: string) {
@@ -32,13 +53,15 @@ export class TotvsIntegrationService {
         supabaseAdmin
           .from("fiscal_documents")
           .select(
-            "*, companies(id, organization_id), suppliers:supplier_id(id, erp_system, erp_code, erp_external_id)",
+            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, erp_system, erp_code, erp_external_id)",
           )
           .eq("id", run.data.fiscal_document_id)
           .single(),
         supabaseAdmin
           .from("fiscal_document_items")
-          .select("*, produtos(id, codigo_interno, erp_code)")
+          .select(
+            "*, produtos(id, codigo_interno, erp_code), locais_estoque:local_estoque_id(codigo)",
+          )
           .eq("document_id", run.data.fiscal_document_id)
           .order("numero_item"),
         supabaseAdmin
@@ -55,57 +78,147 @@ export class TotvsIntegrationService {
       if (headerAllocations.error) throw headerAllocations.error;
       if (itemAllocations.error) throw itemAllocations.error;
       if (document.data.status !== "pronta_para_integracao")
-        throw new Error("A NF-e precisa estar pronta para integração antes de entrar no TOTVS RM.");
-      const resolvedScope = await this.scopes.company(
-        run.data.organization_id,
-        run.data.company_id,
-      );
-      const scope = {
-        ...resolvedScope,
-        connectionKey: run.data.connection_key ?? resolvedScope.connectionKey,
-      };
-      if (!document.data.suppliers?.erp_code)
-        throw new Error("O fornecedor não possui código CODCFO do TOTVS RM.");
-      const unlinkedItems = (items.data ?? []).filter(
-        (item) => !item.product_id || !item.produtos?.erp_code,
-      );
-      if (unlinkedItems.length > 0)
         throw new Error(
-          `${unlinkedItems.length} item(ns) não possuem produto/código TOTVS vinculado.`,
+          "O documento fiscal precisa estar pronto para integração antes de entrar no TOTVS RM.",
         );
 
+      const resolved = await this.scopes.company(run.data.organization_id, run.data.company_id);
+      const scope = {
+        ...resolved,
+        connectionKey: run.data.connection_key ?? resolved.connectionKey,
+      };
+      const isNfse = document.data.tipo === "nfse";
+      const unlinked = (items.data ?? []).filter(
+        (item) => !item.product_id || !item.produtos?.erp_code,
+      );
+      if (!isNfse && unlinked.length)
+        throw new Error(`${unlinked.length} item(ns) não possuem produto/código TOTVS vinculado.`);
+
+      const headerCostCenter = (headerAllocations.data ?? [])[0]?.centros_custo as RelatedCode;
+      const itemCostCenters = new Map(
+        (itemAllocations.data ?? []).map((allocation) => [
+          allocation.item_id,
+          (allocation.centros_custo as RelatedCode)?.codigo ?? null,
+        ]),
+      );
+      const rmItems: RmItem[] = isNfse
+        ? [
+            {
+              numero_item: 1,
+              codigo: document.data.service_code_municipal ?? document.data.numero,
+              productErpCode: setting(scope.connectionKey, "NFSE_PRODUCT_CODE", "001.01.01.000001"),
+              unidade_comercial: "SV",
+              quantidade_comercial: 1,
+              valor_unitario_comercial:
+                document.data.service_gross_value ?? document.data.valor_total,
+              valor_bruto: document.data.service_gross_value ?? document.data.valor_total,
+              valor_desconto: document.data.unconditional_discount_value,
+              valor_frete: 0,
+              valor_seguro: 0,
+              valor_outros: 0,
+              valor_total: document.data.service_net_value ?? document.data.valor_total,
+              localEstoqueCode: null,
+              costCenterCode: headerCostCenter?.codigo ?? null,
+              taxes: {
+                ISS: {
+                  vBC: document.data.iss_base_value,
+                  pISSQN: document.data.iss_rate,
+                  vISSQN: document.data.iss_value,
+                },
+              },
+            },
+          ]
+        : (items.data ?? []).map((item) => ({
+            numero_item: item.numero_item,
+            codigo: item.codigo,
+            productErpCode: item.produtos!.erp_code!,
+            unidade_comercial: item.unidade_comercial,
+            quantidade_comercial: item.quantidade_comercial,
+            valor_unitario_comercial: item.valor_unitario_comercial,
+            valor_bruto: item.valor_bruto,
+            valor_desconto: item.valor_desconto,
+            valor_frete: item.valor_frete,
+            valor_seguro: item.valor_seguro,
+            valor_outros: item.valor_outros,
+            valor_total: item.valor_total,
+            localEstoqueCode: (item.locais_estoque as RelatedCode)?.codigo ?? null,
+            costCenterCode: itemCostCenters.get(item.id) ?? headerCostCenter?.codigo ?? null,
+            taxes: item.impostos,
+          }));
+
       const payload = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         connectionKey: scope.connectionKey,
         structureMode: scope.mode,
         coligada: scope.codColigada,
         filial: scope.codFilial,
         accessKey: document.data.chave_acesso,
-        supplierCode: document.data.suppliers.erp_code,
+        supplierCode: document.data.suppliers?.erp_code ?? null,
         document: document.data,
-        items: items.data ?? [],
+        items: rmItems,
         allocations: { header: headerAllocations.data ?? [], items: itemAllocations.data ?? [] },
-        payment: { cobranca: document.data.cobranca, pagamentos: document.data.pagamentos },
       };
       await supabaseAdmin
         .from("totvs_integration_runs")
-        .update({ request_payload: payload })
+        .update({ request_payload: payload, status: "running" })
         .eq("id", runId);
 
-      this.sqlServer.assertWritesEnabled(scope.connectionKey);
-      throw new Error(
-        "Escrita bloqueada: o SQL homologado de inclusão de movimento do seu TOTVS RM ainda não foi fornecido.",
+      const result = await this.sqlServer.writeTransaction(scope.connectionKey, (transaction) =>
+        this.writer.write(transaction, {
+          coligada: scope.codColigada,
+          filial:
+            scope.codFilial ?? positiveIntegerSetting(scope.connectionKey, "DEFAULT_FILIAL", 1),
+          supplierCode: document.data.suppliers?.erp_code ?? null,
+          supplierTaxId: document.data.emitente_cnpj ?? document.data.suppliers?.cnpj_cpf ?? "",
+          document: document.data as unknown as RmDocument,
+          items: rmItems,
+          costCenterCode: headerCostCenter?.codigo ?? null,
+          nfeCodTmv: setting(scope.connectionKey, "NFE_ENTRY_CODTMV", "1.2.11"),
+          nfseCodTmv: setting(scope.connectionKey, "NFSE_ENTRY_CODTMV", "1.2.30"),
+          user: setting(scope.connectionKey, "INTEGRATION_USER", "APFISCAL"),
+        }),
       );
+      const finishedAt = new Date().toISOString();
+      const [runUpdate, documentUpdate] = await Promise.all([
+        supabaseAdmin
+          .from("totvs_integration_runs")
+          .update({
+            status: "succeeded",
+            rm_record_id: String(result.idMov),
+            response_payload: result,
+            error_message: null,
+            finished_at: finishedAt,
+          })
+          .eq("id", runId),
+        supabaseAdmin
+          .from("fiscal_documents")
+          .update({
+            status: "integrado_totvs",
+            status_observacao: `Integrado ao TOTVS RM no movimento ${result.idMov}.`,
+            status_updated_at: finishedAt,
+          })
+          .eq("id", run.data.fiscal_document_id),
+      ]);
+      if (runUpdate.error) throw runUpdate.error;
+      if (documentUpdate.error) throw documentUpdate.error;
+      if (document.data.supplier_id && !document.data.suppliers?.erp_code && result.supplierCode) {
+        const update = await supabaseAdmin
+          .from("suppliers")
+          .update({
+            erp_system: "totvs_rm",
+            erp_code: result.supplierCode,
+            erp_synced_at: finishedAt,
+          })
+          .eq("id", document.data.supplier_id);
+        if (update.error) throw update.error;
+      }
+      return result;
     } catch (error) {
-      const errorText =
+      const message =
         error instanceof Error ? error.message : "Falha não identificada na integração TOTVS.";
       await supabaseAdmin
         .from("totvs_integration_runs")
-        .update({
-          status: "blocked",
-          finished_at: new Date().toISOString(),
-          error_message: errorText,
-        })
+        .update({ status: "failed", finished_at: new Date().toISOString(), error_message: message })
         .eq("id", runId);
       throw error;
     }

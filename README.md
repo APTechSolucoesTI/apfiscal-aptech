@@ -90,15 +90,20 @@ Use [`.env.example`](./.env.example) como lista do Compose. Os arquivos específ
 | `APFISCAL_*`                                                                       | API       | credenciais opcionais do fallback legado                                                   |
 | `REDIS_URL`                                                                        | API       | Redis interno usado pelas filas BullMQ; o Compose já aponta para `apfiscal-redis`          |
 | `TOTVS_SQL_HOST`, `TOTVS_SQL_PORT`, `TOTVS_SQL_DATABASE`                           | API       | endereço TCP e banco do TOTVS RM                                                           |
-| `TOTVS_SQL_USER`, `TOTVS_SQL_PASSWORD`                                             | API       | login SQL dedicado, preferencialmente com permissão somente `SELECT`                       |
+| `TOTVS_SQL_USER`, `TOTVS_SQL_PASSWORD`                                             | API       | login SQL dedicado; leitura usa `SELECT` e escrita deve usar o menor privilégio necessário |
 | `TOTVS_SQL_ENCRYPT`, `TOTVS_SQL_TRUST_SERVER_CERTIFICATE`                          | API       | TLS do SQL Server; aceite certificado não confiável apenas em rede controlada              |
 | `TOTVS_COLIGADAS`                                                                  | API       | allowlist numérica, por padrão `1,2`                                                       |
-| `TOTVS_WRITES_ENABLED`                                                             | API       | mantenha `false`; escrita exige SQL real homologado e versionado                           |
+| `TOTVS_WRITES_ENABLED`                                                             | API       | trava global legada; mantenha `false` em produção                                          |
 | `NFE_RECONCILIATION_BATCH_SIZE`                                                    | API       | resumos antigos revisados por ciclo; máximo seguro `10` para evitar rajadas contra a SEFAZ |
 | `TOTVS_CONNECTION_KEYS`                                                            | API       | chaves das conexões disponíveis, separadas por vírgula; a conexão atual é `TOTVS_GRANJA`   |
 | `TOTVS_DEFAULT_CONNECTION_KEY`                                                     | API       | conexão usada para compatibilidade com as variáveis legadas; use `TOTVS_GRANJA`            |
 | `TOTVS_CONNECTION_<CHAVE>_DESCRIPTION`                                             | API       | identificação legível do banco, sem armazenar credenciais no banco APFiscal                |
 | `TOTVS_CONNECTION_<CHAVE>_*`                                                       | API       | host, porta, database, usuário, senha, TLS, coligadas e trava de escrita de cada banco     |
+| `TOTVS_CONNECTION_<CHAVE>_DEFAULT_FILIAL`                                          | API       | filial usada quando o vínculo da empresa está no modo coligada                             |
+| `TOTVS_CONNECTION_<CHAVE>_NFE_ENTRY_CODTMV`                                        | API       | tipo de movimento de entrada de NF-e homologado no RM                                      |
+| `TOTVS_CONNECTION_<CHAVE>_NFSE_ENTRY_CODTMV`                                       | API       | tipo de movimento de entrada de NFS-e homologado no RM                                     |
+| `TOTVS_CONNECTION_<CHAVE>_NFSE_PRODUCT_CODE`                                       | API       | produto de serviço existente no RM usado pela NFS-e tomada                                 |
+| `TOTVS_CONNECTION_<CHAVE>_INTEGRATION_USER`                                        | API       | usuário de auditoria gravado nos registros criados                                         |
 | `SUPERADMIN_EMAIL`, `SUPERADMIN_INITIAL_PASSWORD`                                  | API       | bootstrap único do Super Admin; remova a senha do ambiente depois da primeira criação      |
 | `NFSE_ADN_BASE_URL`                                                                | API       | endpoint oficial da ADN NFS-e; o exemplo já contém a URL de produção                       |
 | `NFSE_ADN_MIN_INTERVAL_MINUTES`                                                    | API       | intervalo mínimo de proteção entre consultas ADN; mantenha pelo menos `15`                 |
@@ -127,11 +132,13 @@ Cada sincronização reconcilia documentos novos e conhecidos. XML completo já 
 
 A integração usa SQL Server direto com `mssql` e três filas BullMQ: `totvs-sync` para leitura RM → APFiscal, `nfe-sync` para consultas fiscais recorrentes e `totvs-integration` para NF-e → RM. O Compose inclui um Redis privado e persistente. Horários do RM, recorrência NF-e por empresa, janela incremental, vínculos de coligadas, checkpoints e logs ficam em **Configurações → Sincronizações**.
 
-As consultas de leitura foram transcritas dos dois serviços PHP legados e cobrem representantes, categorias, fornecedores, três tipos de endereço, países, estados, municípios, contatos, transportadoras, centros de custo, condições de pagamento, defaults do fornecedor, produtos (`TPRODUTO` + `TPRODUTODEF`) e plano financeiro (`FTB1`). Somente locais de estoque continuam marcados como aguardando confirmação de schema. Não há SQL inventado.
+As consultas de leitura foram transcritas dos dois serviços PHP legados e cobrem representantes, categorias, fornecedores, três tipos de endereço, países, estados, municípios, contatos, transportadoras, centros de custo, condições de pagamento, defaults do fornecedor, produtos (`TPRODUTO` + `TPRODUTODEF`), locais de estoque (`TLOC`) e plano financeiro (`FTB1`). Registros globais da coligada `0` são combinados com os específicos da coligada/filial sem eliminar variações válidas.
 
-`TOTVS_WRITES_ENABLED=false` é o padrão e a API possui uma segunda guarda central contra mutações. O payload de integração da NF-e já reúne cabeçalho, fornecedor, itens/produtos, rateios de centro de custo, cobrança e pagamentos, mas nenhuma nota recebe `integrado_totvs` até existir SQL de movimento homologado e uma transação real retornar sucesso. A antiga confirmação manual está bloqueada.
+As entradas NF-e e NFS-e são gravadas em uma transação SQL Server serializável. A integração identifica duplicidade por chave, número/série e fornecedor, resolve o fornecedor global em `FCFO`, valida produtos e cria o movimento a partir de um movimento-modelo do mesmo `CODTMV`. O fluxo preenche `TMOV`, complementos, itens, dados fiscais, tributos, rateios, parcelas financeiras e o vínculo produto-fornecedor em `TPRDCFOCOLAB`. O documento só recebe `integrado_totvs` depois do commit e cada tentativa fica auditada em `totvs_integration_runs`.
 
-Para liberar leitura, crie no SQL Server um usuário dedicado com acesso apenas `SELECT` às tabelas consultadas, configure as variáveis `TOTVS_SQL_*`, faça o deploy e use **Testar SELECT 1**. Não habilite escrita ao mesmo usuário.
+A escrita possui duas travas: a conexão precisa ter `TOTVS_CONNECTION_<CHAVE>_WRITES_ENABLED=true` e o database confirmado pela própria sessão SQL deve ser exatamente `CorporeRM_Teste`. A trava do database não pode ser desabilitada por ambiente. Assim, mantenha a conexão principal `TOTVS_GRANJA` com escrita `false` e libere somente `TOTVS_GRANJA_HOMOLOG` após backup e conferência dos tipos de movimento.
+
+Para leitura, use um login SQL dedicado com `SELECT`. Para homologação de escrita, prefira outro login com somente `SELECT`, `INSERT` e `UPDATE` nas tabelas RM necessárias e no gerador `GAUTOINC`; não conceda `DELETE`, `ALTER`, `CONTROL` ou acesso a outros databases. Cadastros mestres de fornecedor e produto não são inventados automaticamente: eles precisam existir no RM; a APFiscal atualiza o código ERP local e o vínculo fornecedor-produto quando a nota é integrada.
 
 ### Múltiplos bancos TOTVS
 
@@ -157,11 +164,13 @@ Os planos são administrados por conta/organização, não por usuário. Em `/ad
 
 1. Faça backup do PostgreSQL e mantenha disponível a imagem/tag anterior.
 2. Aplique as novas migrations em ordem, sem editar migrations já executadas e sem usar `db reset`.
-3. Cadastre no ambiente da API o bloco `TOTVS_GRANJA`, as variáveis NFS-e e, apenas no primeiro start, a senha inicial do Super Admin.
-4. Faça build e redeploy de API e web pelo Compose. Não publique a API diretamente.
-5. Confirme `/health/ready`, entre no painel Super Admin, teste `TOTVS_GRANJA` e revise os vínculos empresa/coligada.
-6. Execute uma sincronização TOTVS manual e uma NF-e/NFS-e manual antes de habilitar as recorrências.
-7. Remova `SUPERADMIN_INITIAL_PASSWORD` e faça novo redeploy da API.
+3. Cadastre no ambiente da API os blocos `TOTVS_GRANJA` e `TOTVS_GRANJA_HOMOLOG`, as variáveis NFS-e e, apenas no primeiro start, a senha inicial do Super Admin.
+4. Confirme que `TOTVS_CONNECTION_TOTVS_GRANJA_WRITES_ENABLED=false`, que a conexão `_HOMOLOG` aponta exatamente para `CorporeRM_Teste` e só então defina `TOTVS_CONNECTION_TOTVS_GRANJA_HOMOLOG_WRITES_ENABLED=true`.
+5. Confira `DEFAULT_FILIAL`, `NFE_ENTRY_CODTMV`, `NFSE_ENTRY_CODTMV`, `NFSE_PRODUCT_CODE` e `INTEGRATION_USER` para cada conexão antes do primeiro movimento.
+6. Faça build e redeploy de API e web pelo Compose. Não publique a API diretamente.
+7. Confirme `/health/ready`, entre no painel Super Admin, teste as duas conexões e revise os vínculos empresa/coligada/filial.
+8. Com a organização em modo homologação, integre uma NF-e e uma NFS-e e confira movimento, itens, impostos, rateios e financeiro no RM antes de habilitar as recorrências.
+9. Remova `SUPERADMIN_INITIAL_PASSWORD` e faça novo redeploy da API.
 
 ## Operação e rollback
 

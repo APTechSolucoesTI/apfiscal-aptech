@@ -1,6 +1,6 @@
 import { podeVincularProduto, motivoBloqueioVinculo } from "./nfe-status";
 
-/** Garante que a NF-e permite alterar vínculos de itens (aprovada / pronta p/ integração). */
+/** Garante que a NF-e já foi aprovada; vínculos podem ser mantidos após a integração. */
 export async function assertVinculoPermitidoPorDocumento(supabase: any, documentId: string) {
   const { data: doc } = await supabase
     .from("fiscal_documents")

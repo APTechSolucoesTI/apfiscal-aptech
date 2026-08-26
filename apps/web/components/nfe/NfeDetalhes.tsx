@@ -9,7 +9,6 @@ import {
   Mail,
   XCircle,
   Clock,
-  ChevronRight,
   Truck,
   CreditCard,
   Info,
@@ -625,8 +624,11 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                               <td className="px-4 py-4 text-right font-bold">
                                 {fmt(item.valor_bruto)}
                               </td>
-                              <td className="px-4 py-4 text-right">
-                                {pendente ? (
+                              <td
+                                className="px-4 py-4 text-right"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <div className="inline-flex items-center gap-1">
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -642,10 +644,10 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                       setLinkItemId(item.id);
                                     }}
                                   >
-                                    <Link2 className="h-3.5 w-3.5 mr-1" /> Vincular
+                                    <Link2 className="h-3.5 w-3.5 mr-1" />
+                                    {pendente ? "Vincular" : "Revisar vínculo"}
                                   </Button>
-                                ) : (
-                                  <div className="inline-flex items-center gap-1">
+                                  {!pendente && (
                                     <Button
                                       size="sm"
                                       variant="ghost"
@@ -669,9 +671,8 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                     >
                                       <Unlink className="h-3.5 w-3.5 mr-1" /> Desvincular
                                     </Button>
-                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                  </div>
-                                )}
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );

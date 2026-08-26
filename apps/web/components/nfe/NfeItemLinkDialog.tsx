@@ -95,7 +95,7 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
       unidade: (ctx.item as any).unidade_comercial ?? "UN",
       ncm: String((ctx.item as any).ncm ?? "").replace(/\D/g, "").slice(0, 8),
     }));
-    setSelectedProductId(null);
+    setSelectedProductId((ctx.item as any).product_id ?? null);
     setTab("existing");
     setSearch("");
   }, [ctx?.item, companyId]);
@@ -206,7 +206,9 @@ export function NfeItemLinkDialog({ itemId, open, onOpenChange, onLinked }: Prop
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs uppercase font-semibold text-amber-800">Item da NF-e (referência)</span>
-                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">Pendente de Vínculo</Badge>
+                  <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                    {(item as any)?.status_vinculo === "vinculado" ? "Vinculado — revisar fornecedor" : "Pendente de vínculo"}
+                  </Badge>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                   <div className="col-span-2">

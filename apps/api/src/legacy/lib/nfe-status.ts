@@ -52,12 +52,11 @@ export function nfeBloqueada(status?: string | null) {
   return status === "integrado_totvs";
 }
 
-/** Vínculo/desvínculo de produto só após a aprovação e antes da integração */
+/** Vínculos de produto/fornecedor podem ser revisados mesmo após a integração no RM. */
 export function podeVincularProduto(status?: string | null) {
-  return status === "aprovada" || status === "pronta_para_integracao";
+  return status === "aprovada" || status === "pronta_para_integracao" || status === "integrado_totvs";
 }
 
-export function motivoBloqueioVinculo(status?: string | null) {
-  if (nfeBloqueada(status)) return "NF-e já integrada na TOTVS: não é permitido alterar os vínculos dos itens.";
+export function motivoBloqueioVinculo(_status?: string | null) {
   return "Esta NF-e está pendente de confirmação. Aprove a NF-e antes de vincular produtos aos itens.";
 }

@@ -9,9 +9,20 @@ import {
   nfeDistributionMetadata,
   wouldDowngradeCompleteDocument,
 } from "./fiscal-document-reconciliation";
-import { MANIFESTATION_EVENT, manifestationAccepted, type ManifestationKind } from "./nfe-lifecycle";
+import {
+  MANIFESTATION_EVENT,
+  manifestationAccepted,
+  type ManifestationKind,
+} from "./nfe-lifecycle";
 
 type DistributedDocument = DistributionResult["documents"][number];
+
+function batches<T>(values: T[], size = 50): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size)
+    result.push(values.slice(index, index + size));
+  return result;
+}
 
 type IntegrationDocument = {
   id: string;
@@ -109,24 +120,32 @@ export class FiscalDocumentReconciliationService {
 
   private async existingIntegrationDocuments(companyId: string, keys: string[]) {
     if (keys.length === 0) return new Map<string, IntegrationDocument>();
-    const result = await supabaseAdmin
-      .from("documentos_fiscais_integracao")
-      .select("id, nsu, chave, status, xml_completo_path, tentativas_xml_completo")
-      .eq("company_id", companyId)
-      .in("chave", keys);
-    if (result.error) throw result.error;
-    return new Map((result.data as IntegrationDocument[]).map((row) => [row.chave, row]));
+    const rows: IntegrationDocument[] = [];
+    for (const keyBatch of batches(keys)) {
+      const result = await supabaseAdmin
+        .from("documentos_fiscais_integracao")
+        .select("id, nsu, chave, status, xml_completo_path, tentativas_xml_completo")
+        .eq("company_id", companyId)
+        .in("chave", keyBatch);
+      if (result.error) throw result.error;
+      rows.push(...(result.data as IntegrationDocument[]));
+    }
+    return new Map(rows.map((row) => [row.chave, row]));
   }
 
   private async canonicalKeys(companyId: string, keys: string[]): Promise<Set<string>> {
     if (keys.length === 0) return new Set();
-    const result = await supabaseAdmin
-      .from("fiscal_documents")
-      .select("chave_acesso")
-      .eq("company_id", companyId)
-      .in("chave_acesso", keys);
-    if (result.error) throw result.error;
-    return new Set((result.data ?? []).map((row) => String(row.chave_acesso)));
+    const found = new Set<string>();
+    for (const keyBatch of batches(keys)) {
+      const result = await supabaseAdmin
+        .from("fiscal_documents")
+        .select("chave_acesso")
+        .eq("company_id", companyId)
+        .in("chave_acesso", keyBatch);
+      if (result.error) throw result.error;
+      for (const row of result.data ?? []) found.add(String(row.chave_acesso));
+    }
+    return found;
   }
 
   private async importFullXml(input: {
@@ -356,9 +375,10 @@ export class FiscalDocumentReconciliationService {
       : await supabaseAdmin.from("manifestations").insert(eventData);
     if (persisted.error) throw persisted.error;
     if (!summaryRow.xml_completo_path) {
-      const status = accepted && ["ciencia", "confirmacao"].includes(kind)
-        ? "aguardando_xml_completo"
-        : "resumida";
+      const status =
+        accepted && ["ciencia", "confirmacao"].includes(kind)
+          ? "aguardando_xml_completo"
+          : "resumida";
       const updated = await supabaseAdmin
         .from("documentos_fiscais_integracao")
         .update({

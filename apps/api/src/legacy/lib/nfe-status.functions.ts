@@ -124,25 +124,27 @@ export async function reavaliarApontamentos(
         (itensSemTipo ?? 0) === 0 &&
         (itensSemProduto ?? 0) === 0;
   const alvo: NfeStatus = completo ? "pronta_para_integracao" : "aprovada";
+  const observacao = completo
+    ? doc.tipo === "nfse"
+      ? "Apontamentos obrigatórios concluídos (Plano de Contas e Centro de Custo)"
+      : "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
+    : (itensSemProduto ?? 0) > 0 &&
+        !!doc.plano_contas_id &&
+        !!doc.local_estoque_id &&
+        (count ?? 0) > 0 &&
+        (itensSemTipo ?? 0) === 0
+      ? `A única pendência é vincular ${itensSemProduto} produto(s) ao fornecedor.`
+      : (itensSemTipo ?? 0) > 0
+        ? `Existem ${itensSemTipo} item(ns) sem Tipo de Compra apontado.`
+        : "Apontamentos obrigatórios incompletos";
   if (alvo !== doc.status) {
-    await updateStatus(
-      context,
-      documentId,
-      alvo,
-      completo
-        ? doc.tipo === "nfse"
-          ? "Apontamentos obrigatórios concluídos (Plano de Contas e Centro de Custo)"
-          : "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
-        : (itensSemProduto ?? 0) > 0 &&
-            !!doc.plano_contas_id &&
-            !!doc.local_estoque_id &&
-            (count ?? 0) > 0 &&
-            (itensSemTipo ?? 0) === 0
-          ? `A única pendência é vincular ${itensSemProduto} produto(s) ao fornecedor.`
-          : (itensSemTipo ?? 0) > 0
-            ? `Existem ${itensSemTipo} item(ns) sem Tipo de Compra apontado.`
-            : "Apontamentos obrigatórios incompletos",
-    );
+    await updateStatus(context, documentId, alvo, observacao);
+  } else {
+    const { error } = await context.supabase
+      .from("fiscal_documents")
+      .update({ status_observacao: observacao, status_updated_at: new Date().toISOString() })
+      .eq("id", documentId);
+    if (error) throw new Error(error.message);
   }
 
   return alvo;

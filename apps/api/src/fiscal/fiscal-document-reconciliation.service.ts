@@ -168,7 +168,7 @@ export class FiscalDocumentReconciliationService {
         : Promise.resolve({ data: [], error: null }),
       supabaseAdmin
         .from("fiscal_document_items")
-        .select("id, document_id, numero_item, valor_total")
+        .select("id, document_id, numero_item, valor_bruto")
         .in("document_id", documentIds),
     ]);
     if (plans.error) throw plans.error;
@@ -225,7 +225,7 @@ export class FiscalDocumentReconciliationService {
         );
         if (!actualItemRates.length) continue;
         const itemRateTotal = actualItemRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
-        if (itemRateTotal > Number(localItem.valor_total ?? 0) + 0.01)
+        if (itemRateTotal > Number(localItem.valor_bruto ?? 0) + 0.005)
           continue;
         const reconciledRates = actualItemRates.flatMap((rate) => {
           const costCenterId = costCenterByCode.get(rate.CODCCUSTO);

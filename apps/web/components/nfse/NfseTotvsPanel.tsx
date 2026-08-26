@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Save, Send, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Loader2, Save, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { NfeAprovacaoDialog } from "@/components/nfe/NfeAprovacaoDialog";
+import { NfeCobrancaEditor } from "@/components/nfe/NfeCobrancaEditor";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import {
   reavaliarStatusApontamentos,
   setAlocacoesCabecalho,
   setPlanoContasCabecalho,
+  sugerirApontamentosFinanceiros,
 } from "@/lib/client-actions";
 import type { NfseDetail, TotvsRunSummary } from "@/services/fiscalDocumentsService";
 
@@ -47,6 +49,7 @@ export function NfseTotvsPanel({
   const setPlan = useServerFn(setPlanoContasCabecalho);
   const setAllocation = useServerFn(setAlocacoesCabecalho);
   const reevaluate = useServerFn(reavaliarStatusApontamentos);
+  const suggest = useServerFn(sugerirApontamentosFinanceiros);
 
   const plans = useQuery({
     queryKey: ["plano-contas-lanc", document.company_id],
@@ -110,6 +113,17 @@ export function NfseTotvsPanel({
       toast.success("NFS-e enviada para a fila de integração TOTVS.");
       refresh();
       window.setTimeout(refresh, 1800);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const suggestion = useMutation({
+    mutationFn: () => suggest({ data: { documentId: document.id } }),
+    onSuccess: (result: { sourceDocumentNumber: string }) => {
+      toast.success(
+        `Sugestão aplicada com base na NFS-e ${result.sourceDocumentNumber}. Revise antes de integrar.`,
+      );
+      refresh();
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -186,6 +200,27 @@ export function NfseTotvsPanel({
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
+            {editable && !integrated && (
+              <NfeCobrancaEditor
+                documentId={document.id}
+                total={Number(document.valor_total ?? 0)}
+                disabled={false}
+              />
+            )}
+            {editable && !integrated && (
+              <Button
+                variant="outline"
+                onClick={() => suggestion.mutate()}
+                disabled={suggestion.isPending}
+              >
+                {suggestion.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                Sugerir apontamentos
+              </Button>
+            )}
             {editable && !integrated && (
               <Button
                 variant="outline"

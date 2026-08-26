@@ -220,6 +220,12 @@ export class FiscalDocumentReconciliationService {
       for (const rmItem of rmItems.filter((item) => item.IDMOV === movement.IDMOV)) {
         const localItem = documentItems.find((item) => item.numero_item === rmItem.NSEQITMMOV);
         if (!localItem) continue;
+        const actualItemRates = rmItemRates.filter(
+          (rate) => rate.IDMOV === movement.IDMOV && rate.NSEQITMMOV === rmItem.NSEQITMMOV,
+        );
+        const itemRateTotal = actualItemRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
+        if (actualItemRates.length && itemRateTotal > Number(localItem.valor_total ?? 0) + 0.01)
+          continue;
         const itemUpdated = await supabaseAdmin
           .from("fiscal_document_items")
           .update({
@@ -227,12 +233,7 @@ export class FiscalDocumentReconciliationService {
           })
           .eq("id", localItem.id);
         if (itemUpdated.error) throw itemUpdated.error;
-        const actualItemRates = rmItemRates.filter(
-          (rate) => rate.IDMOV === movement.IDMOV && rate.NSEQITMMOV === rmItem.NSEQITMMOV,
-        );
-        const itemRateTotal = actualItemRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
-        if (!actualItemRates.length || itemRateTotal > Number(localItem.valor_total ?? 0) + 0.01)
-          continue;
+        if (!actualItemRates.length) continue;
         const removed = await supabaseAdmin
           .from("nfe_item_centro_custo")
           .delete()
@@ -254,6 +255,133 @@ export class FiscalDocumentReconciliationService {
         );
         if (inserted.error) throw inserted.error;
       }
+    }
+  }
+
+  private async reconcileTotvsNfse(organizationId: string, companyId: string) {
+    const scope = await this.scopes.company(organizationId, companyId);
+    const documents = await supabaseAdmin
+      .from("fiscal_documents")
+      .select("id, numero, serie, valor_total, emitente_cnpj, suppliers:supplier_id(cnpj_cpf)")
+      .eq("company_id", companyId)
+      .eq("tipo", "nfse")
+      .limit(1000);
+    if (documents.error) throw documents.error;
+    const candidates = (documents.data ?? []).flatMap((document) => {
+      const number = String(document.numero ?? "").replace(/\D/g, "");
+      const supplier = String(
+        document.emitente_cnpj ??
+          (document.suppliers as { cnpj_cpf?: string } | null)?.cnpj_cpf ??
+          "",
+      ).replace(/\D/g, "");
+      return number && supplier ? [{ ...document, number, supplier }] : [];
+    });
+    if (!candidates.length) return;
+    const key = scope.connectionKey;
+    const codTmv =
+      process.env[`TOTVS_CONNECTION_${key}_NFSE_ENTRY_CODTMV`]?.trim() ||
+      process.env.TOTVS_NFSE_ENTRY_CODTMV?.trim() ||
+      "1.2.30";
+    type Movement = {
+      IDMOV: number;
+      NUMEROMOV: string;
+      TAXID: string;
+      CODTB1FLX: string | null;
+      VALORLIQUIDO: number;
+    };
+    const movements: Movement[] = [];
+    for (const batch of batches(candidates, 50)) {
+      const pairs = batch
+        .map(
+          (document) =>
+            `(TRY_CONVERT(bigint,mov.NUMEROMOV)=${Number(document.number)} AND REPLACE(REPLACE(REPLACE(cfo.CGCCFO,'.',''),'/',''),'-','')='${document.supplier}')`,
+        )
+        .join(" OR ");
+      movements.push(
+        ...(await this.sqlServer.queryReadOnly<Movement>(
+          `SELECT mov.IDMOV,mov.NUMEROMOV,REPLACE(REPLACE(REPLACE(cfo.CGCCFO,'.',''),'/',''),'-','') TAXID,mov.CODTB1FLX,mov.VALORLIQUIDO
+           FROM dbo.TMOV mov JOIN dbo.FCFO cfo ON cfo.CODCOLIGADA=mov.CODCOLCFO AND cfo.CODCFO=mov.CODCFO
+           WHERE mov.CODCOLIGADA=${scope.codColigada}${scope.codFilial ? ` AND mov.CODFILIAL=${scope.codFilial}` : ""} AND mov.CODTMV='${codTmv.replaceAll("'", "''")}' AND (${pairs})`,
+          {},
+          key,
+        )),
+      );
+    }
+    if (!movements.length) return;
+    const ids = movements.map((movement) => movement.IDMOV).join(",");
+    const rates = await this.sqlServer.queryReadOnly<{
+      IDMOV: number;
+      CODCCUSTO: string;
+      VALOR: number;
+    }>(
+      `SELECT IDMOV,CODCCUSTO,VALOR FROM dbo.TMOVRATCCU WHERE CODCOLIGADA=${scope.codColigada} AND IDMOV IN (${ids})`,
+      {},
+      key,
+    );
+    const planCodes = [
+      ...new Set(movements.map((movement) => movement.CODTB1FLX).filter(Boolean)),
+    ] as string[];
+    const costCodes = [...new Set(rates.map((rate) => rate.CODCCUSTO))];
+    const [plans, costCenters] = await Promise.all([
+      planCodes.length
+        ? supabaseAdmin
+            .from("plano_contas")
+            .select("id, codigo")
+            .eq("organization_id", organizationId)
+            .in("codigo", planCodes)
+        : Promise.resolve({ data: [], error: null }),
+      costCodes.length
+        ? supabaseAdmin
+            .from("centros_custo")
+            .select("id, codigo")
+            .eq("organization_id", organizationId)
+            .in("codigo", costCodes)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (plans.error) throw plans.error;
+    if (costCenters.error) throw costCenters.error;
+    const planByCode = new Map((plans.data ?? []).map((row) => [row.codigo, row.id] as const));
+    const costByCode = new Map(
+      (costCenters.data ?? []).map((row) => [row.codigo, row.id] as const),
+    );
+    const now = new Date().toISOString();
+    for (const movement of movements) {
+      const document = candidates.find(
+        (item) =>
+          Number(item.number) === Number(movement.NUMEROMOV) && item.supplier === movement.TAXID,
+      );
+      if (!document) continue;
+      const updated = await supabaseAdmin
+        .from("fiscal_documents")
+        .update({
+          status: "integrado_totvs",
+          status_observacao: `Reconciliado com o movimento TOTVS RM ${movement.IDMOV}.`,
+          status_updated_at: now,
+          plano_contas_id: movement.CODTB1FLX ? (planByCode.get(movement.CODTB1FLX) ?? null) : null,
+        })
+        .eq("id", document.id);
+      if (updated.error) throw updated.error;
+      const actualRates = rates.filter((rate) => rate.IDMOV === movement.IDMOV);
+      const total = actualRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
+      if (
+        !actualRates.length ||
+        total > Number(document.valor_total ?? movement.VALORLIQUIDO) + 0.01
+      )
+        continue;
+      const rows = actualRates.flatMap((rate) => {
+        const centro = costByCode.get(rate.CODCCUSTO);
+        return centro
+          ? [{ document_id: document.id, centro_custo_id: centro, valor: rate.VALOR }]
+          : [];
+      });
+      if (!rows.length) continue;
+      const removed = await supabaseAdmin
+        .from("nfe_centro_custo")
+        .delete()
+        .eq("document_id", document.id);
+      if (removed.error) throw removed.error;
+      const inserted = await supabaseAdmin.from("nfe_centro_custo").insert(rows);
+      if (inserted.error) throw inserted.error;
     }
   }
 
@@ -758,6 +886,7 @@ export class FiscalDocumentReconciliationService {
     await this.promoteKnownSummaries({ ...input, counters });
     try {
       await this.reconcileTotvs(input.organizationId, input.companyId);
+      await this.reconcileTotvsNfse(input.organizationId, input.companyId);
     } catch (error) {
       counters.errors.push({ mensagem: `Reconciliação TOTVS: ${errorMessage(error)}` });
     }

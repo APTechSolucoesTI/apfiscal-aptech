@@ -110,13 +110,48 @@ export class FiscalDocumentReconciliationService {
     }
     if (!movements.length) return;
 
+    type RmRate = { IDMOV: number; CODCCUSTO: string; VALOR: number };
+    const movementIds = movements.map((row) => row.IDMOV).join(",");
+    const headerRates = await this.sqlServer.queryReadOnly<RmRate>(
+      `SELECT IDMOV,CODCCUSTO,VALOR FROM dbo.TMOVRATCCU WHERE CODCOLIGADA=${scope.codColigada} AND IDMOV IN (${movementIds})`,
+      {},
+      scope.connectionKey,
+    );
+    type RmItem = { IDMOV: number; NSEQITMMOV: number; CODTB1FLX: string | null };
+    type RmItemRate = RmRate & { NSEQITMMOV: number };
+    const [rmItems, rmItemRates] = await Promise.all([
+      this.sqlServer.queryReadOnly<RmItem>(
+        `SELECT IDMOV,NSEQITMMOV,CODTB1FLX FROM dbo.TITMMOV WHERE CODCOLIGADA=${scope.codColigada} AND IDMOV IN (${movementIds})`,
+        {},
+        scope.connectionKey,
+      ),
+      this.sqlServer.queryReadOnly<RmItemRate>(
+        `SELECT IDMOV,NSEQITMMOV,CODCCUSTO,VALOR FROM dbo.TITMMOVRATCCU WHERE CODCOLIGADA=${scope.codColigada} AND IDMOV IN (${movementIds})`,
+        {},
+        scope.connectionKey,
+      ),
+    ]);
+
     const planCodes = [
-      ...new Set(movements.map((row) => row.CODTB1FLX).filter(Boolean)),
+      ...new Set(
+        [...movements.map((row) => row.CODTB1FLX), ...rmItems.map((row) => row.CODTB1FLX)].filter(
+          Boolean,
+        ),
+      ),
     ] as string[];
     const costCenterCodes = [
-      ...new Set(movements.map((row) => row.CODCCUSTO).filter(Boolean)),
+      ...new Set(
+        [
+          ...movements.map((row) => row.CODCCUSTO),
+          ...headerRates.map((row) => row.CODCCUSTO),
+          ...rmItemRates.map((row) => row.CODCCUSTO),
+        ].filter(Boolean),
+      ),
     ] as string[];
-    const [plans, costCenters] = await Promise.all([
+    const documentIds = movements
+      .map((movement) => byKey.get(movement.CHAVEACESSONFE)?.id)
+      .filter(Boolean) as string[];
+    const [plans, costCenters, localItems] = await Promise.all([
       planCodes.length
         ? supabaseAdmin
             .from("plano_contas")
@@ -131,9 +166,14 @@ export class FiscalDocumentReconciliationService {
             .eq("organization_id", organizationId)
             .in("codigo", costCenterCodes)
         : Promise.resolve({ data: [], error: null }),
+      supabaseAdmin
+        .from("fiscal_document_items")
+        .select("id, document_id, numero_item")
+        .in("document_id", documentIds),
     ]);
     if (plans.error) throw plans.error;
     if (costCenters.error) throw costCenters.error;
+    if (localItems.error) throw localItems.error;
     const planByCode = new Map((plans.data ?? []).map((row) => [row.codigo, row.id] as const));
     const costCenterByCode = new Map(
       (costCenters.data ?? []).map((row) => [row.codigo, row.id] as const),
@@ -153,18 +193,59 @@ export class FiscalDocumentReconciliationService {
         })
         .eq("id", document.id);
       if (updated.error) throw updated.error;
-      const costCenterId = movement.CODCCUSTO ? costCenterByCode.get(movement.CODCCUSTO) : null;
-      if (costCenterId) {
+      const actualRates = headerRates.filter((rate) => rate.IDMOV === movement.IDMOV);
+      if (actualRates.length) {
         const removed = await supabaseAdmin
           .from("nfe_centro_custo")
           .delete()
           .eq("document_id", document.id);
         if (removed.error) throw removed.error;
-        const inserted = await supabaseAdmin.from("nfe_centro_custo").insert({
-          document_id: document.id,
-          centro_custo_id: costCenterId,
-          valor: Number(movement.VALORLIQUIDO ?? 0),
-        });
+        const inserted = await supabaseAdmin.from("nfe_centro_custo").insert(
+          actualRates.flatMap((rate) => {
+            const costCenterId = costCenterByCode.get(rate.CODCCUSTO);
+            return costCenterId
+              ? [{ document_id: document.id, centro_custo_id: costCenterId, valor: rate.VALOR }]
+              : [];
+          }),
+        );
+        if (inserted.error) throw inserted.error;
+      }
+      const documentItems = (localItems.data ?? []).filter(
+        (item) => item.document_id === document.id,
+      );
+      for (const rmItem of rmItems.filter((item) => item.IDMOV === movement.IDMOV)) {
+        const localItem = documentItems.find((item) => item.numero_item === rmItem.NSEQITMMOV);
+        if (!localItem) continue;
+        const itemUpdated = await supabaseAdmin
+          .from("fiscal_document_items")
+          .update({
+            plano_contas_id: rmItem.CODTB1FLX ? (planByCode.get(rmItem.CODTB1FLX) ?? null) : null,
+          })
+          .eq("id", localItem.id);
+        if (itemUpdated.error) throw itemUpdated.error;
+        const actualItemRates = rmItemRates.filter(
+          (rate) => rate.IDMOV === movement.IDMOV && rate.NSEQITMMOV === rmItem.NSEQITMMOV,
+        );
+        if (!actualItemRates.length) continue;
+        const removed = await supabaseAdmin
+          .from("nfe_item_centro_custo")
+          .delete()
+          .eq("document_item_id", localItem.id);
+        if (removed.error) throw removed.error;
+        const inserted = await supabaseAdmin.from("nfe_item_centro_custo").insert(
+          actualItemRates.flatMap((rate) => {
+            const costCenterId = costCenterByCode.get(rate.CODCCUSTO);
+            return costCenterId
+              ? [
+                  {
+                    document_item_id: localItem.id,
+                    centro_custo_id: costCenterId,
+                    valor: rate.VALOR,
+                  },
+                ]
+              : [];
+          }),
+        );
         if (inserted.error) throw inserted.error;
       }
     }

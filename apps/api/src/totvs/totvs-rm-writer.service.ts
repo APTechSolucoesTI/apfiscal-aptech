@@ -261,8 +261,6 @@ export class TotvsRmWriterService {
         NOMEFANTASIA: item.productDescription ?? item.productErpCode,
         DESCRICAO: item.productDescription ?? item.productErpCode,
         DESCRICAOAUX: item.productDescription ?? item.productErpCode,
-        CODUSUARIO: input.user,
-        USUARIOCRIACAO: input.user,
         DTCADASTRAMENTO: now,
         DATAULTALTERACAO: now,
         RECCREATEDBY: input.user,

@@ -98,17 +98,22 @@ export class TotvsIntegrationService {
         throw new Error(`${unlinked.length} item(ns) não possuem produto vinculado.`);
 
       const headerCostCenter = (headerAllocations.data ?? [])[0]?.centros_custo as RelatedCode;
-      const itemCostCenters = new Map<string, string | null>(
-        (
-          (itemAllocations.data ?? []) as Array<{
-            document_item_id: string;
-            centros_custo: RelatedCode;
-          }>
-        ).map(
-          (allocation) =>
-            [allocation.document_item_id, allocation.centros_custo?.codigo ?? null] as const,
-        ),
-      );
+      const headerRates = (headerAllocations.data ?? []).flatMap((allocation) => {
+        const code = (allocation.centros_custo as RelatedCode)?.codigo;
+        return code ? [{ costCenterCode: code, value: Number(allocation.valor) }] : [];
+      });
+      const itemRates = new Map<string, Array<{ costCenterCode: string; value: number }>>();
+      for (const allocation of (itemAllocations.data ?? []) as Array<{
+        document_item_id: string;
+        valor: number;
+        centros_custo: RelatedCode;
+      }>) {
+        const code = allocation.centros_custo?.codigo;
+        if (!code) continue;
+        const rates = itemRates.get(allocation.document_item_id) ?? [];
+        rates.push({ costCenterCode: code, value: Number(allocation.valor) });
+        itemRates.set(allocation.document_item_id, rates);
+      }
       const rmItems: RmItem[] = isNfse
         ? [
             {
@@ -129,6 +134,7 @@ export class TotvsIntegrationService {
               valor_total: document.data.service_net_value ?? document.data.valor_total,
               localEstoqueCode: null,
               costCenterCode: headerCostCenter?.codigo ?? null,
+              allocations: headerRates,
               taxes: {
                 ISS: {
                   vBC: document.data.iss_base_value,
@@ -160,7 +166,9 @@ export class TotvsIntegrationService {
             valor_outros: item.valor_outros,
             valor_total: item.valor_total,
             localEstoqueCode: (item.locais_estoque as RelatedCode)?.codigo ?? null,
-            costCenterCode: itemCostCenters.get(item.id) ?? headerCostCenter?.codigo ?? null,
+            costCenterCode:
+              itemRates.get(item.id)?.[0]?.costCenterCode ?? headerCostCenter?.codigo ?? null,
+            allocations: itemRates.get(item.id) ?? headerRates,
             taxes: item.impostos,
           }));
 
@@ -191,6 +199,7 @@ export class TotvsIntegrationService {
           document: document.data as unknown as RmDocument,
           items: rmItems,
           costCenterCode: headerCostCenter?.codigo ?? null,
+          allocations: headerRates,
           financialPlanCode: (document.data.plano_contas as RelatedCode)?.codigo ?? null,
           purchaseTypeCode: (document.data.tipos_compra as RelatedCode)?.codigo ?? null,
           integrationAt: run.data.created_at,

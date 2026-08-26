@@ -65,6 +65,7 @@ export type RmItem = {
   valor_total: number | null;
   localEstoqueCode: string | null;
   costCenterCode: string | null;
+  allocations: Array<{ costCenterCode: string; value: number }>;
   taxes: unknown;
 };
 
@@ -76,6 +77,7 @@ export type RmWriteInput = {
   document: RmDocument;
   items: RmItem[];
   costCenterCode: string | null;
+  allocations: Array<{ costCenterCode: string; value: number }>;
   financialPlanCode: string | null;
   purchaseTypeCode: string | null;
   integrationAt: string;
@@ -679,7 +681,12 @@ export class TotvsRmWriterService {
           },
         );
       }
-      if (costCenter)
+      const itemRates = item.allocations.length
+        ? item.allocations
+        : costCenter
+          ? [{ costCenterCode: costCenter, value: itemValue }]
+          : [];
+      for (const rate of itemRates)
         await this.clone(
           transaction,
           "TITMMOVRATCCU",
@@ -692,8 +699,8 @@ export class TotvsRmWriterService {
           {
             IDMOV: idMov,
             NSEQITMMOV: item.numero_item,
-            CODCCUSTO: costCenter,
-            VALOR: itemValue,
+            CODCCUSTO: rate.costCenterCode,
+            VALOR: rate.value,
             IDMOVRATCCU: nextItemRate++,
             RECCREATEDBY: input.user,
             RECCREATEDON: now,
@@ -716,24 +723,30 @@ export class TotvsRmWriterService {
         `);
     }
 
-    if (input.costCenterCode) {
-      const rateId = await this.nextTableValue(transaction, "TMOVRATCCU", "IDMOVRATCCU");
-      await this.clone(
-        transaction,
-        "TMOVRATCCU",
-        "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId",
-        { sourceColigada: input.coligada, sourceId: templateId },
-        {
-          IDMOV: idMov,
-          CODCCUSTO: input.costCenterCode,
-          VALOR: total,
-          IDMOVRATCCU: rateId,
-          RECCREATEDBY: input.user,
-          RECCREATEDON: now,
-          RECMODIFIEDBY: input.user,
-          RECMODIFIEDON: now,
-        },
-      );
+    const movementRates = input.allocations.length
+      ? input.allocations
+      : input.costCenterCode
+        ? [{ costCenterCode: input.costCenterCode, value: total }]
+        : [];
+    if (movementRates.length) {
+      let rateId = await this.nextTableValue(transaction, "TMOVRATCCU", "IDMOVRATCCU");
+      for (const rate of movementRates)
+        await this.clone(
+          transaction,
+          "TMOVRATCCU",
+          "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId",
+          { sourceColigada: input.coligada, sourceId: templateId },
+          {
+            IDMOV: idMov,
+            CODCCUSTO: rate.costCenterCode,
+            VALOR: rate.value,
+            IDMOVRATCCU: rateId++,
+            RECCREATEDBY: input.user,
+            RECCREATEDON: now,
+            RECMODIFIEDBY: input.user,
+            RECMODIFIEDON: now,
+          },
+        );
     }
 
     const schedule = installments(input.document.cobranca, total, issueDate);

@@ -272,7 +272,7 @@ export function AppSidebar() {
             ></div>
           </div>
           <p className="text-[10px] mt-2 text-slate-500 italic">
-            {integracao?.integradas ?? 0} de {integracao?.total ?? 0} NF-e integradas no TOTVS
+            {integracao?.integradas ?? 0} de {integracao?.total ?? 0} documentos fiscais integrados no TOTVS
           </p>
         </div>
 

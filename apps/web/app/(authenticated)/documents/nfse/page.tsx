@@ -75,6 +75,24 @@ const money = (value: number | null | undefined) =>
 const date = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleDateString("pt-BR") : "—";
 const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+const successfulTotvsStatuses = new Set(["completed", "success", "succeeded"]);
+
+function effectiveTotvsStatus(item: NfseListItem): string | null {
+  if (item.status === "integrado_totvs" || successfulTotvsStatuses.has(item.totvs?.status ?? ""))
+    return "succeeded";
+  return item.totvs?.status ?? null;
+}
+
+function matchesTotvsFilter(item: NfseListItem, filter: string): boolean {
+  if (filter === "all") return true;
+  if (filter === "integrated") return effectiveTotvsStatus(item) === "succeeded";
+  if (filter === "pending_confirmation") return item.status === "pendente_confirmacao";
+  if (filter === "approved") return item.status === "aprovada";
+  if (filter === "ready") return item.status === "pronta_para_integracao";
+  if (filter === "not_started")
+    return effectiveTotvsStatus(item) === null && item.status !== "integrado_totvs";
+  return effectiveTotvsStatus(item) === filter;
+}
 
 function downloadCsv(rows: Row[]) {
   const header = [
@@ -110,7 +128,7 @@ function downloadCsv(rows: Row[]) {
       row.service_net_value,
       row.iss_value,
       row.sync_status,
-      row.totvs?.status ?? "nao_iniciada",
+      effectiveTotvsStatus(row) ?? "nao_iniciada",
       row.chave_acesso,
     ]),
   ]
@@ -175,8 +193,7 @@ export default function NfsePage() {
           (!query || searchable.includes(query)) &&
           (companyId === "all" || item.company_id === companyId) &&
           (status === "all" || item.sync_status === status) &&
-          (totvsStatus === "all" ||
-            (totvsStatus === "not_started" ? !item.totvs : item.totvs?.status === totvsStatus)) &&
+          matchesTotvsFilter(item, totvsStatus) &&
           (!start || emission >= start) &&
           (!end || emission <= end)
         );
@@ -277,9 +294,10 @@ export default function NfsePage() {
   const errors = rows.filter(
     (item) => item.sync_status === "error" || item.processing_error,
   ).length;
-  const pendingTotvs = rows.filter(
-    (item) => !item.totvs || !["completed", "success"].includes(item.totvs.status),
+  const integratedTotvs = rows.filter(
+    (item) => effectiveTotvsStatus(item) === "succeeded",
   ).length;
+  const pendingTotvs = rows.length - integratedTotvs;
 
   return (
     <div className="space-y-5">
@@ -363,11 +381,11 @@ export default function NfsePage() {
             tone: "text-emerald-700 bg-emerald-50",
           },
           {
-            label: "Pendentes no TOTVS",
-            value: pendingTotvs.toLocaleString("pt-BR"),
-            detail: "Escrita permanece bloqueada",
+            label: "Integradas no TOTVS",
+            value: integratedTotvs.toLocaleString("pt-BR"),
+            detail: `${pendingTotvs.toLocaleString("pt-BR")} ainda não integradas`,
             icon: Building2,
-            tone: "text-amber-700 bg-amber-50",
+            tone: "text-emerald-700 bg-emerald-50",
           },
           {
             label: "Exigem atenção",
@@ -418,14 +436,18 @@ export default function NfsePage() {
             </Select>
             <Select value={totvsStatus} onValueChange={setTotvsStatus}>
               <SelectTrigger className="bg-white">
-                <SelectValue placeholder="TOTVS" />
+                <SelectValue placeholder="Fluxo / TOTVS" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos no TOTVS</SelectItem>
-                <SelectItem value="not_started">Não iniciadas</SelectItem>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="pending_confirmation">Pendentes de aprovação</SelectItem>
+                <SelectItem value="approved">Aprovadas</SelectItem>
+                <SelectItem value="ready">Prontas para integrar</SelectItem>
+                <SelectItem value="integrated">Integradas</SelectItem>
+                <SelectItem value="not_started">Sem execução no TOTVS</SelectItem>
+                <SelectItem value="queued">Na fila</SelectItem>
                 <SelectItem value="blocked">Bloqueadas</SelectItem>
                 <SelectItem value="failed">Com erro</SelectItem>
-                <SelectItem value="completed">Integradas</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -549,7 +571,7 @@ export default function NfsePage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pl-8">
                   <FiscalStatusBadge status={item.sync_status} />
-                  <TotvsStatusBadge status={item.totvs?.status} />
+                  <TotvsStatusBadge status={effectiveTotvsStatus(item)} />
                   <Button variant="outline" size="sm" className="ml-auto" asChild>
                     <Link to="/documents/nfse/$nfseId" params={{ nfseId: item.id }}>
                       <Eye className="mr-2 h-4 w-4" />
@@ -728,8 +750,8 @@ export default function NfsePage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <TotvsStatusBadge status={item.totvs?.status} />
-                      {item.totvs?.error_message && (
+                      <TotvsStatusBadge status={effectiveTotvsStatus(item)} />
+                      {effectiveTotvsStatus(item) !== "succeeded" && item.totvs?.error_message && (
                         <p
                           className="mt-1 max-w-[170px] truncate text-[11px] text-red-600"
                           title={item.totvs.error_message}

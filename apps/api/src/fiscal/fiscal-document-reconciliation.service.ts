@@ -224,9 +224,6 @@ export class FiscalDocumentReconciliationService {
           (rate) => rate.IDMOV === movement.IDMOV && rate.NSEQITMMOV === rmItem.NSEQITMMOV,
         );
         if (!actualItemRates.length) continue;
-        const itemRateTotal = actualItemRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
-        if (itemRateTotal > Number(localItem.valor_bruto ?? 0) + 0.005)
-          continue;
         const reconciledRates = actualItemRates.flatMap((rate) => {
           const costCenterId = costCenterByCode.get(rate.CODCCUSTO);
           return costCenterId
@@ -234,6 +231,16 @@ export class FiscalDocumentReconciliationService {
             : [];
         });
         if (!reconciledRates.length) continue;
+        const itemValueInCents = Math.round(Number(localItem.valor_bruto ?? 0) * 100);
+        const rateValuesInCents = reconciledRates.map((rate) =>
+          Math.round(Number(rate.valor) * 100),
+        );
+        if (
+          itemValueInCents < 0 ||
+          rateValuesInCents.some((value) => !Number.isFinite(value) || value < 0) ||
+          rateValuesInCents.reduce((sum, value) => sum + value, 0) > itemValueInCents
+        )
+          continue;
         const removed = await supabaseAdmin
           .from("nfe_item_centro_custo")
           .delete()

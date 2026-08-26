@@ -49,6 +49,9 @@ export type NfseListItem = {
 
 export type NfseDetail = {
   document: NfseListItem & {
+    plano_contas_id: string | null;
+    local_estoque_id: string | null;
+    tipo_compra_id: string | null;
     verification_code: string | null;
     external_id: string | null;
     service_municipality_code: string | null;

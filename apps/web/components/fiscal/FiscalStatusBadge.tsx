@@ -79,9 +79,10 @@ export function TotvsStatusBadge({ status }: { status: string | null | undefined
     failed: "Erro",
     completed: "Integrada",
     success: "Integrada",
+    succeeded: "Integrada",
   };
   const tone =
-    status === "completed" || status === "success"
+    status === "completed" || status === "success" || status === "succeeded"
       ? "processed"
       : status === "failed" || status === "blocked"
         ? "error"

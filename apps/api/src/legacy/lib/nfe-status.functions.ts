@@ -7,11 +7,13 @@ import type { NfeStatus } from "./nfe-status";
 async function getDocOrThrow(context: any, documentId: string) {
   const { data: doc, error } = await context.supabase
     .from("fiscal_documents")
-    .select("id, company_id, status, plano_contas_id, local_estoque_id, companies(organization_id)")
+    .select(
+      "id, company_id, tipo, status, plano_contas_id, local_estoque_id, companies(organization_id)",
+    )
     .eq("id", documentId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!doc) throw new Error("NF-e não encontrada ou sem acesso.");
+  if (!doc) throw new Error("Documento fiscal não encontrado ou sem acesso.");
   return doc as any;
 }
 
@@ -21,7 +23,8 @@ async function assertAprovador(context: any, organizationId: string) {
     _roles: ["admin", "financeiro"],
   } as any);
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Você não tem permissão para alterar o status desta NF-e.");
+  if (!data)
+    throw new Error("Você não tem permissão para alterar o status deste documento fiscal.");
 }
 
 async function updateStatus(
@@ -66,13 +69,14 @@ export const aprovarNfe = createApiAction({ method: "POST" })
 
     const doc = await getDocOrThrow(context, data.documentId);
     await assertAprovador(context, doc.companies.organization_id);
-    if (doc.status !== "pendente_confirmacao") throw new Error("Esta NF-e já foi aprovada.");
+    if (doc.status !== "pendente_confirmacao")
+      throw new Error("Este documento fiscal já foi aprovado.");
 
     await updateStatus(
       context,
       data.documentId,
       "aprovada",
-      "Aprovação de NF-e confirmada via modal de aprovação",
+      `Aprovação de ${doc.tipo === "nfse" ? "NFS-e" : "NF-e"} confirmada via modal de aprovação`,
     );
     return { ok: true };
   });
@@ -106,10 +110,12 @@ export async function reavaliarApontamentos(
     .is("tipo_compra_id", null);
 
   const completo =
-    !!doc.plano_contas_id &&
-    !!doc.local_estoque_id &&
-    (count ?? 0) > 0 &&
-    (itensSemTipo ?? 0) === 0;
+    doc.tipo === "nfse"
+      ? !!doc.plano_contas_id && (count ?? 0) > 0
+      : !!doc.plano_contas_id &&
+        !!doc.local_estoque_id &&
+        (count ?? 0) > 0 &&
+        (itensSemTipo ?? 0) === 0;
   const alvo: NfeStatus = completo ? "pronta_para_integracao" : "aprovada";
   if (alvo !== doc.status) {
     await updateStatus(
@@ -117,7 +123,9 @@ export async function reavaliarApontamentos(
       documentId,
       alvo,
       completo
-        ? "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
+        ? doc.tipo === "nfse"
+          ? "Apontamentos obrigatórios concluídos (Plano de Contas e Centro de Custo)"
+          : "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
         : (itensSemTipo ?? 0) > 0
           ? `Existem ${itensSemTipo} item(ns) sem Tipo de Compra apontado.`
           : "Apontamentos obrigatórios incompletos",

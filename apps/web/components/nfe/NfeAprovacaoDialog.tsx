@@ -19,14 +19,19 @@ import { backendFetch } from "@/lib/backend";
 import { getNfeDetails } from "@/lib/client-actions";
 import { aprovarNfe } from "@/lib/client-actions";
 
-const fmt = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmt = (v: unknown) =>
+  Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function NfeAprovacaoDialog({
   documentId,
+  documentType = "NF-e",
+  invalidateQueryKey,
   open,
   onOpenChange,
 }: {
   documentId: string | null;
+  documentType?: "NF-e" | "NFS-e";
+  invalidateQueryKey?: readonly unknown[];
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
@@ -58,33 +63,52 @@ export function NfeAprovacaoDialog({
   const aprovarMut = useMutation({
     mutationFn: () => aprovarFn({ data: { documentId: documentId!, email, password } }),
     onSuccess: () => {
-      toast.success("NF-e aprovada com sucesso.");
+      toast.success(`${documentType} aprovada com sucesso.`);
       setPassword("");
       onOpenChange(false);
       qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
       qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
       qc.invalidateQueries({ queryKey: ["nfe-status-historico", documentId] });
+      if (invalidateQueryKey) qc.invalidateQueries({ queryKey: invalidateQueryKey });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!aprovarMut.isPending) onOpenChange(o); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!aprovarMut.isPending) onOpenChange(o);
+      }}
+    >
       <DialogContent className="sm:max-w-[720px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Aprovar NF-e</DialogTitle>
-          <DialogDescription>Revise os dados da nota antes de confirmar a aprovação.</DialogDescription>
+          <DialogTitle>Aprovar {documentType}</DialogTitle>
+          <DialogDescription>
+            Revise os dados da nota antes de confirmar a aprovação.
+          </DialogDescription>
         </DialogHeader>
 
         {isLoading || !doc ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
+          <div className="flex justify-center py-10">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <Field label="Número / Série" value={`${doc.numero ?? "-"} / ${doc.serie ?? "-"}`} />
-              <Field label="Data de emissão" value={doc.data_emissao ? new Date(doc.data_emissao).toLocaleString("pt-BR") : "-"} />
-              <Field label="Emitente" value={`${doc.emitente_nome ?? "-"} (${doc.emitente_cnpj ?? "-"})`} />
-              <Field label="Destinatário" value={`${doc.destinatario_nome ?? doc.companies?.razao_social ?? "-"} (${doc.destinatario_cnpj ?? doc.companies?.cnpj ?? "-"})`} />
+              <Field
+                label="Data de emissão"
+                value={doc.data_emissao ? new Date(doc.data_emissao).toLocaleString("pt-BR") : "-"}
+              />
+              <Field
+                label="Emitente"
+                value={`${doc.emitente_nome ?? "-"} (${doc.emitente_cnpj ?? "-"})`}
+              />
+              <Field
+                label="Destinatário"
+                value={`${doc.destinatario_nome ?? doc.companies?.razao_social ?? "-"} (${doc.destinatario_cnpj ?? doc.companies?.cnpj ?? "-"})`}
+              />
               <Field label="Natureza da operação" value={doc.natureza_operacao ?? "-"} />
               <Field label="Valor total" value={fmt(doc.valor_total)} />
               <div className="col-span-2">
@@ -93,12 +117,22 @@ export function NfeAprovacaoDialog({
             </div>
 
             <div className="rounded-md border border-slate-200">
-              <div className="px-3 py-2 text-xs font-semibold text-slate-500 border-b bg-slate-50">Itens ({items.length})</div>
+              <div className="px-3 py-2 text-xs font-semibold text-slate-500 border-b bg-slate-50">
+                Itens ({items.length})
+              </div>
               <div className="max-h-48 overflow-auto divide-y">
                 {items.map((it) => (
-                  <div key={it.id} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
-                    <span className="truncate text-slate-700">{it.numero_item}. {it.descricao}</span>
-                    <span className="shrink-0 text-slate-500">{Number(it.quantidade_comercial ?? 0)} × {fmt(it.valor_unitario_comercial)} = <strong className="text-slate-800">{fmt(it.valor_bruto)}</strong></span>
+                  <div
+                    key={it.id}
+                    className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs"
+                  >
+                    <span className="truncate text-slate-700">
+                      {it.numero_item}. {it.descricao}
+                    </span>
+                    <span className="shrink-0 text-slate-500">
+                      {Number(it.quantidade_comercial ?? 0)} × {fmt(it.valor_unitario_comercial)} ={" "}
+                      <strong className="text-slate-800">{fmt(it.valor_bruto)}</strong>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -106,17 +140,36 @@ export function NfeAprovacaoDialog({
 
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 space-y-3">
               <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Deseja confirmar a Aprovação desta NF-e?
+                <ShieldCheck className="h-4 w-4" /> Deseja confirmar a aprovação desta{" "}
+                {documentType}?
               </p>
-              <p className="text-xs text-amber-800">Por segurança, reinsira as credenciais da sua conta.</p>
+              <p className="text-xs text-amber-800">
+                Por segurança, reinsira as credenciais da sua conta.
+              </p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="apv-email" className="text-xs">Usuário (e-mail)</Label>
-                  <Input id="apv-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
+                  <Label htmlFor="apv-email" className="text-xs">
+                    Usuário (e-mail)
+                  </Label>
+                  <Input
+                    id="apv-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                  />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="apv-pass" className="text-xs">Senha</Label>
-                  <Input id="apv-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+                  <Label htmlFor="apv-pass" className="text-xs">
+                    Senha
+                  </Label>
+                  <Input
+                    id="apv-pass"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
                 </div>
               </div>
             </div>
@@ -124,8 +177,17 @@ export function NfeAprovacaoDialog({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={aprovarMut.isPending}>Cancelar</Button>
-          <Button onClick={() => aprovarMut.mutate()} disabled={!doc || !email || !password || aprovarMut.isPending}>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={aprovarMut.isPending}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => aprovarMut.mutate()}
+            disabled={!doc || !email || !password || aprovarMut.isPending}
+          >
             {aprovarMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Confirmar aprovação
           </Button>

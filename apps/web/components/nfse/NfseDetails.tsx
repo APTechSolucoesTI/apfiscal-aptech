@@ -18,7 +18,6 @@ import {
   Landmark,
   Loader2,
   ReceiptText,
-  RefreshCw,
   UserRound,
   WalletCards,
 } from "lucide-react";
@@ -30,6 +29,7 @@ import { FiscalStatusBadge, TotvsStatusBadge } from "@/components/fiscal/FiscalS
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";
 import { baixarXmlUnico } from "@/lib/xml-zip";
 import { getFiscalXml, getNfse } from "@/services/fiscalDocumentsService";
+import { NfseTotvsPanel } from "@/components/nfse/NfseTotvsPanel";
 
 type RecordValue = Record<string, unknown>;
 const record = (value: unknown): RecordValue =>
@@ -443,21 +443,10 @@ export function NfseDetails({ id }: { id: string }) {
           </Card>
         </TabsContent>
         <TabsContent value="totvs" className="mt-5 space-y-4">
-          <Alert>
-            <FileClock className="h-4 w-4" />
-            <AlertTitle>Adapter de escrita NFS-e aguardando regra homologada</AlertTitle>
-            <AlertDescription>
-              Estrutura de status, tentativas, payload, retorno e ID do RM está pronta. Nenhum
-              INSERT/UPDATE será executado até regra TOTVS ser fornecida e escrita ser habilitada.
-            </AlertDescription>
-          </Alert>
+          <NfseTotvsPanel document={doc} latestRun={latestRun} />
           <Card className="border-slate-200 shadow-none">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader>
               <CardTitle className="text-base">Acompanhamento TOTVS</CardTitle>
-              <Button disabled title="Escrita no TOTVS bloqueada até homologação">
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Tentar novamente
-              </Button>
             </CardHeader>
             <CardContent>
               <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

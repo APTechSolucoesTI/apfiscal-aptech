@@ -49,7 +49,7 @@ export class TotvsIntegrationService {
       .eq("id", runId);
 
     try {
-      const [document, items, headerAllocations, itemAllocations] = await Promise.all([
+      const [document, items, headerAllocations] = await Promise.all([
         supabaseAdmin
           .from("fiscal_documents")
           .select(
@@ -68,14 +68,17 @@ export class TotvsIntegrationService {
           .from("nfe_centro_custo")
           .select("centro_custo_id, valor, centros_custo(codigo, descricao)")
           .eq("document_id", run.data.fiscal_document_id),
-        supabaseAdmin
-          .from("nfe_item_centro_custo")
-          .select("item_id, centro_custo_id, valor, centros_custo(codigo, descricao)")
-          .eq("document_id", run.data.fiscal_document_id),
       ]);
       if (document.error) throw document.error;
       if (items.error) throw items.error;
       if (headerAllocations.error) throw headerAllocations.error;
+      const itemIds = (items.data ?? []).map((item) => item.id);
+      const itemAllocations = itemIds.length
+        ? await supabaseAdmin
+            .from("nfe_item_centro_custo")
+            .select("document_item_id, centro_custo_id, valor, centros_custo(codigo, descricao)")
+            .in("document_item_id", itemIds)
+        : { data: [], error: null };
       if (itemAllocations.error) throw itemAllocations.error;
       if (document.data.status !== "pronta_para_integracao")
         throw new Error(
@@ -95,11 +98,16 @@ export class TotvsIntegrationService {
         throw new Error(`${unlinked.length} item(ns) não possuem produto/código TOTVS vinculado.`);
 
       const headerCostCenter = (headerAllocations.data ?? [])[0]?.centros_custo as RelatedCode;
-      const itemCostCenters = new Map(
-        (itemAllocations.data ?? []).map((allocation) => [
-          allocation.item_id,
-          (allocation.centros_custo as RelatedCode)?.codigo ?? null,
-        ]),
+      const itemCostCenters = new Map<string, string | null>(
+        (
+          (itemAllocations.data ?? []) as Array<{
+            document_item_id: string;
+            centros_custo: RelatedCode;
+          }>
+        ).map(
+          (allocation) =>
+            [allocation.document_item_id, allocation.centros_custo?.codigo ?? null] as const,
+        ),
       );
       const rmItems: RmItem[] = isNfse
         ? [

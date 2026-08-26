@@ -14,6 +14,8 @@ import {
   manifestationAccepted,
   type ManifestationKind,
 } from "./nfe-lifecycle";
+import { TotvsScopeService } from "@/totvs/totvs-scope.service";
+import { TotvsSqlServerService } from "@/totvs/totvs-sql-server.service";
 
 type DistributedDocument = DistributionResult["documents"][number];
 
@@ -62,6 +64,112 @@ function errorMessage(error: unknown): string {
 
 @Injectable()
 export class FiscalDocumentReconciliationService {
+  constructor(
+    private readonly sqlServer: TotvsSqlServerService,
+    private readonly scopes: TotvsScopeService,
+  ) {}
+
+  private async reconcileTotvs(organizationId: string, companyId: string) {
+    const scope = await this.scopes.company(organizationId, companyId);
+    const documents = await supabaseAdmin
+      .from("fiscal_documents")
+      .select("id, chave_acesso")
+      .eq("company_id", companyId)
+      .eq("tipo", "nfe")
+      .not("chave_acesso", "is", null)
+      .limit(1000);
+    if (documents.error) throw documents.error;
+    const byKey = new Map(
+      (documents.data ?? [])
+        .filter((row) => /^\d{44}$/.test(row.chave_acesso ?? ""))
+        .map((row) => [row.chave_acesso!, row]),
+    );
+    if (!byKey.size) return;
+
+    type RmMovement = {
+      IDMOV: number;
+      CHAVEACESSONFE: string;
+      CODTB1FLX: string | null;
+      CODCCUSTO: string | null;
+      VALORLIQUIDO: number;
+    };
+    const movements: RmMovement[] = [];
+    for (const keyBatch of batches([...byKey.keys()], 100)) {
+      const keys = keyBatch.map((key) => `'${key}'`).join(",");
+      const filial = scope.codFilial ? ` AND CODFILIAL=${scope.codFilial}` : "";
+      movements.push(
+        ...(await this.sqlServer.queryReadOnly<RmMovement>(
+          `SELECT mov.IDMOV,mov.CHAVEACESSONFE,mov.CODTB1FLX,
+             COALESCE((SELECT TOP 1 rat.CODCCUSTO FROM dbo.TMOVRATCCU rat WHERE rat.CODCOLIGADA=mov.CODCOLIGADA AND rat.IDMOV=mov.IDMOV ORDER BY rat.IDMOVRATCCU),mov.CODCCUSTO) AS CODCCUSTO,
+             mov.VALORLIQUIDO
+           FROM dbo.TMOV mov WHERE mov.CODCOLIGADA=${scope.codColigada}${filial} AND mov.CHAVEACESSONFE IN (${keys})`,
+          {},
+          scope.connectionKey,
+        )),
+      );
+    }
+    if (!movements.length) return;
+
+    const planCodes = [
+      ...new Set(movements.map((row) => row.CODTB1FLX).filter(Boolean)),
+    ] as string[];
+    const costCenterCodes = [
+      ...new Set(movements.map((row) => row.CODCCUSTO).filter(Boolean)),
+    ] as string[];
+    const [plans, costCenters] = await Promise.all([
+      planCodes.length
+        ? supabaseAdmin
+            .from("plano_contas")
+            .select("id, codigo")
+            .eq("organization_id", organizationId)
+            .in("codigo", planCodes)
+        : Promise.resolve({ data: [], error: null }),
+      costCenterCodes.length
+        ? supabaseAdmin
+            .from("centros_custo")
+            .select("id, codigo")
+            .eq("organization_id", organizationId)
+            .in("codigo", costCenterCodes)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (plans.error) throw plans.error;
+    if (costCenters.error) throw costCenters.error;
+    const planByCode = new Map((plans.data ?? []).map((row) => [row.codigo, row.id] as const));
+    const costCenterByCode = new Map(
+      (costCenters.data ?? []).map((row) => [row.codigo, row.id] as const),
+    );
+    const now = new Date().toISOString();
+
+    for (const movement of movements) {
+      const document = byKey.get(movement.CHAVEACESSONFE);
+      if (!document) continue;
+      const updated = await supabaseAdmin
+        .from("fiscal_documents")
+        .update({
+          status: "integrado_totvs",
+          status_observacao: `Reconciliado com o movimento TOTVS RM ${movement.IDMOV}.`,
+          status_updated_at: now,
+          plano_contas_id: movement.CODTB1FLX ? (planByCode.get(movement.CODTB1FLX) ?? null) : null,
+        })
+        .eq("id", document.id);
+      if (updated.error) throw updated.error;
+      const costCenterId = movement.CODCCUSTO ? costCenterByCode.get(movement.CODCCUSTO) : null;
+      if (costCenterId) {
+        const removed = await supabaseAdmin
+          .from("nfe_centro_custo")
+          .delete()
+          .eq("document_id", document.id);
+        if (removed.error) throw removed.error;
+        const inserted = await supabaseAdmin.from("nfe_centro_custo").insert({
+          document_id: document.id,
+          centro_custo_id: costCenterId,
+          valor: Number(movement.VALORLIQUIDO ?? 0),
+        });
+        if (inserted.error) throw inserted.error;
+      }
+    }
+  }
+
   async backfillMetadata(companyId: string, limit = 1000) {
     const stored = await supabaseAdmin
       .from("documentos_fiscais_integracao")
@@ -561,6 +669,11 @@ export class FiscalDocumentReconciliationService {
     await this.backfillMetadata(input.companyId, 50);
     await this.backfillStoredFullXml({ ...input, counters });
     await this.promoteKnownSummaries({ ...input, counters });
+    try {
+      await this.reconcileTotvs(input.organizationId, input.companyId);
+    } catch (error) {
+      counters.errors.push({ mensagem: `Reconciliação TOTVS: ${errorMessage(error)}` });
+    }
     return counters;
   }
 }

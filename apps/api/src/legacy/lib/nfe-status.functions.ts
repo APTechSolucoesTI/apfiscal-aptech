@@ -109,13 +109,20 @@ export async function reavaliarApontamentos(
     .eq("document_id", documentId)
     .is("tipo_compra_id", null);
 
+  const { count: itensSemProduto } = await context.supabase
+    .from("fiscal_document_items")
+    .select("id", { count: "exact", head: true })
+    .eq("document_id", documentId)
+    .is("product_id", null);
+
   const completo =
     doc.tipo === "nfse"
       ? !!doc.plano_contas_id && (count ?? 0) > 0
       : !!doc.plano_contas_id &&
         !!doc.local_estoque_id &&
         (count ?? 0) > 0 &&
-        (itensSemTipo ?? 0) === 0;
+        (itensSemTipo ?? 0) === 0 &&
+        (itensSemProduto ?? 0) === 0;
   const alvo: NfeStatus = completo ? "pronta_para_integracao" : "aprovada";
   if (alvo !== doc.status) {
     await updateStatus(
@@ -126,9 +133,15 @@ export async function reavaliarApontamentos(
         ? doc.tipo === "nfse"
           ? "Apontamentos obrigatórios concluídos (Plano de Contas e Centro de Custo)"
           : "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
-        : (itensSemTipo ?? 0) > 0
-          ? `Existem ${itensSemTipo} item(ns) sem Tipo de Compra apontado.`
-          : "Apontamentos obrigatórios incompletos",
+        : (itensSemProduto ?? 0) > 0 &&
+            !!doc.plano_contas_id &&
+            !!doc.local_estoque_id &&
+            (count ?? 0) > 0 &&
+            (itensSemTipo ?? 0) === 0
+          ? `A única pendência é vincular ${itensSemProduto} produto(s) ao fornecedor.`
+          : (itensSemTipo ?? 0) > 0
+            ? `Existem ${itensSemTipo} item(ns) sem Tipo de Compra apontado.`
+            : "Apontamentos obrigatórios incompletos",
     );
   }
 

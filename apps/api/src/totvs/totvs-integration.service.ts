@@ -34,7 +34,9 @@ export class TotvsIntegrationService {
   async execute(runId: string) {
     const run = await supabaseAdmin
       .from("totvs_integration_runs")
-      .select("id, fiscal_document_id, organization_id, company_id, connection_key, attempt")
+      .select(
+        "id, fiscal_document_id, organization_id, company_id, connection_key, attempt, created_at",
+      )
       .eq("id", runId)
       .single();
     if (run.error) throw run.error;
@@ -53,14 +55,14 @@ export class TotvsIntegrationService {
         supabaseAdmin
           .from("fiscal_documents")
           .select(
-            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, erp_system, erp_code, erp_external_id)",
+            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, erp_system, erp_code, erp_external_id), plano_contas:plano_contas_id(codigo), tipos_compra:tipo_compra_id(codigo)",
           )
           .eq("id", run.data.fiscal_document_id)
           .single(),
         supabaseAdmin
           .from("fiscal_document_items")
           .select(
-            "*, produtos(id, codigo_interno, erp_code), locais_estoque:local_estoque_id(codigo)",
+            "*, produtos(id, codigo_interno, descricao, unidade, ncm, erp_code), locais_estoque:local_estoque_id(codigo), tipos_compra:tipo_compra_id(codigo)",
           )
           .eq("document_id", run.data.fiscal_document_id)
           .order("numero_item"),
@@ -91,11 +93,9 @@ export class TotvsIntegrationService {
         connectionKey: run.data.connection_key ?? resolved.connectionKey,
       };
       const isNfse = document.data.tipo === "nfse";
-      const unlinked = (items.data ?? []).filter(
-        (item) => !item.product_id || !item.produtos?.erp_code,
-      );
+      const unlinked = (items.data ?? []).filter((item) => !item.product_id);
       if (!isNfse && unlinked.length)
-        throw new Error(`${unlinked.length} item(ns) não possuem produto/código TOTVS vinculado.`);
+        throw new Error(`${unlinked.length} item(ns) não possuem produto vinculado.`);
 
       const headerCostCenter = (headerAllocations.data ?? [])[0]?.centros_custo as RelatedCode;
       const itemCostCenters = new Map<string, string | null>(
@@ -115,6 +115,8 @@ export class TotvsIntegrationService {
               numero_item: 1,
               codigo: document.data.service_code_municipal ?? document.data.numero,
               productErpCode: setting(scope.connectionKey, "NFSE_PRODUCT_CODE", "001.01.01.000001"),
+              purchaseTypeCode: null,
+              cfop: null,
               unidade_comercial: "SV",
               quantidade_comercial: 1,
               valor_unitario_comercial:
@@ -139,7 +141,15 @@ export class TotvsIntegrationService {
         : (items.data ?? []).map((item) => ({
             numero_item: item.numero_item,
             codigo: item.codigo,
-            productErpCode: item.produtos!.erp_code!,
+            productErpCode: item.produtos!.erp_code ?? item.produtos!.codigo_interno,
+            localProductId: item.produtos!.id,
+            createProduct: !item.produtos!.erp_code,
+            productDescription: item.produtos!.descricao,
+            purchaseTypeCode:
+              (item.tipos_compra as RelatedCode)?.codigo ??
+              (document.data.tipos_compra as RelatedCode)?.codigo ??
+              null,
+            cfop: item.cfop,
             unidade_comercial: item.unidade_comercial,
             quantidade_comercial: item.quantidade_comercial,
             valor_unitario_comercial: item.valor_unitario_comercial,
@@ -181,6 +191,9 @@ export class TotvsIntegrationService {
           document: document.data as unknown as RmDocument,
           items: rmItems,
           costCenterCode: headerCostCenter?.codigo ?? null,
+          financialPlanCode: (document.data.plano_contas as RelatedCode)?.codigo ?? null,
+          purchaseTypeCode: (document.data.tipos_compra as RelatedCode)?.codigo ?? null,
+          integrationAt: run.data.created_at,
           nfeCodTmv: setting(scope.connectionKey, "NFE_ENTRY_CODTMV", "1.2.11"),
           nfseCodTmv: setting(scope.connectionKey, "NFSE_ENTRY_CODTMV", "1.2.30"),
           user: setting(scope.connectionKey, "INTEGRATION_USER", "APFISCAL"),
@@ -209,6 +222,13 @@ export class TotvsIntegrationService {
       ]);
       if (runUpdate.error) throw runUpdate.error;
       if (documentUpdate.error) throw documentUpdate.error;
+      for (const product of result.createdProducts) {
+        const productUpdate = await supabaseAdmin
+          .from("produtos")
+          .update({ erp_system: "totvs_rm", erp_code: product.erpCode, erp_synced_at: finishedAt })
+          .eq("id", product.localProductId);
+        if (productUpdate.error) throw productUpdate.error;
+      }
       if (document.data.supplier_id && !document.data.suppliers?.erp_code && result.supplierCode) {
         const update = await supabaseAdmin
           .from("suppliers")

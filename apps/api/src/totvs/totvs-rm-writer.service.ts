@@ -14,6 +14,8 @@ const CLONEABLE_TABLES = new Set([
   "TMOVRATCCU",
   "TITMMOVRATCCU",
   "FLAN",
+  "TPRODUTO",
+  "TPRODUTODEF",
 ]);
 
 type SqlValue = string | number | boolean | Date | Buffer | null;
@@ -47,6 +49,11 @@ export type RmItem = {
   numero_item: number;
   codigo: string | null;
   productErpCode: string;
+  localProductId?: string;
+  createProduct?: boolean;
+  productDescription?: string | null;
+  purchaseTypeCode?: string | null;
+  cfop?: string | null;
   unidade_comercial: string | null;
   quantidade_comercial: number | null;
   valor_unitario_comercial: number | null;
@@ -69,6 +76,9 @@ export type RmWriteInput = {
   document: RmDocument;
   items: RmItem[];
   costCenterCode: string | null;
+  financialPlanCode: string | null;
+  purchaseTypeCode: string | null;
+  integrationAt: string;
   nfeCodTmv: string;
   nfseCodTmv: string;
   user: string;
@@ -81,6 +91,7 @@ export type RmWriteResult = {
   itemCount: number;
   installmentCount: number;
   alreadyExisted: boolean;
+  createdProducts: Array<{ localProductId: string; erpCode: string }>;
 };
 
 type Column = { name: string };
@@ -97,6 +108,21 @@ function date(value: string | null | undefined) {
   const parsed = value ? new Date(value) : new Date();
   if (Number.isNaN(parsed.getTime())) throw new Error(`Data fiscal inválida: ${value}.`);
   return parsed;
+}
+
+function movementNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits || digits.length > 9)
+    throw new Error(`O número do movimento deve conter no máximo 9 dígitos: ${value}.`);
+  return digits.padStart(9, "0");
+}
+
+function purchaseNatureBase(type: string | null | undefined) {
+  if (type === "07") return "556";
+  if (type === "08") return "406";
+  if (type === "09") return "933";
+  if (type === "00" || type === "04") return "102";
+  return "949";
 }
 
 function records(value: unknown): Record<string, unknown>[] {
@@ -153,6 +179,120 @@ function installments(value: unknown, total: number, issueDate: Date) {
 
 @Injectable()
 export class TotvsRmWriterService {
+  private async nature(
+    transaction: sql.Transaction,
+    coligada: number,
+    purchaseTypeCode: string | null | undefined,
+    cfop: string | null | undefined,
+  ) {
+    const prefix =
+      cfop?.replace(/\D/g, "").charAt(0) === "6"
+        ? "2"
+        : cfop?.replace(/\D/g, "").charAt(0) === "5"
+          ? "1"
+          : null;
+    if (!prefix || !purchaseTypeCode)
+      throw new Error("Tipo de Compra e CFOP são obrigatórios para determinar a natureza no RM.");
+    const code = `${prefix}.${purchaseNatureBase(purchaseTypeCode)}`;
+    const result = await new sql.Request(transaction)
+      .input("coligada", sql.SmallInt, coligada)
+      .input("code", sql.VarChar, code).query<{ IDNAT: number; CODNAT: string; FISCAL: number }>(`
+        SELECT IDNAT,CODNAT,FISCAL FROM dbo.DCFOP WITH (HOLDLOCK)
+        WHERE CODCOLIGADA=@coligada AND ATIVO=1 AND (CODNAT=@code OR CODNAT LIKE @code+'.%')
+        ORDER BY CASE WHEN CODNAT=@code THEN 0 ELSE 1 END,CODNAT
+      `);
+    const header = result.recordset.find((row) => row.CODNAT === code) ?? result.recordset[0];
+    const item = result.recordset.find((row) => row.CODNAT !== code && row.FISCAL === 1) ?? header;
+    if (!header || !item)
+      throw new Error(
+        `A natureza ${code} não está cadastrada/ativa na DCFOP da coligada ${coligada}.`,
+      );
+    return { header, item };
+  }
+
+  private async resolveProduct(transaction: sql.Transaction, input: RmWriteInput, item: RmItem) {
+    const existing = await new sql.Request(transaction)
+      .input("productCode", sql.VarChar, item.productErpCode)
+      .input("coligada", sql.SmallInt, input.coligada).query<{
+      IDPRD: number;
+      CODUNDVENDA: string | null;
+    }>(`
+        SELECT TOP 1 p.IDPRD,d.CODUNDVENDA FROM dbo.TPRODUTO p
+        LEFT JOIN dbo.TPRODUTODEF d ON d.IDPRD=p.IDPRD AND d.CODCOLIGADA=@coligada
+        WHERE p.CODIGOPRD=@productCode AND p.CODCOLPRD IN (0,@coligada) AND p.ULTIMONIVEL=1 AND p.INATIVO=0
+        ORDER BY CASE WHEN p.CODCOLPRD=@coligada THEN 0 ELSE 1 END
+      `);
+    if (existing.recordset[0]) return { ...existing.recordset[0], created: false };
+    if (!item.createProduct)
+      throw new Error(`Produto ${item.productErpCode} não existe ou está inativo no RM.`);
+
+    const prefix = item.productErpCode.split(".").slice(0, 3).join(".");
+    const source = await new sql.Request(transaction)
+      .input("coligada", sql.SmallInt, input.coligada)
+      .input("prefix", sql.VarChar, `${prefix}.%`).query<{
+      IDPRD: number;
+      CODUNDVENDA: string | null;
+    }>(`
+        SELECT TOP 1 p.IDPRD,d.CODUNDVENDA FROM dbo.TPRODUTO p
+        JOIN dbo.TPRODUTODEF d ON d.IDPRD=p.IDPRD AND d.CODCOLIGADA=@coligada
+        WHERE p.CODCOLPRD=0 AND p.ULTIMONIVEL=1 AND p.INATIVO=0 AND p.CODIGOPRD LIKE @prefix
+        ORDER BY p.IDPRD DESC
+      `);
+    if (!source.recordset[0])
+      throw new Error(
+        `Não existe produto-modelo no grupo ${prefix} para criar ${item.productErpCode}.`,
+      );
+    const idPrd = await this.nextGenerator(transaction, 0, "T", "IDPRD");
+    const reduced = await new sql.Request(transaction).query<{ value: number }>(`
+      SELECT ISNULL(MAX(TRY_CONVERT(int,CODIGOREDUZIDO)),0)+1 AS value
+      FROM dbo.TPRODUTO WITH (UPDLOCK,HOLDLOCK)
+    `);
+    const now = date(input.integrationAt);
+    await this.clone(
+      transaction,
+      "TPRODUTO",
+      "src.CODCOLPRD=0 AND src.IDPRD=@sourceId",
+      { sourceId: source.recordset[0].IDPRD },
+      {
+        IDPRD: idPrd,
+        ID: idPrd,
+        CODIGOPRD: item.productErpCode,
+        CODIGOREDUZIDO: String(reduced.recordset[0].value).padStart(4, "0"),
+        NOMEFANTASIA: item.productDescription ?? item.productErpCode,
+        DESCRICAO: item.productDescription ?? item.productErpCode,
+        DESCRICAOAUX: item.productDescription ?? item.productErpCode,
+        CODUSUARIO: input.user,
+        USUARIOCRIACAO: input.user,
+        DTCADASTRAMENTO: now,
+        DATAULTALTERACAO: now,
+        RECCREATEDBY: input.user,
+        RECCREATEDON: now,
+        RECMODIFIEDBY: input.user,
+        RECMODIFIEDON: now,
+      },
+    );
+    await this.clone(
+      transaction,
+      "TPRODUTODEF",
+      "src.CODCOLIGADA=@sourceColigada AND src.IDPRD=@sourceId",
+      { sourceColigada: input.coligada, sourceId: source.recordset[0].IDPRD },
+      {
+        IDPRD: idPrd,
+        CODUNDVENDA: item.unidade_comercial ?? source.recordset[0].CODUNDVENDA,
+        CODUNDCOMPRA: item.unidade_comercial ?? source.recordset[0].CODUNDVENDA,
+        RECCREATEDBY: input.user,
+        RECCREATEDON: now,
+        RECMODIFIEDBY: input.user,
+        RECMODIFIEDON: now,
+      },
+    );
+    return {
+      IDPRD: idPrd,
+      CODUNDVENDA: item.unidade_comercial ?? source.recordset[0].CODUNDVENDA,
+      created: true,
+    };
+  }
+
   private async columns(transaction: sql.Transaction, table: string) {
     if (!CLONEABLE_TABLES.has(table))
       throw new Error(`Tabela RM não autorizada para clonagem: ${table}.`);
@@ -252,10 +392,11 @@ export class TotvsRmWriterService {
     )
       throw new Error("Todos os itens precisam ter um número sequencial inteiro positivo.");
 
+    const formattedNumber = movementNumber(input.document.numero);
     const duplicate = await new sql.Request(transaction)
       .input("coligada", sql.SmallInt, input.coligada)
       .input("key", sql.VarChar, input.document.chave_acesso)
-      .input("number", sql.VarChar, input.document.numero)
+      .input("number", sql.VarChar, formattedNumber)
       .input("series", sql.VarChar, input.document.serie ?? "")
       .input("codTmv", sql.VarChar, codTmv)
       .input("isNfse", sql.Bit, input.document.tipo === "nfse")
@@ -286,6 +427,7 @@ export class TotvsRmWriterService {
         itemCount: duplicate.recordset[0].ITEM_COUNT,
         installmentCount: duplicate.recordset[0].INSTALLMENT_COUNT,
         alreadyExisted: true,
+        createdProducts: [],
       };
     }
 
@@ -329,7 +471,16 @@ export class TotvsRmWriterService {
     const issueDate = date(input.document.data_emissao);
     const total = number(input.document.valor_total);
     const idMov = await this.nextGenerator(transaction, input.coligada, "T", "IDMOV");
-    const now = new Date();
+    const now = date(input.integrationAt);
+    const movementNature =
+      input.document.tipo === "nfe"
+        ? await this.nature(
+            transaction,
+            input.coligada,
+            input.purchaseTypeCode,
+            input.items[0].cfop,
+          )
+        : null;
     await this.clone(
       transaction,
       "TMOV",
@@ -344,13 +495,17 @@ export class TotvsRmWriterService {
         CODCOLCFOAUX: 0,
         IDMOVCFO: supplier.recordset[0].IDHISTORICO,
         IDMOVLCTFLUXUS: idMov,
-        NUMEROMOV: input.document.numero,
+        NUMEROMOV: formattedNumber,
         SERIE: input.document.serie ?? "",
         CHAVEACESSONFE: input.document.chave_acesso,
         DATAEMISSAO: issueDate,
-        DATASAIDA: issueDate,
-        DATAMOVIMENTO: issueDate,
-        DATALANCAMENTO: issueDate,
+        DATASAIDA: now,
+        DATAMOVIMENTO: now,
+        DATALANCAMENTO: now,
+        DATACRIACAO: now,
+        CODTB1FLX: input.financialPlanCode,
+        CODCCUSTO: input.costCenterCode,
+        IDNAT: movementNature?.header.IDNAT ?? null,
         VALORBRUTO: total,
         VALORLIQUIDO: total,
         VALORBRUTOORIG: total,
@@ -415,22 +570,15 @@ export class TotvsRmWriterService {
     if (!templateItem.recordset[0])
       throw new Error(`O movimento-modelo ${templateId} não possui item.`);
     let nextItemRate = await this.nextTableValue(transaction, "TITMMOVRATCCU", "IDMOVRATCCU");
+    const createdProducts: Array<{ localProductId: string; erpCode: string }> = [];
     for (const item of input.items) {
-      const product = await new sql.Request(transaction)
-        .input("productCode", sql.VarChar, item.productErpCode)
-        .input("coligada", sql.SmallInt, input.coligada).query<{
-        IDPRD: number;
-        CODUNDVENDA: string | null;
-      }>(`
-          SELECT TOP 1 p.IDPRD,d.CODUNDVENDA
-          FROM dbo.TPRODUTO p
-          LEFT JOIN dbo.TPRODUTODEF d ON d.IDPRD=p.IDPRD AND d.CODCOLIGADA=@coligada
-          WHERE p.CODIGOPRD=@productCode AND p.CODCOLPRD IN (0,@coligada)
-            AND p.ULTIMONIVEL=1 AND p.INATIVO=0
-          ORDER BY CASE WHEN p.CODCOLPRD=@coligada THEN 0 WHEN p.CODCOLPRD=0 THEN 1 ELSE 2 END
-        `);
-      if (!product.recordset[0])
-        throw new Error(`Produto ${item.productErpCode} não existe ou está inativo no RM.`);
+      const product = await this.resolveProduct(transaction, input, item);
+      if (product.created && item.localProductId)
+        createdProducts.push({ localProductId: item.localProductId, erpCode: item.productErpCode });
+      const itemNature =
+        input.document.tipo === "nfe"
+          ? await this.nature(transaction, input.coligada, item.purchaseTypeCode, item.cfop)
+          : null;
       const itemValue = number(item.valor_total, number(item.valor_bruto));
       const quantity = number(item.quantidade_comercial, 1);
       const unitPrice = number(
@@ -451,8 +599,8 @@ export class TotvsRmWriterService {
           IDMOV: idMov,
           NSEQITMMOV: item.numero_item,
           NUMEROSEQUENCIAL: item.numero_item,
-          IDPRD: product.recordset[0].IDPRD,
-          CODUND: item.unidade_comercial ?? product.recordset[0].CODUNDVENDA,
+          IDPRD: product.IDPRD,
+          CODUND: item.unidade_comercial ?? product.CODUNDVENDA,
           QUANTIDADE: quantity,
           QUANTIDADEARECEBER: quantity,
           QUANTIDADEORIGINAL: quantity,
@@ -469,6 +617,8 @@ export class TotvsRmWriterService {
           CODFILIAL: input.filial,
           CODLOC: item.localEstoqueCode,
           CODCCUSTO: costCenter,
+          CODTB1FLX: input.financialPlanCode,
+          IDNAT: itemNature?.item.IDNAT ?? null,
           DATAEMISSAO: issueDate,
           RATEIOCCUSTODEPTO: itemValue,
           RECCREATEDBY: input.user,
@@ -556,7 +706,7 @@ export class TotvsRmWriterService {
       if (item.codigo)
         await new sql.Request(transaction)
           .input("coligada", sql.SmallInt, input.coligada)
-          .input("idPrd", sql.Int, product.recordset[0].IDPRD)
+          .input("idPrd", sql.Int, product.IDPRD)
           .input("supplierCode", sql.VarChar, supplierCode)
           .input("supplierProduct", sql.VarChar, item.codigo)
           .input("user", sql.VarChar, input.user).query(`
@@ -593,8 +743,8 @@ export class TotvsRmWriterService {
     for (let index = 0; index < schedule.length; index += 1) {
       const installment = schedule[index];
       const idLan = await this.nextGenerator(transaction, input.coligada, "F", "IDLAN");
-      const documentNumber = `${input.document.numero.slice(0, 12)}/${String(index + 1).padStart(2, "0")}`;
-      await this.clone(
+      const documentNumber = `${formattedNumber}/${String(index + 1).padStart(2, "0")}`;
+      const financialRows = await this.clone(
         transaction,
         "FLAN",
         "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId AND src.IDLAN=(SELECT MIN(IDLAN) FROM dbo.FLAN WHERE CODCOLIGADA=@sourceColigada AND IDMOV=@sourceId)",
@@ -615,6 +765,7 @@ export class TotvsRmWriterService {
           DATAPREVBAIXA: installment.due,
           VALORORIGINAL: installment.value,
           CODCCUSTO: input.costCenterCode,
+          CODTB1FLX: input.financialPlanCode,
           USUARIO: input.user,
           USUARIOCRIACAO: input.user,
           RECCREATEDBY: input.user,
@@ -623,6 +774,10 @@ export class TotvsRmWriterService {
           RECMODIFIEDON: now,
         },
       );
+      if (financialRows !== 1)
+        throw new Error(
+          `O movimento-modelo ${templateId} não possui lançamento FLAN para gerar a parcela ${index + 1}.`,
+        );
     }
     await new sql.Request(transaction)
       .input("coligada", sql.SmallInt, input.coligada)
@@ -638,6 +793,7 @@ export class TotvsRmWriterService {
       itemCount: input.items.length,
       installmentCount: schedule.length,
       alreadyExisted: false,
+      createdProducts,
     };
   }
 }

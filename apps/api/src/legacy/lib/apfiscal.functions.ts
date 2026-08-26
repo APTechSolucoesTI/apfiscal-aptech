@@ -1,5 +1,6 @@
 import { createApiAction } from "@/common/action-builder";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertCompanyAccess } from "./apfiscal/auth.server";
 import type {
   IntegracaoResumo,
@@ -15,7 +16,6 @@ export const getIntegracaoEmpresa = createApiAction({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<IntegracaoResumo> => {
     const { organizationId } = await assertCompanyAccess(context.supabase, data.companyId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     let { data: rec } = await supabaseAdmin
       .from("empresa_integracoes_fiscais")
       .select(
@@ -86,7 +86,8 @@ export const enviarCertificadoFiscal = createApiAction({ method: "POST" })
       .eq("id", companyId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (!empresa?.cnpj) throw new Error("Cadastre o CNPJ da empresa antes de enviar o certificado.");
+    if (!empresa?.cnpj)
+      throw new Error("Cadastre o CNPJ da empresa antes de enviar o certificado.");
 
     const { enviarCertificado } = await import("./apfiscal/certificado.server");
     return enviarCertificado({ organizationId, companyId, cnpj: empresa.cnpj, senha, arquivo });
@@ -94,29 +95,35 @@ export const enviarCertificadoFiscal = createApiAction({ method: "POST" })
 
 export const salvarIntegracaoEmpresa = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { companyId: string; apiKey?: string | null; ativo: boolean; baseUrl?: string | null }) => {
-    if (!data?.companyId) throw new Error("Empresa é obrigatória.");
-    if (data.apiKey != null && data.apiKey.trim().length > 0 && data.apiKey.trim().length < 8) {
-      throw new Error("Chave de API inválida.");
-    }
-    const url = data.baseUrl?.trim();
-    if (url) {
-      let parsed: URL;
-      try {
-        parsed = new URL(url);
-      } catch {
-        throw new Error("URL base inválida.");
+  .inputValidator(
+    (data: {
+      companyId: string;
+      apiKey?: string | null;
+      ativo: boolean;
+      baseUrl?: string | null;
+    }) => {
+      if (!data?.companyId) throw new Error("Empresa é obrigatória.");
+      if (data.apiKey != null && data.apiKey.trim().length > 0 && data.apiKey.trim().length < 8) {
+        throw new Error("Chave de API inválida.");
       }
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        throw new Error("URL base deve usar http ou https.");
+      const url = data.baseUrl?.trim();
+      if (url) {
+        let parsed: URL;
+        try {
+          parsed = new URL(url);
+        } catch {
+          throw new Error("URL base inválida.");
+        }
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          throw new Error("URL base deve usar http ou https.");
+        }
+        if (url.length > 300) throw new Error("URL base muito longa.");
       }
-      if (url.length > 300) throw new Error("URL base muito longa.");
-    }
-    return data;
-  })
+      return data;
+    },
+  )
   .handler(async ({ data, context }) => {
     const { organizationId } = await assertCompanyAccess(context.supabase, data.companyId);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { encryptApiKey, last4 } = await import("./apfiscal/crypto.server");
 
     const { data: atual } = await supabaseAdmin
@@ -132,7 +139,9 @@ export const salvarIntegracaoEmpresa = createApiAction({ method: "POST" })
       base_url: data.baseUrl?.trim() || process.env.APFISCAL_BASE_URL || null,
     };
     // Chave informada > chave já cadastrada > chave padrão do servidor (nova empresa).
-    const key = data.apiKey?.trim() || (atual?.api_key_encrypted ? null : process.env.APFISCAL_DEFAULT_API_KEY);
+    const key =
+      data.apiKey?.trim() ||
+      (atual?.api_key_encrypted ? null : process.env.APFISCAL_DEFAULT_API_KEY);
     if (key) {
       patch.api_key_encrypted = await encryptApiKey(key);
       patch.api_key_last4 = last4(key);
@@ -146,16 +155,24 @@ export const salvarIntegracaoEmpresa = createApiAction({ method: "POST" })
 
 export const testarConexaoApfiscal = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { companyId: string; apiKey?: string | null; baseUrl?: string | null }) => {
-    if (!data?.companyId) throw new Error("Empresa é obrigatória.");
-    return data;
-  })
+  .inputValidator(
+    (data: { companyId: string; apiKey?: string | null; baseUrl?: string | null }) => {
+      if (!data?.companyId) throw new Error("Empresa é obrigatória.");
+      return data;
+    },
+  )
   .handler(async ({ data, context }) => {
     await assertCompanyAccess(context.supabase, data.companyId);
     const { listarNfes } = await import("./apfiscal/client.server");
     const { mensagemErro } = await import("./apfiscal/sync.server");
     try {
-      await listarNfes(data.companyId, 0, 1, data.apiKey?.trim() || undefined, data.baseUrl?.trim() || undefined);
+      await listarNfes(
+        data.companyId,
+        0,
+        1,
+        data.apiKey?.trim() || undefined,
+        data.baseUrl?.trim() || undefined,
+      );
       return { ok: true, mensagem: "Conexão estabelecida com sucesso." };
     } catch (e) {
       return { ok: false, mensagem: mensagemErro(e) };
@@ -177,7 +194,12 @@ export const sincronizarNfes = createApiAction({ method: "POST" })
 export const manifestarDocumentoFiscal = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (data: { companyId: string; chave: string; tipoEvento: string; justificativa?: string | null }) => {
+    (data: {
+      companyId: string;
+      chave: string;
+      tipoEvento: string;
+      justificativa?: string | null;
+    }) => {
       if (!data?.companyId) throw new Error("Empresa é obrigatória.");
       if (!/^\d{44}$/.test(data.chave ?? "")) throw new Error("Chave de acesso inválida.");
       if (!/^\d{6}$/.test(data.tipoEvento ?? "")) throw new Error("Tipo de evento inválido.");

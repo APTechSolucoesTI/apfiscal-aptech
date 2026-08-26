@@ -1,5 +1,7 @@
 import { createApiAction } from "@/common/action-builder";
+import { verifyPassword } from "@/auth/password";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { NfeStatus } from "./nfe-status";
 
 async function getDocOrThrow(context: any, documentId: string) {
@@ -47,10 +49,18 @@ export const aprovarNfe = createApiAction({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!data.email?.trim() || !data.password) throw new Error("Informe usuário e senha.");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { verifyPassword } = await import("@/auth/password");
-    const credential = await supabaseAdmin.from("users").select("id, password_hash, active").ilike("email", data.email.trim().toLowerCase()).maybeSingle();
-    if (credential.error || !credential.data || credential.data.id !== context.userId || !credential.data.active || !(await verifyPassword(data.password, credential.data.password_hash))) {
+    const credential = await supabaseAdmin
+      .from("users")
+      .select("id, password_hash, active")
+      .ilike("email", data.email.trim().toLowerCase())
+      .maybeSingle();
+    if (
+      credential.error ||
+      !credential.data ||
+      credential.data.id !== context.userId ||
+      !credential.data.active ||
+      !(await verifyPassword(data.password, credential.data.password_hash))
+    ) {
       throw new Error("As credenciais informadas não são da conta atual.");
     }
 
@@ -58,7 +68,12 @@ export const aprovarNfe = createApiAction({ method: "POST" })
     await assertAprovador(context, doc.companies.organization_id);
     if (doc.status !== "pendente_confirmacao") throw new Error("Esta NF-e já foi aprovada.");
 
-    await updateStatus(context, data.documentId, "aprovada", "Aprovação de NF-e confirmada via modal de aprovação");
+    await updateStatus(
+      context,
+      data.documentId,
+      "aprovada",
+      "Aprovação de NF-e confirmada via modal de aprovação",
+    );
     return { ok: true };
   });
 
@@ -71,7 +86,10 @@ export const reavaliarStatusApontamentos = createApiAction({ method: "POST" })
     return { ok: true, status };
   });
 
-export async function reavaliarApontamentos(context: any, documentId: string): Promise<string | null> {
+export async function reavaliarApontamentos(
+  context: any,
+  documentId: string,
+): Promise<string | null> {
   const doc = await getDocOrThrow(context, documentId);
   if (doc.status !== "aprovada" && doc.status !== "pronta_para_integracao") return doc.status;
 
@@ -88,7 +106,10 @@ export async function reavaliarApontamentos(context: any, documentId: string): P
     .is("tipo_compra_id", null);
 
   const completo =
-    !!doc.plano_contas_id && !!doc.local_estoque_id && (count ?? 0) > 0 && (itensSemTipo ?? 0) === 0;
+    !!doc.plano_contas_id &&
+    !!doc.local_estoque_id &&
+    (count ?? 0) > 0 &&
+    (itensSemTipo ?? 0) === 0;
   const alvo: NfeStatus = completo ? "pronta_para_integracao" : "aprovada";
   if (alvo !== doc.status) {
     await updateStatus(
@@ -111,7 +132,9 @@ export const marcarIntegradoTotvs = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { documentId: string; observacao?: string }) => data)
   .handler(() => {
-    throw new Error("A confirmação manual foi desativada. Use a fila TOTVS; o status só muda após sucesso transacional real no RM.");
+    throw new Error(
+      "A confirmação manual foi desativada. Use a fila TOTVS; o status só muda após sucesso transacional real no RM.",
+    );
   });
 
 export const listStatusHistorico = createApiAction({ method: "GET" })
@@ -128,9 +151,14 @@ export const listStatusHistorico = createApiAction({ method: "GET" })
     const ids = Array.from(new Set((rows ?? []).map((r: any) => r.alterado_por).filter(Boolean)));
     const nomes: Record<string, string> = {};
     if (ids.length > 0) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: users } = await supabaseAdmin.from("users").select("id, email, full_name").in("id", ids as string[]);
+      const { data: users } = await supabaseAdmin
+        .from("users")
+        .select("id, email, full_name")
+        .in("id", ids as string[]);
       for (const user of users ?? []) nomes[user.id] = user.full_name || user.email || "Usuário";
     }
-    return (rows ?? []).map((r: any) => ({ ...r, autor: r.alterado_por ? nomes[r.alterado_por] ?? "Usuário" : "Sistema" }));
+    return (rows ?? []).map((r: any) => ({
+      ...r,
+      autor: r.alterado_por ? (nomes[r.alterado_por] ?? "Usuário") : "Sistema",
+    }));
   });

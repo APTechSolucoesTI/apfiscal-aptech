@@ -1,5 +1,6 @@
 // Lógica de sincronização/manifestação da integração APFiscal. Server-only.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { importarNfeXml, resumoDoXmlNfe } from "@/legacy/lib/nfe-import.server";
 import {
   ApfiscalApiError,
   baixarNfeCompleta,
@@ -97,7 +98,6 @@ function normalizarDocumento(doc: NfeResumo, integ: IntegracaoEmpresa) {
   };
 }
 
-
 export async function sincronizarEmpresa(companyId: string): Promise<ResultadoSincronizacao> {
   const integ = await getIntegracao(companyId);
   try {
@@ -173,7 +173,12 @@ async function executarSincronizacao(
           // Ciência já dada: o XML completo está disponível — baixa e importa como NF-e.
           await baixarESalvarXmlCompleto(companyId, doc.chave, doc.id, integ.organization_id);
           resultado.xmlsCompletosBaixados++;
-          const importado = await importarXmlCompleto(companyId, doc.chave, doc.id, integ.organization_id);
+          const importado = await importarXmlCompleto(
+            companyId,
+            doc.chave,
+            doc.id,
+            integ.organization_id,
+          );
           if (importado) resultado.notasImportadas++;
         } else if (tipo === "nfe_resumida" || tipo.includes("resumida")) {
           const xml = await baixarNfeResumida(companyId, doc.nsu);
@@ -193,8 +198,6 @@ async function executarSincronizacao(
   }
 
   await preencherResumoFaltante(companyId);
-
-
 
   await registrarHistorico({
     organizationId: integ.organization_id,
@@ -219,7 +222,6 @@ async function preencherResumoFaltante(companyId: string, limite = 100) {
     .limit(limite);
 
   if (!data?.length) return;
-  const { resumoDoXmlNfe } = await import("@/legacy/lib/nfe-import.server");
   for (const doc of data) {
     try {
       const xml = await lerXml(doc.xml_completo_path as string);
@@ -237,10 +239,11 @@ async function preencherResumoFaltante(companyId: string, limite = 100) {
   }
 }
 
-
-
 async function marcarStatus(id: string, patch: Record<string, unknown>) {
-  await supabaseAdmin.from("documentos_fiscais_integracao").update(patch as never).eq("id", id);
+  await supabaseAdmin
+    .from("documentos_fiscais_integracao")
+    .update(patch as never)
+    .eq("id", id);
 }
 
 export async function manifestarDocumento(input: {
@@ -259,7 +262,12 @@ export async function manifestarDocumento(input: {
   const docId = doc?.id ?? null;
 
   try {
-    const resp = await manifestarNfe(input.companyId, input.chave, input.tipoEvento, input.justificativa);
+    const resp = await manifestarNfe(
+      input.companyId,
+      input.chave,
+      input.tipoEvento,
+      input.justificativa,
+    );
 
     if (resp.status === 202 || (!resp.xml_completo_disponivel && resp.status !== 200)) {
       if (docId) {
@@ -280,7 +288,10 @@ export async function manifestarDocumento(input: {
         mensagem: resp.mensagem ?? "Manifestação aceita; aguardando XML completo.",
         payload: resp.payload,
       });
-      return { status: "aguardando_xml_completo" as StatusDocumentoFiscal, mensagem: resp.mensagem };
+      return {
+        status: "aguardando_xml_completo" as StatusDocumentoFiscal,
+        mensagem: resp.mensagem,
+      };
     }
 
     if (resp.xml_completo_disponivel && docId) {
@@ -310,7 +321,10 @@ export async function manifestarDocumento(input: {
     const codigo = e instanceof ApfiscalApiError ? e.codigo : null;
     const mensagem = mensagemErro(e);
     if (docId) {
-      await marcarStatus(docId, { status: "erro" satisfies StatusDocumentoFiscal, mensagem_sefaz: mensagem });
+      await marcarStatus(docId, {
+        status: "erro" satisfies StatusDocumentoFiscal,
+        mensagem_sefaz: mensagem,
+      });
     }
     await registrarHistorico({
       organizationId: integ.organization_id,
@@ -345,9 +359,11 @@ export async function importarXmlCompleto(
   if (!path) return false;
 
   const xml = await lerXml(path);
-  const { importarNfeXml } = await import("@/legacy/lib/nfe-import.server");
   try {
-    const res = await importarNfeXml(supabaseAdmin as never, { fileName: `completa-${chave}.xml`, xml });
+    const res = await importarNfeXml(supabaseAdmin as never, {
+      fileName: `completa-${chave}.xml`,
+      xml,
+    });
     await registrarHistorico({
       organizationId,
       companyId,
@@ -355,7 +371,9 @@ export async function importarXmlCompleto(
       acao: "importar_nfe",
       statusHttp: 200,
       sucesso: true,
-      mensagem: res.duplicated ? "NF-e já importada anteriormente." : "NF-e importada a partir do XML completo.",
+      mensagem: res.duplicated
+        ? "NF-e já importada anteriormente."
+        : "NF-e importada a partir do XML completo.",
     });
     return Boolean(res.ok);
   } catch (e) {
@@ -383,7 +401,6 @@ export async function baixarESalvarXmlCompleto(
   // extraímos esses dados do próprio XML.
   let resumo: Record<string, unknown> = {};
   try {
-    const { resumoDoXmlNfe } = await import("@/legacy/lib/nfe-import.server");
     const r = resumoDoXmlNfe(xml);
     resumo = {
       ...(r.emitente_cnpj ? { emitente_cnpj: r.emitente_cnpj } : {}),

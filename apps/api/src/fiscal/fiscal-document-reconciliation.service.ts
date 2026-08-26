@@ -231,9 +231,11 @@ export class FiscalDocumentReconciliationService {
             : [];
         });
         if (!reconciledRates.length) continue;
-        const itemValueInCents = Math.round(Number(localItem.valor_bruto ?? 0) * 100);
+        const toDatabaseCents = (value: unknown) =>
+          Math.floor(Number(value) * 100 + 0.5000001);
+        const itemValueInCents = toDatabaseCents(localItem.valor_bruto ?? 0);
         const rateValuesInCents = reconciledRates.map((rate) =>
-          Math.round(Number(rate.valor) * 100),
+          toDatabaseCents(rate.valor),
         );
         if (
           itemValueInCents < 0 ||

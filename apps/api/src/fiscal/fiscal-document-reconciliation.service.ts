@@ -62,6 +62,10 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Falha não identificada ao reconciliar a NF-e.";
 }
 
+function databaseCents(value: unknown): number {
+  return Math.floor(Number(value) * 100 + 0.5000001);
+}
+
 @Injectable()
 export class FiscalDocumentReconciliationService {
   constructor(
@@ -194,24 +198,29 @@ export class FiscalDocumentReconciliationService {
         .eq("id", document.id);
       if (updated.error) throw updated.error;
       const actualRates = headerRates.filter((rate) => rate.IDMOV === movement.IDMOV);
-      const headerRateTotal = actualRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
+      const reconciledHeaderRates = actualRates.flatMap((rate) => {
+        const costCenterId = costCenterByCode.get(rate.CODCCUSTO);
+        return costCenterId
+          ? [{ document_id: document.id, centro_custo_id: costCenterId, valor: rate.VALOR }]
+          : [];
+      });
+      const headerRateValuesInCents = reconciledHeaderRates.map((rate) =>
+        databaseCents(rate.valor),
+      );
       if (
-        actualRates.length &&
-        headerRateTotal <= Number(document.valor_total ?? movement.VALORLIQUIDO ?? 0) + 0.01
+        reconciledHeaderRates.length &&
+        headerRateValuesInCents.every((value) => Number.isFinite(value) && value >= 0) &&
+        headerRateValuesInCents.reduce((sum, value) => sum + value, 0) <=
+          databaseCents(document.valor_total ?? movement.VALORLIQUIDO ?? 0)
       ) {
         const removed = await supabaseAdmin
           .from("nfe_centro_custo")
           .delete()
           .eq("document_id", document.id);
         if (removed.error) throw removed.error;
-        const inserted = await supabaseAdmin.from("nfe_centro_custo").insert(
-          actualRates.flatMap((rate) => {
-            const costCenterId = costCenterByCode.get(rate.CODCCUSTO);
-            return costCenterId
-              ? [{ document_id: document.id, centro_custo_id: costCenterId, valor: rate.VALOR }]
-              : [];
-          }),
-        );
+        const inserted = await supabaseAdmin
+          .from("nfe_centro_custo")
+          .insert(reconciledHeaderRates);
         if (inserted.error) throw inserted.error;
       }
       const documentItems = (localItems.data ?? []).filter(
@@ -231,11 +240,9 @@ export class FiscalDocumentReconciliationService {
             : [];
         });
         if (!reconciledRates.length) continue;
-        const toDatabaseCents = (value: unknown) =>
-          Math.floor(Number(value) * 100 + 0.5000001);
-        const itemValueInCents = toDatabaseCents(localItem.valor_bruto ?? 0);
+        const itemValueInCents = databaseCents(localItem.valor_bruto ?? 0);
         const rateValuesInCents = reconciledRates.map((rate) =>
-          toDatabaseCents(rate.valor),
+          databaseCents(rate.valor),
         );
         if (
           itemValueInCents < 0 ||
@@ -367,12 +374,6 @@ export class FiscalDocumentReconciliationService {
         .eq("id", document.id);
       if (updated.error) throw updated.error;
       const actualRates = rates.filter((rate) => rate.IDMOV === movement.IDMOV);
-      const total = actualRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
-      if (
-        !actualRates.length ||
-        total > Number(document.valor_total ?? movement.VALORLIQUIDO) + 0.01
-      )
-        continue;
       const rows = actualRates.flatMap((rate) => {
         const centro = costByCode.get(rate.CODCCUSTO);
         return centro
@@ -380,6 +381,13 @@ export class FiscalDocumentReconciliationService {
           : [];
       });
       if (!rows.length) continue;
+      const rateValuesInCents = rows.map((rate) => databaseCents(rate.valor));
+      if (
+        rateValuesInCents.some((value) => !Number.isFinite(value) || value < 0) ||
+        rateValuesInCents.reduce((sum, value) => sum + value, 0) >
+          databaseCents(document.valor_total ?? movement.VALORLIQUIDO)
+      )
+        continue;
       const removed = await supabaseAdmin
         .from("nfe_centro_custo")
         .delete()

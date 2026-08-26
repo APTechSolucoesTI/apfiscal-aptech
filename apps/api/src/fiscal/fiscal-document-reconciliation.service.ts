@@ -73,7 +73,7 @@ export class FiscalDocumentReconciliationService {
     const scope = await this.scopes.company(organizationId, companyId);
     const documents = await supabaseAdmin
       .from("fiscal_documents")
-      .select("id, chave_acesso")
+      .select("id, chave_acesso, valor_total")
       .eq("company_id", companyId)
       .eq("tipo", "nfe")
       .not("chave_acesso", "is", null)
@@ -168,7 +168,7 @@ export class FiscalDocumentReconciliationService {
         : Promise.resolve({ data: [], error: null }),
       supabaseAdmin
         .from("fiscal_document_items")
-        .select("id, document_id, numero_item")
+        .select("id, document_id, numero_item, valor_total")
         .in("document_id", documentIds),
     ]);
     if (plans.error) throw plans.error;
@@ -194,7 +194,11 @@ export class FiscalDocumentReconciliationService {
         .eq("id", document.id);
       if (updated.error) throw updated.error;
       const actualRates = headerRates.filter((rate) => rate.IDMOV === movement.IDMOV);
-      if (actualRates.length) {
+      const headerRateTotal = actualRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
+      if (
+        actualRates.length &&
+        headerRateTotal <= Number(document.valor_total ?? movement.VALORLIQUIDO ?? 0) + 0.01
+      ) {
         const removed = await supabaseAdmin
           .from("nfe_centro_custo")
           .delete()
@@ -226,7 +230,9 @@ export class FiscalDocumentReconciliationService {
         const actualItemRates = rmItemRates.filter(
           (rate) => rate.IDMOV === movement.IDMOV && rate.NSEQITMMOV === rmItem.NSEQITMMOV,
         );
-        if (!actualItemRates.length) continue;
+        const itemRateTotal = actualItemRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
+        if (!actualItemRates.length || itemRateTotal > Number(localItem.valor_total ?? 0) + 0.01)
+          continue;
         const removed = await supabaseAdmin
           .from("nfe_item_centro_custo")
           .delete()

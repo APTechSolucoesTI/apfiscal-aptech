@@ -223,9 +223,26 @@ export class FiscalDocumentReconciliationService {
         const actualItemRates = rmItemRates.filter(
           (rate) => rate.IDMOV === movement.IDMOV && rate.NSEQITMMOV === rmItem.NSEQITMMOV,
         );
+        if (!actualItemRates.length) continue;
         const itemRateTotal = actualItemRates.reduce((sum, rate) => sum + Number(rate.VALOR), 0);
-        if (actualItemRates.length && itemRateTotal > Number(localItem.valor_total ?? 0) + 0.01)
+        if (itemRateTotal > Number(localItem.valor_total ?? 0) + 0.01)
           continue;
+        const reconciledRates = actualItemRates.flatMap((rate) => {
+          const costCenterId = costCenterByCode.get(rate.CODCCUSTO);
+          return costCenterId
+            ? [{ document_item_id: localItem.id, centro_custo_id: costCenterId, valor: rate.VALOR }]
+            : [];
+        });
+        if (!reconciledRates.length) continue;
+        const removed = await supabaseAdmin
+          .from("nfe_item_centro_custo")
+          .delete()
+          .eq("document_item_id", localItem.id);
+        if (removed.error) throw removed.error;
+        const inserted = await supabaseAdmin
+          .from("nfe_item_centro_custo")
+          .insert(reconciledRates);
+        if (inserted.error) throw inserted.error;
         const itemUpdated = await supabaseAdmin
           .from("fiscal_document_items")
           .update({
@@ -233,27 +250,6 @@ export class FiscalDocumentReconciliationService {
           })
           .eq("id", localItem.id);
         if (itemUpdated.error) throw itemUpdated.error;
-        if (!actualItemRates.length) continue;
-        const removed = await supabaseAdmin
-          .from("nfe_item_centro_custo")
-          .delete()
-          .eq("document_item_id", localItem.id);
-        if (removed.error) throw removed.error;
-        const inserted = await supabaseAdmin.from("nfe_item_centro_custo").insert(
-          actualItemRates.flatMap((rate) => {
-            const costCenterId = costCenterByCode.get(rate.CODCCUSTO);
-            return costCenterId
-              ? [
-                  {
-                    document_item_id: localItem.id,
-                    centro_custo_id: costCenterId,
-                    valor: rate.VALOR,
-                  },
-                ]
-              : [];
-          }),
-        );
-        if (inserted.error) throw inserted.error;
       }
     }
   }

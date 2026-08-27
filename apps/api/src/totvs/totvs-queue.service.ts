@@ -434,8 +434,34 @@ export class TotvsQueueService implements OnModuleInit, OnModuleDestroy {
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
     if (previous.error) throw previous.error;
-    if (previous.data)
+    if (previous.data && previous.data.status !== "failed")
       return { runId: previous.data.id, status: previous.data.status, idempotent: true };
+    if (previous.data?.status === "failed") {
+      const retriedAt = new Date().toISOString();
+      const reset = await supabaseAdmin
+        .from("totvs_integration_runs")
+        .update({
+          status: "queued",
+          created_at: retriedAt,
+          started_at: null,
+          finished_at: null,
+          error_message: null,
+          response_payload: null,
+        })
+        .eq("id", previous.data.id);
+      if (reset.error) throw reset.error;
+      const job = await this.integrationQueue.add(
+        "retry-integration",
+        { runId: previous.data.id },
+        { jobId: `integration-${previous.data.id}-${Date.now()}` },
+      );
+      const jobUpdate = await supabaseAdmin
+        .from("totvs_integration_runs")
+        .update({ job_id: job.id })
+        .eq("id", previous.data.id);
+      if (jobUpdate.error) throw jobUpdate.error;
+      return { runId: previous.data.id, status: "queued", idempotent: false };
+    }
     const run = await supabaseAdmin
       .from("totvs_integration_runs")
       .insert({

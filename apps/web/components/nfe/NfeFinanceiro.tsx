@@ -153,7 +153,11 @@ export function NfeFinanceiro({
   });
   const suggestMut = useMutation({
     mutationFn: () => suggestFn({ data: { documentId } }),
-    onSuccess: (result: { sourceDocumentNumber: string }) => {
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.info(result.message);
+        return;
+      }
       toast.success(
         `Sugestão aplicada com base na nota ${result.sourceDocumentNumber}. Revise antes de integrar.`,
       );

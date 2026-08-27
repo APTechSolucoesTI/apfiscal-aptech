@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, Save, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ export function NfseTotvsPanel({
   latestRun: TotvsRunSummary | null;
 }) {
   const queryClient = useQueryClient();
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [planId, setPlanId] = useState(document.plano_contas_id ?? "");
   const [costCenterId, setCostCenterId] = useState("");
@@ -74,11 +75,11 @@ export function NfseTotvsPanel({
   }, [allocation.data]);
   useEffect(() => setPlanId(document.plano_contas_id ?? ""), [document.plano_contas_id]);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["nfse-detail", document.id] });
     queryClient.invalidateQueries({ queryKey: ["nfse-documents"] });
     queryClient.invalidateQueries({ queryKey: ["nfe-alocacao", document.id] });
-  };
+  }, [document.id, queryClient]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -109,17 +110,51 @@ export function NfseTotvsPanel({
         `/totvs/integrate/${document.id}`,
         { method: "POST" },
       ),
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("NFS-e enviada para a fila de integração TOTVS.");
+      setActiveRunId(result.runId);
       refresh();
-      window.setTimeout(refresh, 1800);
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const integrationRun = useQuery({
+    queryKey: ["totvs-integration-run", activeRunId],
+    queryFn: () =>
+      backendFetch<{
+        status: string;
+        rm_record_id: string | null;
+        error_message: string | null;
+      }>(`/totvs/integrate/run/${activeRunId}`),
+    enabled: Boolean(activeRunId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "succeeded" || status === "failed" ? false : 1200;
+    },
+  });
+
+  useEffect(() => {
+    if (!activeRunId || !integrationRun.data) return;
+    if (integrationRun.data.status === "succeeded") {
+      toast.success(`NFS-e integrada no movimento RM ${integrationRun.data.rm_record_id}.`);
+      refresh();
+      setActiveRunId(null);
+    } else if (integrationRun.data.status === "failed") {
+      toast.error(
+        integrationRun.data.error_message || "Não foi possível integrar a NFS-e no TOTVS.",
+      );
+      refresh();
+      setActiveRunId(null);
+    }
+  }, [activeRunId, integrationRun.data, refresh]);
+
   const suggestion = useMutation({
     mutationFn: () => suggest({ data: { documentId: document.id } }),
-    onSuccess: (result: { sourceDocumentNumber: string }) => {
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.info(result.message);
+        return;
+      }
       toast.success(
         `Sugestão aplicada com base na NFS-e ${result.sourceDocumentNumber}. Revise antes de integrar.`,
       );

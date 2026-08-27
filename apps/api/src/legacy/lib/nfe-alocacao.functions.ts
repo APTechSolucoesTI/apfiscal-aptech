@@ -120,7 +120,11 @@ export const sugerirApontamentosFinanceiros = createApiAction({ method: "POST" }
       .limit(25);
     if (candidates.error) throw new Error(candidates.error.message);
     if (!candidates.data?.length)
-      throw new Error("Ainda não existe documento integrado deste fornecedor para gerar sugestão.");
+      return {
+        ok: false as const,
+        reason: "not_found" as const,
+        message: "Nenhuma sugestão encontrada para este fornecedor.",
+      };
     const currentItems = await context.supabase
       .from("fiscal_document_items")
       .select("id, product_id, valor_bruto")

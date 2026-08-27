@@ -521,6 +521,21 @@ export class TotvsController {
   }
 
   @RequirePermission("totvs.integration.execute")
+  @Get("integrate/run/:runId")
+  async integrationRun(@Param("runId") runId: string, @Req() request: AuthenticatedRequest) {
+    const organizationId = await this.organizationId(request.user.id);
+    const run = await supabaseAdmin
+      .from("totvs_integration_runs")
+      .select("id, status, rm_record_id, error_message, finished_at")
+      .eq("id", runId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (run.error) throw run.error;
+    if (!run.data) throw new NotFoundException("Execução de integração não encontrada.");
+    return run.data;
+  }
+
+  @RequirePermission("totvs.integration.execute")
   @Post("integrate/:documentId")
   async integrate(@Param("documentId") documentId: string, @Req() request: AuthenticatedRequest) {
     const organizationId = await this.organizationId(request.user.id);

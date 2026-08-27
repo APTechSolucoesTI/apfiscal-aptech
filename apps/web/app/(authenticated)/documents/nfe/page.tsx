@@ -104,6 +104,7 @@ function NFeList() {
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [companyId, setCompanyId] = useState<string>("todas");
   const [aprovarId, setAprovarId] = useState<string | null>(null);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const removeMany = useServerFn(deleteFiscalDocuments);
   const importXml = useServerFn(importNfeXml);
 
@@ -201,12 +202,41 @@ function NFeList() {
         `/totvs/integrate/${documentId}`,
         { method: "POST" },
       ),
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("NF-e enviada para a fila de integração TOTVS.");
+      setActiveRunId(result.runId);
       qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const integrationRun = useQuery({
+    queryKey: ["totvs-integration-run", activeRunId],
+    queryFn: () =>
+      backendFetch<{
+        status: string;
+        rm_record_id: string | null;
+        error_message: string | null;
+      }>(`/totvs/integrate/run/${activeRunId}`),
+    enabled: Boolean(activeRunId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "succeeded" || status === "failed" ? false : 1200;
+    },
+  });
+
+  useEffect(() => {
+    if (!activeRunId || !integrationRun.data) return;
+    if (integrationRun.data.status === "succeeded") {
+      toast.success(`NF-e integrada no movimento RM ${integrationRun.data.rm_record_id}.`);
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+      setActiveRunId(null);
+    } else if (integrationRun.data.status === "failed") {
+      toast.error(integrationRun.data.error_message || "Não foi possível integrar a NF-e no TOTVS.");
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+      setActiveRunId(null);
+    }
+  }, [activeRunId, integrationRun.data, qc]);
 
   function toggleAll() {
     if (allChecked) setSelectedIds(new Set());

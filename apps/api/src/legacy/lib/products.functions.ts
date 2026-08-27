@@ -30,6 +30,30 @@ async function resolveOrganizationId(context: { supabase: any }, companyId: stri
   return orgId as string;
 }
 
+async function resolveDocumentSupplierId(
+  supabase: any,
+  organizationId: string,
+  companyId: string | null,
+  documentSupplierId: string | null,
+  issuerTaxId: string | null,
+): Promise<string | null> {
+  if (documentSupplierId) return documentSupplierId;
+  if (!issuerTaxId) return null;
+  const digits = issuerTaxId.replace(/\D/g, "");
+  const { data, error } = await supabase
+    .from("suppliers")
+    .select("id, company_id")
+    .eq("organization_id", organizationId)
+    .or(`cnpj_cpf.eq.${issuerTaxId},cnpj_cpf.eq.${digits}`);
+  if (error) throw new Error(`Falha ao localizar fornecedor: ${error.message}`);
+  const candidates = (data ?? []) as Array<{ id: string; company_id: string | null }>;
+  return (
+    candidates.find((supplier) => supplier.company_id === companyId)?.id ??
+    candidates.find((supplier) => supplier.company_id === null)?.id ??
+    null
+  );
+}
+
 export const listProducts = createApiAction({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { companyId?: string }) => data)
@@ -214,7 +238,7 @@ export const linkNfeItemToProduct = createApiAction({ method: "POST" })
     await assertVinculoPermitidoPorItem(context.supabase, data.itemId);
     const { data: item, error: iErr } = await context.supabase
       .from("fiscal_document_items")
-      .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, emitente_nome, companies(organization_id))")
+      .select("id, codigo, document_id, fiscal_documents(company_id, supplier_id, emitente_cnpj, emitente_nome, companies(organization_id))")
       .eq("id", data.itemId)
       .maybeSingle();
     if (iErr || !item) throw new Error("Item não encontrado");
@@ -227,16 +251,14 @@ export const linkNfeItemToProduct = createApiAction({ method: "POST" })
 
     if (orgId && emitCnpj && codigo) {
       const digits = emitCnpj.replace(/\D/g, "");
-      let supplierId: string | null = null;
-      const { data: sup, error: sErr } = await context.supabase
-        .from("suppliers").select("id")
-        .eq("organization_id", orgId)
-        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${digits}`)
-        .limit(1).maybeSingle();
-      if (sErr) throw new Error(`Falha ao localizar fornecedor: ${sErr.message}`);
-      if (sup) {
-        supplierId = (sup as any).id as string;
-      } else {
+      let supplierId = await resolveDocumentSupplierId(
+        context.supabase,
+        orgId,
+        companyId,
+        doc?.supplier_id ?? null,
+        emitCnpj,
+      );
+      if (!supplierId) {
         // Cria automaticamente o fornecedor a partir dos dados do emitente da NF-e
         const { data: newSupId, error: upsertErr } = await context.supabase.rpc("upsert_supplier_from_nfe", {
           _organization_id: orgId,
@@ -319,7 +341,7 @@ export const getNfeItemLinkContext = createApiAction({ method: "GET" })
 
     const { data: doc } = await context.supabase
       .from("fiscal_documents")
-      .select("id, company_id, emitente_cnpj, emitente_nome, numero, serie, companies(id, razao_social, organization_id)")
+      .select("id, company_id, supplier_id, emitente_cnpj, emitente_nome, numero, serie, companies(id, razao_social, organization_id)")
       .eq("id", (item as any).document_id)
       .maybeSingle();
 
@@ -329,13 +351,20 @@ export const getNfeItemLinkContext = createApiAction({ method: "GET" })
 
     let supplier: { id: string; razao_social: string; cnpj_cpf: string } | null = null;
     if (emitCnpj && orgId) {
-      const { data: sup } = await context.supabase
-        .from("suppliers")
-        .select("id, razao_social, cnpj_cpf")
-        .eq("organization_id", orgId)
-        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${emitCnpj.replace(/\D/g, "")}`)
-        .limit(1)
-        .maybeSingle();
+      const supplierId = await resolveDocumentSupplierId(
+        context.supabase,
+        orgId,
+        companyId,
+        (doc as any)?.supplier_id ?? null,
+        emitCnpj,
+      );
+      const { data: sup } = supplierId
+        ? await context.supabase
+            .from("suppliers")
+            .select("id, razao_social, cnpj_cpf")
+            .eq("id", supplierId)
+            .maybeSingle()
+        : { data: null };
       if (sup) supplier = sup as any;
     }
 
@@ -418,7 +447,7 @@ export const createProductAndLinkItem = createApiAction({ method: "POST" })
     await assertVinculoPermitidoPorItem(context.supabase, data.itemId);
     const { data: item, error: iErr } = await context.supabase
       .from("fiscal_document_items")
-      .select("id, codigo, document_id, fiscal_documents(company_id, emitente_cnpj, companies(organization_id))")
+      .select("id, codigo, document_id, fiscal_documents(company_id, supplier_id, emitente_cnpj, companies(organization_id))")
       .eq("id", data.itemId)
       .maybeSingle();
     if (iErr || !item) throw new Error("Item da NF-e não encontrado");
@@ -430,15 +459,13 @@ export const createProductAndLinkItem = createApiAction({ method: "POST" })
     if (!orgId) throw new Error("Organização não encontrada");
 
     // Localiza fornecedor
-    let supplierId: string | null = null;
-    if (emitCnpj) {
-      const { data: sup } = await context.supabase
-        .from("suppliers").select("id")
-        .eq("organization_id", orgId)
-        .or(`cnpj_cpf.eq.${emitCnpj},cnpj_cpf.eq.${emitCnpj.replace(/\D/g, "")}`)
-        .limit(1).maybeSingle();
-      supplierId = (sup as any)?.id ?? null;
-    }
+    const supplierId = await resolveDocumentSupplierId(
+      context.supabase,
+      orgId,
+      companyIdDoc,
+      doc?.supplier_id ?? null,
+      emitCnpj,
+    );
     if (!supplierId) throw new Error("Fornecedor da NF-e não localizado no cadastro. Cadastre o fornecedor antes de vincular.");
 
     // 1) Criar produto

@@ -55,7 +55,7 @@ export class TotvsIntegrationService {
         supabaseAdmin
           .from("fiscal_documents")
           .select(
-            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, erp_system, erp_code, erp_external_id), plano_contas:plano_contas_id(codigo), tipos_compra:tipo_compra_id(codigo)",
+            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, logradouro, numero, complemento, bairro, cep, municipio, uf, telefone, email, tipo_pessoa, erp_system, erp_code, erp_external_id), plano_contas:plano_contas_id(codigo), tipos_compra:tipo_compra_id(codigo)",
           )
           .eq("id", run.data.fiscal_document_id)
           .single(),
@@ -196,6 +196,22 @@ export class TotvsIntegrationService {
             scope.codFilial ?? positiveIntegerSetting(scope.connectionKey, "DEFAULT_FILIAL", 1),
           supplierCode: document.data.suppliers?.erp_code ?? null,
           supplierTaxId: document.data.emitente_cnpj ?? document.data.suppliers?.cnpj_cpf ?? "",
+          supplier: {
+            legalName: document.data.suppliers?.razao_social ?? document.data.emitente_nome,
+            tradeName: document.data.suppliers?.nome_fantasia ?? document.data.emitente_nome,
+            stateRegistration: document.data.suppliers?.inscricao_estadual ?? null,
+            municipalRegistration: document.data.suppliers?.inscricao_municipal ?? null,
+            street: document.data.suppliers?.logradouro ?? null,
+            number: document.data.suppliers?.numero ?? null,
+            complement: document.data.suppliers?.complemento ?? null,
+            district: document.data.suppliers?.bairro ?? null,
+            zipCode: document.data.suppliers?.cep ?? null,
+            city: document.data.suppliers?.municipio ?? null,
+            state: document.data.suppliers?.uf ?? null,
+            phone: document.data.suppliers?.telefone ?? null,
+            email: document.data.suppliers?.email ?? null,
+            personType: document.data.suppliers?.tipo_pessoa ?? null,
+          },
           document: document.data as unknown as RmDocument,
           items: rmItems,
           costCenterCode: headerCostCenter?.codigo ?? null,

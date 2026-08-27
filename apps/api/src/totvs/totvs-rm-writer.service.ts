@@ -14,6 +14,8 @@ const CLONEABLE_TABLES = new Set([
   "TMOVRATCCU",
   "TITMMOVRATCCU",
   "FLAN",
+  "FCFO",
+  "FCFOHISTORICO",
   "TPRODUTO",
   "TPRODUTODEF",
 ]);
@@ -74,6 +76,22 @@ export type RmWriteInput = {
   filial: number;
   supplierCode: string | null;
   supplierTaxId: string;
+  supplier: {
+    legalName: string | null;
+    tradeName: string | null;
+    stateRegistration: string | null;
+    municipalRegistration: string | null;
+    street: string | null;
+    number: string | null;
+    complement: string | null;
+    district: string | null;
+    zipCode: string | null;
+    city: string | null;
+    state: string | null;
+    phone: string | null;
+    email: string | null;
+    personType: string | null;
+  };
   document: RmDocument;
   items: RmItem[];
   costCenterCode: string | null;
@@ -117,6 +135,15 @@ function movementNumber(value: string) {
   if (!digits || digits.length > 9)
     throw new Error(`O número do movimento deve conter no máximo 9 dígitos: ${value}.`);
   return digits.padStart(9, "0");
+}
+
+function formatTaxId(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 14)
+    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  if (digits.length === 11)
+    return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+  return value;
 }
 
 function purchaseNatureBase(type: string | null | undefined) {
@@ -378,6 +405,138 @@ export class TotvsRmWriterService {
     return result.recordset[0].value;
   }
 
+  private async ensureSupplier(
+    transaction: sql.Transaction,
+    input: RmWriteInput,
+    supplierTaxId: string,
+  ) {
+    const existingResult = await new sql.Request(transaction)
+      .input("supplierCode", sql.VarChar, input.supplierCode ?? "")
+      .input("supplierTaxId", sql.VarChar, supplierTaxId).query<{
+      IDCFO: number;
+      CODCFO: string;
+      IDHISTORICO: number | null;
+    }>(`
+      SELECT TOP 1 cfo.IDCFO,cfo.CODCFO,
+        (SELECT MAX(hist.IDHISTORICO) FROM dbo.FCFOHISTORICO hist
+         WHERE hist.CODCOLIGADA=0 AND hist.CODCFO=cfo.CODCFO) AS IDHISTORICO
+      FROM dbo.FCFO cfo WITH (UPDLOCK,HOLDLOCK)
+      WHERE cfo.CODCOLIGADA=0
+        AND (cfo.CODCFO=@supplierCode
+          OR REPLACE(REPLACE(REPLACE(cfo.CGCCFO,'.',''),'/',''),'-','')=@supplierTaxId)
+      ORDER BY CASE WHEN cfo.CODCFO=@supplierCode THEN 0 ELSE 1 END
+    `);
+    const existing = existingResult.recordset[0];
+    if (existing?.IDHISTORICO)
+      return { ...existing, IDHISTORICO: existing.IDHISTORICO };
+
+    const template = await new sql.Request(transaction).query<{
+      IDCFO: number;
+      CODCFO: string;
+      IDHISTORICO: number;
+    }>(`
+      SELECT TOP 1 cfo.IDCFO,cfo.CODCFO,h.IDHISTORICO
+      FROM dbo.FCFO cfo WITH (HOLDLOCK)
+      JOIN dbo.FCFOHISTORICO h WITH (HOLDLOCK)
+        ON h.CODCOLIGADA=0 AND h.CODCFO=cfo.CODCFO
+      WHERE cfo.CODCOLIGADA=0 AND cfo.ATIVO=1 AND cfo.PAGREC IN (1,3)
+      ORDER BY cfo.IDCFO DESC,h.IDHISTORICO DESC
+    `);
+    const source = template.recordset[0];
+    if (!source) throw new Error("O RM não possui fornecedor-modelo global válido para cadastro.");
+
+    const now = date(input.integrationAt);
+    const historyId = await this.nextGenerator(transaction, 0, "F", "IDHISTORICO");
+    const name = (input.supplier.legalName || input.document.emitente_nome || supplierTaxId).slice(
+      0,
+      100,
+    );
+    const tradeName = (input.supplier.tradeName || name).slice(0, 100);
+    const personType =
+      input.supplier.personType?.toUpperCase().startsWith("F") || supplierTaxId.length === 11
+        ? "F"
+        : "J";
+    let supplierCode = existing?.CODCFO;
+    let idCfo = existing?.IDCFO;
+    if (!existing) {
+      idCfo = await this.nextGenerator(transaction, 0, "F", "IDCFO");
+      const nextCode = await new sql.Request(transaction).query<{ value: number }>(`
+        SELECT ISNULL(MAX(TRY_CONVERT(int,SUBSTRING(CODCFO,2,20))),0)+1 AS value
+        FROM dbo.FCFO WITH (UPDLOCK,HOLDLOCK)
+        WHERE CODCOLIGADA=0 AND CODCFO LIKE 'C%'
+      `);
+      supplierCode = `C${String(nextCode.recordset[0].value).padStart(6, "0")}`;
+      const rows = await this.clone(
+        transaction,
+        "FCFO",
+        "src.CODCOLIGADA=0 AND src.IDCFO=@sourceId",
+        { sourceId: source.IDCFO },
+        {
+          IDCFO: idCfo,
+          CODCFO: supplierCode,
+          CODEXTERNO: supplierCode,
+          NOME: name,
+          NOMEFANTASIA: tradeName,
+          CGCCFO: formatTaxId(supplierTaxId),
+          INSCRESTADUAL: input.supplier.stateRegistration ?? "",
+          INSCRMUNICIPAL: input.supplier.municipalRegistration ?? "",
+          PESSOAFISOUJUR: personType,
+          RUA: input.supplier.street ?? "",
+          NUMERO: input.supplier.number ?? "",
+          COMPLEMENTO: input.supplier.complement ?? "",
+          BAIRRO: input.supplier.district ?? "",
+          CEP: input.supplier.zipCode ?? "",
+          CIDADE: input.supplier.city ?? "",
+          CODETD: input.supplier.state ?? "",
+          TELEFONE: input.supplier.phone ?? "",
+          EMAIL: input.supplier.email ?? "",
+          DATACRIACAO: now,
+          DATAULTALTERACAO: now,
+          USUARIOCRIACAO: input.user,
+          RECCREATEDBY: input.user,
+          RECCREATEDON: now,
+          RECMODIFIEDBY: input.user,
+          RECMODIFIEDON: now,
+        },
+      );
+      if (rows !== 1) throw new Error("Não foi possível criar o fornecedor global no RM.");
+    }
+
+    const historyRows = await this.clone(
+      transaction,
+      "FCFOHISTORICO",
+      "src.CODCOLIGADA=0 AND src.IDHISTORICO=@sourceHistoryId",
+      { sourceHistoryId: source.IDHISTORICO },
+      {
+        IDHISTORICO: historyId,
+        CODCFO: supplierCode!,
+        NOME: name,
+        NOMEFANTASIA: tradeName,
+        CGCCFO: formatTaxId(supplierTaxId),
+        INSCRESTADUAL: input.supplier.stateRegistration ?? "",
+        INSCRMUNICIPAL: input.supplier.municipalRegistration ?? "",
+        PESSOAFISOUJUR: personType,
+        RUA: input.supplier.street ?? "",
+        NUMERO: input.supplier.number ?? "",
+        COMPLEMENTO: input.supplier.complement ?? "",
+        BAIRRO: input.supplier.district ?? "",
+        CEP: input.supplier.zipCode ?? "",
+        CIDADE: input.supplier.city ?? "",
+        CODETD: input.supplier.state ?? "",
+        TELEFONE: input.supplier.phone ?? "",
+        EMAIL: input.supplier.email ?? "",
+        DATACRIACAO: now,
+        USUARIO: input.user,
+        RECCREATEDBY: input.user,
+        RECCREATEDON: now,
+        RECMODIFIEDBY: input.user,
+        RECMODIFIEDON: now,
+      },
+    );
+    if (historyRows !== 1) throw new Error("Não foi possível criar o histórico do fornecedor no RM.");
+    return { IDCFO: idCfo!, CODCFO: supplierCode!, IDHISTORICO: historyId };
+  }
+
   async write(transaction: sql.Transaction, input: RmWriteInput): Promise<RmWriteResult> {
     const codTmv = input.document.tipo === "nfse" ? input.nfseCodTmv : input.nfeCodTmv;
     const supplierTaxId = input.supplierTaxId.replace(/\D/g, "");
@@ -443,30 +602,8 @@ export class TotvsRmWriterService {
     if (!templateId)
       throw new Error(`Não existe movimento-modelo ${codTmv} na coligada ${input.coligada}.`);
 
-    const supplier = await new sql.Request(transaction)
-      .input("supplierColigada", sql.SmallInt, 0)
-      .input("supplierCode", sql.VarChar, input.supplierCode ?? "")
-      .input("supplierTaxId", sql.VarChar, supplierTaxId).query<{
-      IDCFO: number;
-      CODCFO: string;
-      IDHISTORICO: number;
-    }>(`
-        SELECT TOP 1 cfo.IDCFO,cfo.CODCFO,
-          (SELECT MAX(hist.IDHISTORICO) FROM dbo.FCFOHISTORICO hist WHERE hist.CODCOLIGADA=cfo.CODCOLIGADA AND hist.CODCFO=cfo.CODCFO) AS IDHISTORICO
-        FROM dbo.FCFO cfo WITH (UPDLOCK,HOLDLOCK)
-        WHERE CODCOLIGADA=@supplierColigada
-          AND (CODCFO=@supplierCode OR REPLACE(REPLACE(REPLACE(CGCCFO,'.',''),'/',''),'-','')=@supplierTaxId)
-        ORDER BY CASE WHEN CODCFO=@supplierCode THEN 0 ELSE 1 END
-      `);
-    if (!supplier.recordset[0])
-      throw new Error(
-        `Fornecedor de CNPJ/CPF ${input.supplierTaxId} não existe na tabela FCFO global do RM.`,
-      );
-    if (!supplier.recordset[0].IDHISTORICO)
-      throw new Error(
-        `O fornecedor ${supplier.recordset[0].CODCFO} não possui histórico válido no RM.`,
-      );
-    const supplierCode = supplier.recordset[0].CODCFO;
+    const supplier = await this.ensureSupplier(transaction, input, supplierTaxId);
+    const supplierCode = supplier.CODCFO;
 
     const issueDate = date(input.document.data_emissao);
     const total = number(input.document.valor_total);
@@ -493,7 +630,7 @@ export class TotvsRmWriterService {
         CODCFOAUX: supplierCode,
         CODCOLCFO: 0,
         CODCOLCFOAUX: 0,
-        IDMOVCFO: supplier.recordset[0].IDHISTORICO,
+        IDMOVCFO: supplier.IDHISTORICO,
         IDMOVLCTFLUXUS: idMov,
         NUMEROMOV: formattedNumber,
         SERIE: input.document.serie ?? "",
@@ -690,7 +827,7 @@ export class TotvsRmWriterService {
         await this.clone(
           transaction,
           "TITMMOVRATCCU",
-          "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId AND src.NSEQITMMOV=@sourceSeq",
+          "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId AND src.NSEQITMMOV=@sourceSeq AND src.IDMOVRATCCU=(SELECT MIN(r.IDMOVRATCCU) FROM dbo.TITMMOVRATCCU r WHERE r.CODCOLIGADA=@sourceColigada AND r.IDMOV=@sourceId AND r.NSEQITMMOV=@sourceSeq)",
           {
             sourceColigada: input.coligada,
             sourceId: templateId,
@@ -734,7 +871,7 @@ export class TotvsRmWriterService {
         await this.clone(
           transaction,
           "TMOVRATCCU",
-          "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId",
+          "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId AND src.IDMOVRATCCU=(SELECT MIN(r.IDMOVRATCCU) FROM dbo.TMOVRATCCU r WHERE r.CODCOLIGADA=@sourceColigada AND r.IDMOV=@sourceId)",
           { sourceColigada: input.coligada, sourceId: templateId },
           {
             IDMOV: idMov,
@@ -763,7 +900,7 @@ export class TotvsRmWriterService {
         {
           IDLAN: idLan,
           ID: nextFlanId++,
-          IDHISTORICO: supplier.recordset[0].IDHISTORICO,
+          IDHISTORICO: supplier.IDHISTORICO,
           IDMOV: idMov,
           NUMERODOCUMENTO: documentNumber,
           CODCFO: supplierCode,

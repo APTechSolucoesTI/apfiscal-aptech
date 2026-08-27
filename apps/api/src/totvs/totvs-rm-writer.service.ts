@@ -271,6 +271,18 @@ export class TotvsRmWriterService {
       throw new Error(
         `Não existe produto-modelo no grupo ${prefix} para criar ${item.productErpCode}.`,
       );
+    const requestedUnit = item.unidade_comercial?.trim() || null;
+    const validUnit = requestedUnit
+      ? await new sql.Request(transaction)
+          .input("unit", sql.VarChar, requestedUnit)
+          .input("coligada", sql.SmallInt, input.coligada)
+          .query<{ CODUND: string }>(`
+            SELECT TOP 1 CODUND FROM dbo.TUND WITH (HOLDLOCK)
+            WHERE CODUND=@unit AND CODCOLIGADA IN (0,@coligada)
+            ORDER BY CASE WHEN CODCOLIGADA=@coligada THEN 0 ELSE 1 END
+          `)
+      : null;
+    const productUnit = validUnit?.recordset[0]?.CODUND ?? source.recordset[0].CODUNDVENDA;
     const idPrd = await this.nextGenerator(transaction, 0, "T", "IDPRD");
     const reduced = await new sql.Request(transaction).query<{ value: number }>(`
       SELECT ISNULL(MAX(TRY_CONVERT(int,CODIGOREDUZIDO)),0)+1 AS value
@@ -305,8 +317,8 @@ export class TotvsRmWriterService {
       { sourceColigada: input.coligada, sourceId: source.recordset[0].IDPRD },
       {
         IDPRD: idPrd,
-        CODUNDVENDA: item.unidade_comercial ?? source.recordset[0].CODUNDVENDA,
-        CODUNDCOMPRA: item.unidade_comercial ?? source.recordset[0].CODUNDVENDA,
+        CODUNDVENDA: productUnit,
+        CODUNDCOMPRA: productUnit,
         RECCREATEDBY: input.user,
         RECCREATEDON: now,
         RECMODIFIEDBY: input.user,
@@ -315,7 +327,7 @@ export class TotvsRmWriterService {
     );
     return {
       IDPRD: idPrd,
-      CODUNDVENDA: item.unidade_comercial ?? source.recordset[0].CODUNDVENDA,
+      CODUNDVENDA: productUnit,
       created: true,
     };
   }
@@ -737,7 +749,7 @@ export class TotvsRmWriterService {
           NSEQITMMOV: item.numero_item,
           NUMEROSEQUENCIAL: item.numero_item,
           IDPRD: product.IDPRD,
-          CODUND: item.unidade_comercial ?? product.CODUNDVENDA,
+          ...(product.CODUNDVENDA ? { CODUND: product.CODUNDVENDA } : {}),
           QUANTIDADE: quantity,
           QUANTIDADEARECEBER: quantity,
           QUANTIDADEORIGINAL: quantity,

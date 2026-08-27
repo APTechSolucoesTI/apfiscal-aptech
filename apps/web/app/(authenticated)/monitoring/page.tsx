@@ -44,12 +44,12 @@ function formatRelative(dateISO?: string | null) {
 }
 
 function formatDate(dateISO: string) {
-  return new Date(dateISO).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  return new Date(dateISO).toLocaleDateString("pt-BR");
 }
 
 function formatFull(dateISO?: string | null) {
   if (!dateISO) return "";
-  return new Date(dateISO).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  return new Date(dateISO).toLocaleString("pt-BR");
 }
 
 // ---------- Component ----------

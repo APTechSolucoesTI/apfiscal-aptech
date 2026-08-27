@@ -166,6 +166,7 @@ export class TotvsSqlServerService implements OnModuleDestroy {
       options: {
         encrypt: config.encrypt,
         trustServerCertificate: config.trustServerCertificate,
+        useUTC: false,
         appName: `APFiscal-${config.key}-ReadOnly`,
         abortTransactionOnError: true,
       },

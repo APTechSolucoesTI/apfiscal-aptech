@@ -25,7 +25,7 @@ export function retryAfterDate(value: string | undefined, fallbackMinutes = 15):
 }
 
 export function formatRetryAt(retryAt: Date): string {
-  return retryAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  return retryAt.toLocaleString("pt-BR");
 }
 
 export function cooldownMessage(source: string, retryAt: Date): string {

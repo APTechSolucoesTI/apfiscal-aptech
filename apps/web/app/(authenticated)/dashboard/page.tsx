@@ -15,6 +15,9 @@ import {
   Building2,
   Loader2,
   ClipboardCheck,
+  FileCheck2,
+  FileStack,
+  ReceiptText,
 } from "lucide-react";
 import {
   BarChart,
@@ -42,6 +45,7 @@ type DocRow = {
   valor_total: number | null;
   data_emissao: string | null;
   status: NfeStatus | null;
+  tipo: "nfe" | "nfse" | "cte";
 };
 
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -59,7 +63,7 @@ const STATUS_ICONS: Record<NfeStatus, typeof FileText> = {
   aprovada: ClipboardCheck,
   pronta_para_integracao: TrendingUp,
   integrado_totvs: CheckCircle2,
-  ja_existente_totvs: CheckCircle2,
+  ja_existente_totvs: FileCheck2,
 };
 
 function Dashboard() {
@@ -80,13 +84,10 @@ function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard", "status-summary", companyId],
     queryFn: async () => {
-      const since = new Date();
-      since.setMonth(since.getMonth() - 5);
-      since.setDate(1);
       let docsQuery = supabase
         .from("fiscal_documents")
-        .select("valor_total, data_emissao, status")
-        .gte("data_emissao", since.toISOString());
+        .select("valor_total, data_emissao, status, tipo")
+        .limit(5000);
       if (companyId !== "all") docsQuery = docsQuery.eq("company_id", companyId);
       const [docsRes, companiesRes] = await Promise.all([
         docsQuery,
@@ -97,6 +98,8 @@ function Dashboard() {
       const docs = (docsRes.data ?? []) as DocRow[];
       const total = docs.length;
       const totalValue = docs.reduce((s, d) => s + Number(d.valor_total ?? 0), 0);
+      const nfe = docs.filter((d) => d.tipo === "nfe").length;
+      const nfse = docs.filter((d) => d.tipo === "nfse").length;
 
       const byStatus = {} as Record<NfeStatus, { count: number; valor: number }>;
       for (const st of NFE_STATUS_ORDER) byStatus[st] = { count: 0, valor: 0 };
@@ -119,6 +122,7 @@ function Dashboard() {
           aprovada: 0,
           pronta_para_integracao: 0,
           integrado_totvs: 0,
+          ja_existente_totvs: 0,
         };
       }
       for (const d of docs) {
@@ -133,8 +137,13 @@ function Dashboard() {
       return {
         total,
         totalValue,
+        nfe,
+        nfse,
+        integratedByApfiscal: byStatus.integrado_totvs.count,
+        preexistingInTotvs: byStatus.ja_existente_totvs.count,
+        integratedTotal: byStatus.integrado_totvs.count + byStatus.ja_existente_totvs.count,
         byStatus,
-        companies: companiesRes.count ?? 0,
+        companies: companyId === "all" ? companiesRes.count ?? 0 : 1,
         chartData: Object.values(buckets),
       };
     },
@@ -144,8 +153,8 @@ function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard Geral</h1>
-          <p className="text-slate-500">Situação das NF-e por status de aprovação (últimos 6 meses).</p>
+          <h1 className="text-2xl font-bold text-slate-900">Visão fiscal</h1>
+          <p className="text-slate-500">NF-e e NFS-e, pendências e o estado real da integração com o TOTVS RM.</p>
         </div>
         <div className="flex items-center gap-3">
           <Select value={companyId} onValueChange={setCompanyId}>
@@ -197,15 +206,45 @@ function Dashboard() {
             })}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
             <Card className="border-slate-200 shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500">NF-e no período</CardTitle>
-                <FileText className="h-4 w-4 text-blue-600" />
+                <CardTitle className="text-sm font-medium text-slate-500">Documentos fiscais</CardTitle>
+                <FileStack className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-slate-900">{(data?.total ?? 0).toLocaleString("pt-BR")}</div>
-                <p className="text-[10px] text-slate-400 mt-1">Documentos fiscais nos últimos 6 meses</p>
+                <p className="text-[10px] text-slate-400 mt-1">Todos os documentos do filtro</p>
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-slate-500">NF-e</CardTitle>
+                <FileText className="h-4 w-4 text-indigo-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-slate-900">{(data?.nfe ?? 0).toLocaleString("pt-BR")}</div>
+                <p className="text-[10px] text-slate-400 mt-1">Notas fiscais de mercadoria</p>
+              </CardContent>
+            </Card>
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-slate-500">NFS-e</CardTitle>
+                <ReceiptText className="h-4 w-4 text-violet-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-slate-900">{(data?.nfse ?? 0).toLocaleString("pt-BR")}</div>
+                <p className="text-[10px] text-slate-400 mt-1">Notas fiscais de serviço</p>
+              </CardContent>
+            </Card>
+            <Card className="border-emerald-200 bg-emerald-50/30 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-slate-600">No TOTVS RM</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-slate-900">{(data?.integratedTotal ?? 0).toLocaleString("pt-BR")}</div>
+                <p className="text-[10px] text-slate-500 mt-1">{data?.integratedByApfiscal ?? 0} pelo APFiscal · {data?.preexistingInTotvs ?? 0} já existentes</p>
               </CardContent>
             </Card>
             <Card className="border-slate-200 shadow-sm">
@@ -224,13 +263,13 @@ function Dashboard() {
 
           <Card className="border-slate-200 shadow-sm">
             <CardHeader>
-              <CardTitle>Volume de NF-e por Status</CardTitle>
-              <CardDescription>Comparativo mensal conforme o status de aprovação</CardDescription>
+              <CardTitle>Documentos por status</CardTitle>
+              <CardDescription>Comparativo mensal de NF-e e NFS-e conforme o status de aprovação e integração</CardDescription>
             </CardHeader>
             <CardContent className="h-[320px]">
               {(data?.total ?? 0) === 0 ? (
                 <div className="flex items-center justify-center h-full text-sm text-slate-500">
-                  Sem documentos no período. Importe ou sincronize NF-e para popular o gráfico.
+                  Sem documentos no filtro selecionado. Importe ou sincronize NF-e/NFS-e para popular o gráfico.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">

@@ -552,6 +552,24 @@ export class TotvsRmWriterService {
     return { IDCFO: idCfo!, CODCFO: supplierCode!, IDHISTORICO: historyId };
   }
 
+  private async ensureIntegrationUser(transaction: sql.Transaction, user: string) {
+    await new sql.Request(transaction).input("user", sql.VarChar, user).query(`
+      IF NOT EXISTS (SELECT 1 FROM dbo.GUSUARIO WITH (UPDLOCK,HOLDLOCK) WHERE CODUSUARIO=@user)
+      BEGIN
+        INSERT dbo.GUSUARIO (
+          CODUSUARIO,NOME,STATUS,DATAINICIO,CONFIRMABTNOK,SENHA,USERID,
+          OBRIGAALTERARSENHA,ACESSONET,IGNORARAUTENTICACAOLDAP,OIDC_ENABLED,
+          RECCREATEDBY,RECCREATEDON,RECMODIFIEDBY,RECMODIFIEDON
+        ) VALUES (
+          @user,'Integração APFiscal',1,GETDATE(),1,
+          CONVERT(varchar(64),HASHBYTES('SHA2_256',CONVERT(varchar(36),NEWID())),2),
+          CONVERT(varchar(36),NEWID()),'F','F','F',0,
+          'mestre',GETDATE(),'mestre',GETDATE()
+        )
+      END
+    `);
+  }
+
   async write(transaction: sql.Transaction, input: RmWriteInput): Promise<RmWriteResult> {
     const codTmv = input.document.tipo === "nfse" ? input.nfseCodTmv : input.nfeCodTmv;
     const supplierTaxId = input.supplierTaxId.replace(/\D/g, "");
@@ -604,6 +622,8 @@ export class TotvsRmWriterService {
         createdProducts: [],
       };
     }
+
+    await this.ensureIntegrationUser(transaction, input.user);
 
     const template = await new sql.Request(transaction)
       .input("coligada", sql.SmallInt, input.coligada)

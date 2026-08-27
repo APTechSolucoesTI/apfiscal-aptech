@@ -6,7 +6,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Copy,
   Download,
-  Mail,
   Clock,
   Truck,
   CreditCard,
@@ -120,6 +119,7 @@ const tPagLabel = (v: unknown) => {
 };
 
 export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
+  const [activeTab, setActiveTab] = useState("resumo");
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
@@ -297,10 +297,16 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           >
             <Eye className="mr-2 h-4 w-4" /> DANFE (PDF)
           </Button>
-          <Button variant="outline" size="sm">
-            <Mail className="mr-2 h-4 w-4" /> Reenviar
-          </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setActiveTab("historico");
+              requestAnimationFrame(() =>
+                document.getElementById("nfe-detail-tabs")?.scrollIntoView({ behavior: "smooth" }),
+              );
+            }}
+          >
             <History className="mr-2 h-4 w-4" /> Eventos
           </Button>
         </div>
@@ -344,7 +350,12 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue="resumo" className="flex-1 overflow-hidden flex flex-col">
+      <Tabs
+        id="nfe-detail-tabs"
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex-1 overflow-hidden flex flex-col"
+      >
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 mb-4">
           {[
             ["resumo", "Resumo"],
@@ -1017,7 +1028,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <div className="font-bold text-slate-900 capitalize">
-                                {ev.tipo_evento}
+                                {String(ev.tipo_evento).replace(/_/g, " ")}
                               </div>
                               <time className="font-mono text-xs font-medium text-primary">
                                 {dt(ev.data_evento ?? ev.created_at)}

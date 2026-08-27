@@ -32,11 +32,101 @@ export const getNfeDetails = createApiAction({ method: "GET" })
       .eq("document_id", data.id)
       .order("numero_item", { ascending: true });
 
-    const { data: events } = await context.supabase
+    const { data: recordedEvents, error: eventsError } = await context.supabase
       .from("fiscal_document_events")
       .select("*")
       .eq("document_id", data.id)
       .order("data_evento", { ascending: true });
+    if (eventsError) throw new Error(eventsError.message);
+
+    const [manifestationsResult, ctesResult] = await Promise.all([
+      context.supabase
+        .from("manifestations")
+        .select(
+          "id, tipo, tp_evento, descricao_evento, status, response_cstat, response_xmotivo, protocolo, event_at, requested_at, source",
+        )
+        .eq("company_id", doc.company_id)
+        .eq("access_key", doc.chave_acesso)
+        .order("requested_at", { ascending: true }),
+      context.supabase
+        .from("fiscal_documents")
+        .select("id, numero, chave_acesso, data_emissao, data_autorizacao, raw_payload, xml_content")
+        .eq("company_id", doc.company_id)
+        .eq("tipo", "cte")
+        .limit(1000),
+    ]);
+    if (manifestationsResult.error) throw new Error(manifestationsResult.error.message);
+    if (ctesResult.error) throw new Error(ctesResult.error.message);
+
+    type TimelineEvent = {
+      id: string;
+      tipo_evento: string;
+      codigo_evento: string | null;
+      descricao: string | null;
+      protocolo: string | null;
+      data_evento: string | null;
+      created_at?: string | null;
+    };
+    const events: TimelineEvent[] = (recordedEvents ?? []).map((event) => ({
+      ...event,
+      id: String(event.id),
+    }));
+    const eventIdentity = new Set(
+      events.map((event) => `${event.codigo_evento ?? event.tipo_evento}:${event.protocolo ?? ""}`),
+    );
+
+    if (doc.data_autorizacao || doc.protocolo) {
+      const hasAuthorization = events.some(
+        (event) =>
+          event.tipo_evento === "autorizacao" ||
+          (Boolean(doc.protocolo) && event.protocolo === doc.protocolo),
+      );
+      if (!hasAuthorization) {
+        events.push({
+          id: `authorization-${doc.id}`,
+          tipo_evento: "autorizacao",
+          codigo_evento: "100",
+          descricao: "NF-e autorizada pela SEFAZ",
+          protocolo: doc.protocolo,
+          data_evento: doc.data_autorizacao,
+        });
+      }
+    }
+
+    for (const manifestation of manifestationsResult.data ?? []) {
+      const identity = `${manifestation.tp_evento ?? manifestation.tipo}:${manifestation.protocolo ?? ""}`;
+      if (eventIdentity.has(identity)) continue;
+      const response = [manifestation.response_cstat, manifestation.response_xmotivo]
+        .filter(Boolean)
+        .join(" — ");
+      events.push({
+        id: `manifestation-${manifestation.id}`,
+        tipo_evento: `manifestacao_${manifestation.tipo}`,
+        codigo_evento: manifestation.tp_evento ?? manifestation.response_cstat,
+        descricao: `${manifestation.descricao_evento ?? "Manifestação do destinatário"}${response ? `: ${response}` : ""}`,
+        protocolo: manifestation.protocolo,
+        data_evento: manifestation.event_at ?? manifestation.requested_at,
+      });
+      eventIdentity.add(identity);
+    }
+
+    for (const cte of ctesResult.data ?? []) {
+      const searchable = `${JSON.stringify(cte.raw_payload ?? {})}\n${cte.xml_content ?? ""}`;
+      if (!searchable.includes(doc.chave_acesso)) continue;
+      events.push({
+        id: `cte-${cte.id}`,
+        tipo_evento: "cte_vinculado",
+        codigo_evento: null,
+        descricao: `CT-e nº ${cte.numero ?? "-"} vinculado a esta NF-e (chave ${cte.chave_acesso}).`,
+        protocolo: null,
+        data_evento: cte.data_autorizacao ?? cte.data_emissao,
+      });
+    }
+    events.sort((left, right) => {
+      const leftTime = new Date(left.data_evento ?? left.created_at ?? 0).getTime();
+      const rightTime = new Date(right.data_evento ?? right.created_at ?? 0).getTime();
+      return leftTime - rightTime;
+    });
 
     // Sugestões de vínculo para itens pendentes, com base no cadastro
     // Produto > aba Fornecedores (produtos_fornecedores).
@@ -161,5 +251,3 @@ export const getNfeDetails = createApiAction({ method: "GET" })
 
     return { document: doc, items: items ?? [], events: events ?? [], suggestions };
   });
-
-

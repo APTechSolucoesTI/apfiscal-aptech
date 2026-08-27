@@ -1,4 +1,4 @@
-import { request } from "node:https";
+import { Agent, request } from "node:https";
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { CertificateVaultService } from "@/fiscal/certificate-vault.service";
@@ -43,6 +43,17 @@ export class NacionalAdnNfseProvider implements NfseProvider {
     const context = await this.context(companyId);
     const base = new URL(process.env.NFSE_ADN_BASE_URL ?? "https://adn.nfse.gov.br/contribuintes");
     const timeout = Number(process.env.NFSE_ADN_TIMEOUT_MS ?? 30_000);
+    // O ADN encerra de forma inconsistente sessÃµes TLS 1.3 retomadas pelo
+    // OpenSSL 3/Node 24. Uma sessÃ£o TLS 1.2 nova por consulta evita o
+    // `bad record mac` sem alterar NSU nem o conteÃºdo fiscal consultado.
+    const agent = new Agent({
+      pfx: context.pfx,
+      passphrase: context.passphrase,
+      keepAlive: false,
+      maxCachedSessions: 0,
+      minVersion: "TLSv1.2",
+      maxVersion: "TLSv1.2",
+    });
     return new Promise<{
       status: number;
       contentType: string | null;
@@ -53,8 +64,7 @@ export class NacionalAdnNfseProvider implements NfseProvider {
         new URL(`${base.toString().replace(/\/$/, "")}${path}`),
         {
           method: "GET",
-          pfx: context.pfx,
-          passphrase: context.passphrase,
+          agent,
           headers: {
             accept: "application/json, application/xml, text/xml, application/octet-stream",
             "user-agent": "APFiscal-NFSe-ADN/1.0",
@@ -91,7 +101,16 @@ export class NacionalAdnNfseProvider implements NfseProvider {
   async test(companyId: string) {
     // The distribution endpoint consumes the provider quota. Probe the official
     // documentation route instead, which still validates mTLS without advancing NSU.
-    const response = await this.get(companyId, "/docs/index.html");
+    let response: Awaited<ReturnType<NacionalAdnNfseProvider["get"]>>;
+    try {
+      response = await this.get(companyId, "/docs/index.html");
+    } catch {
+      return {
+        ok: false,
+        message:
+          "O ADN nÃ£o concluiu a conexÃ£o segura com o certificado neste momento. Tente novamente em alguns minutos.",
+      };
+    }
     if (response.status === 200)
       return {
         ok: true,

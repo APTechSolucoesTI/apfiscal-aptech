@@ -168,7 +168,7 @@ export function AppSidebar() {
         supabase
           .from("fiscal_documents")
           .select("id", { count: "exact", head: true })
-          .eq("status", "integrado_totvs"),
+          .in("status", ["integrado_totvs", "ja_existente_totvs"]),
       ]);
       const totalCount = total.count ?? 0;
       const integradasCount = integradas.count ?? 0;

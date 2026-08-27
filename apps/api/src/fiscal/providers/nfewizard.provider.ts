@@ -12,6 +12,7 @@ import {
   ExternalRateLimitError,
   isSefazConsumptionLimit,
 } from "@/common/sync-feedback";
+import { sefazEventTimestamp } from "./sefaz-date";
 
 const UF_CODE: Record<string, number> = {
   RO: 11,
@@ -224,7 +225,9 @@ export class NfeWizardProvider implements NfeProvider {
           tpAmb: environment,
           CNPJ: cnpj,
           chNFe: input.accessKey,
-          dhEvento: new Date().toISOString(),
+          // O schema da SEFAZ nÃ£o aceita milissegundos nem o sufixo Z neste
+          // campo; exige explicitamente o offset brasileiro.
+          dhEvento: sefazEventTimestamp(),
           tpEvento: eventCode,
           nSeqEvento: 1,
           verEvento: "1.00",

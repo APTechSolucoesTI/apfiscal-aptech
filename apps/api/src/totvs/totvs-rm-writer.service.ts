@@ -275,11 +275,9 @@ export class TotvsRmWriterService {
     const validUnit = requestedUnit
       ? await new sql.Request(transaction)
           .input("unit", sql.VarChar, requestedUnit)
-          .input("coligada", sql.SmallInt, input.coligada)
           .query<{ CODUND: string }>(`
             SELECT TOP 1 CODUND FROM dbo.TUND WITH (HOLDLOCK)
-            WHERE CODUND=@unit AND CODCOLIGADA IN (0,@coligada)
-            ORDER BY CASE WHEN CODCOLIGADA=@coligada THEN 0 ELSE 1 END
+            WHERE CODUND=@unit
           `)
       : null;
     const productUnit = validUnit?.recordset[0]?.CODUND ?? source.recordset[0].CODUNDVENDA;

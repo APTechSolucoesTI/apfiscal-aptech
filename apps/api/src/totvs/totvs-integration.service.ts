@@ -189,6 +189,23 @@ export class TotvsIntegrationService {
         .update({ request_payload: payload, status: "running" })
         .eq("id", runId);
 
+      const issuer =
+        document.data.emitente && typeof document.data.emitente === "object"
+          ? (document.data.emitente as Record<string, unknown>)
+          : {};
+      const issuerAddressCandidate = issuer.enderEmit ?? issuer.endereco;
+      const issuerAddress =
+        issuerAddressCandidate && typeof issuerAddressCandidate === "object"
+          ? (issuerAddressCandidate as Record<string, unknown>)
+          : {};
+      const issuerText = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = issuerAddress[key] ?? issuer[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+        }
+        return null;
+      };
+
       const result = await this.sqlServer.writeTransaction(scope.connectionKey, (transaction) =>
         this.writer.write(transaction, {
           coligada: scope.codColigada,
@@ -199,17 +216,20 @@ export class TotvsIntegrationService {
           supplier: {
             legalName: document.data.suppliers?.razao_social ?? document.data.emitente_nome,
             tradeName: document.data.suppliers?.nome_fantasia ?? document.data.emitente_nome,
-            stateRegistration: document.data.suppliers?.inscricao_estadual ?? null,
-            municipalRegistration: document.data.suppliers?.inscricao_municipal ?? null,
-            street: document.data.suppliers?.logradouro ?? null,
-            number: document.data.suppliers?.numero ?? null,
-            complement: document.data.suppliers?.complemento ?? null,
-            district: document.data.suppliers?.bairro ?? null,
-            zipCode: document.data.suppliers?.cep ?? null,
-            city: document.data.suppliers?.municipio ?? null,
-            state: document.data.suppliers?.uf ?? null,
-            phone: document.data.suppliers?.telefone ?? null,
-            email: document.data.suppliers?.email ?? null,
+            stateRegistration:
+              document.data.suppliers?.inscricao_estadual ?? issuerText("IE", "ie"),
+            municipalRegistration:
+              document.data.suppliers?.inscricao_municipal ?? issuerText("IM", "im"),
+            street: document.data.suppliers?.logradouro ?? issuerText("xLgr", "logradouro"),
+            number: document.data.suppliers?.numero ?? issuerText("nro", "numero"),
+            complement:
+              document.data.suppliers?.complemento ?? issuerText("xCpl", "complemento"),
+            district: document.data.suppliers?.bairro ?? issuerText("xBairro", "bairro"),
+            zipCode: document.data.suppliers?.cep ?? issuerText("CEP", "cep"),
+            city: document.data.suppliers?.municipio ?? issuerText("xMun", "municipio"),
+            state: document.data.suppliers?.uf ?? issuerText("UF", "uf"),
+            phone: document.data.suppliers?.telefone ?? issuerText("fone", "telefone"),
+            email: document.data.suppliers?.email ?? issuerText("email"),
             personType: document.data.suppliers?.tipo_pessoa ?? null,
           },
           document: document.data as unknown as RmDocument,

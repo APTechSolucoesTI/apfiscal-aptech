@@ -14,7 +14,8 @@ export type TotvsEntity =
   | "product_classifications"
   | "products"
   | "financial_plan"
-  | "stock_locations";
+  | "stock_locations"
+  | "movement_types";
 
 export type TotvsQueryDefinition = {
   entity: TotvsEntity;
@@ -175,6 +176,13 @@ export const TOTVS_READ_QUERIES: readonly TotvsQueryDefinition[] = [
       EMAIL AS email, CODETD AS state, NUMERO AS number, PAIS AS country,
       INATIVO AS inactive, RECMODIFIEDON AS source_updated_at
       FROM TLOC WHERE CODCOLIGADA IN (${c})`,
+  },
+  {
+    entity: "movement_types", incremental: false,
+    externalKey: (row) => composite(row.coligada, row.code),
+    displayName: (row) => text(row.description) || null,
+    sql: (c) => `SELECT CODCOLIGADA AS coligada, CODTMV AS code, NOME AS description
+      FROM TTMV WHERE CODCOLIGADA IN (${c})`,
   },
 ] as const;
 

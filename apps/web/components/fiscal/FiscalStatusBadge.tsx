@@ -80,10 +80,13 @@ export function TotvsStatusBadge({ status }: { status: string | null | undefined
     completed: "Integrada",
     success: "Integrada",
     succeeded: "Integrada",
+    preexisting: "Já existente no TOTVS",
   };
   const tone =
     status === "completed" || status === "success" || status === "succeeded"
       ? "processed"
+      : status === "preexisting"
+        ? "discovered"
       : status === "failed" || status === "blocked"
         ? "error"
         : status

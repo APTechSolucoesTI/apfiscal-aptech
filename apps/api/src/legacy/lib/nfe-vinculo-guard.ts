@@ -11,13 +11,22 @@ export async function assertVinculoPermitidoPorDocumento(supabase: any, document
   if (!podeVincularProduto(doc.status)) throw new Error(motivoBloqueioVinculo(doc.status));
 }
 
-export async function assertVinculoPermitidoPorItem(supabase: any, itemId: string) {
+export async function assertVinculoPermitidoPorItem(
+  supabase: any,
+  itemId: string,
+  operation: "link" | "unlink" = "link",
+) {
   const { data: item } = await supabase
     .from("fiscal_document_items")
-    .select("document_id")
+    .select("document_id, product_id, fiscal_documents(status)")
     .eq("id", itemId)
     .maybeSingle();
   if (!item) throw new Error("Item não encontrado");
+  const status = item.fiscal_documents?.status;
+  if (status === "integrado_totvs" && (operation === "unlink" || Boolean(item.product_id)))
+    throw new Error(
+      "O vínculo de um item já integrado no TOTVS não pode ser alterado ou removido.",
+    );
   await assertVinculoPermitidoPorDocumento(supabase, item.document_id as string);
 }
 
@@ -28,7 +37,7 @@ export async function assertNenhumaIntegrada(supabase: any, ids: string[]) {
     .from("fiscal_documents")
     .select("id")
     .in("id", ids)
-    .eq("status", "integrado_totvs")
+    .in("status", ["integrado_totvs", "ja_existente_totvs"])
     .limit(1);
   if (data && data.length > 0) {
     throw new Error("Existem NF-e já integradas na TOTVS na seleção. Elas não podem ser alteradas ou excluídas.");

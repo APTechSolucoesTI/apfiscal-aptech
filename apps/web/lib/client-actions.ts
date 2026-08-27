@@ -172,3 +172,6 @@ export const saveSupplier = createApiAction<SupplierInput>("saveSupplier");
 export const deleteSupplier = createApiAction("deleteSupplier");
 export const deleteSuppliers = createApiAction("deleteSuppliers");
 export const listTiposCompra = createApiAction("listTiposCompra");
+export const listTiposMovimento = createApiAction("listTiposMovimento");
+export const setTipoMovimentoDocumento = createApiAction("setTipoMovimentoDocumento");
+export const setTipoMovimentoFiscal = createApiAction("setTipoMovimentoFiscal");

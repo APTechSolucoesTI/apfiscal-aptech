@@ -318,7 +318,7 @@ export const unlinkNfeItem = createApiAction({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { itemId: string }) => data)
   .handler(async ({ data, context }) => {
-    await assertVinculoPermitidoPorItem(context.supabase, data.itemId);
+    await assertVinculoPermitidoPorItem(context.supabase, data.itemId, "unlink");
     const { error } = await context.supabase
       .from("fiscal_document_items")
       .update({ product_id: null, status_vinculo: "pendente" })

@@ -48,6 +48,7 @@ const permissionByUrl: Record<string, string> = {
   "/settings/centros-custo": "finance.cost_centers.view",
   "/settings/plano-contas": "finance.chart_accounts.view",
   "/settings/locais-estoque": "finance.stock_locations.view",
+  "/settings/tipos-movimento": "finance.cost_centers.view",
   "/settings/catalog": "settings.general.view",
   "/settings/users": "settings.users.view",
   "/settings/profiles": "settings.profiles.view",
@@ -111,6 +112,7 @@ const menuItems = [
       { title: "Centros de Custo", url: "/settings/centros-custo" },
       { title: "Plano de Contas", url: "/settings/plano-contas" },
       { title: "Local de Estoque", url: "/settings/locais-estoque" },
+      { title: "Tipos de Movimento", url: "/settings/tipos-movimento" },
     ],
   },
   {

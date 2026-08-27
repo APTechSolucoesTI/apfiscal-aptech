@@ -2,7 +2,7 @@ import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { cooldownException, cooldownMessage, ExternalRateLimitError } from "@/common/sync-feedback";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { parseAdnBatch } from "./nfse-adn-parser";
-import { parseNfseXml } from "./nfse-document-parser";
+import { isApprovedNfseStatus, parseNfseXml } from "./nfse-document-parser";
 import type { NfseBatch, NfseDocument } from "./nfse-provider";
 import { NacionalAdnNfseProvider } from "./nacional-adn-nfse.provider";
 
@@ -134,7 +134,7 @@ export class NfseSyncService {
           tax_regime: parsed.taxRegime,
           special_tax_regime: parsed.specialTaxRegime,
           nfse_details: parsed.details,
-          sync_status: parsed.status === "100" ? "processed" : "cancelled",
+          sync_status: isApprovedNfseStatus(parsed.status) ? "processed" : "cancelled",
           last_sync_attempt_at: new Date().toISOString(),
           last_sync_success_at: new Date().toISOString(),
           processing_error: null,

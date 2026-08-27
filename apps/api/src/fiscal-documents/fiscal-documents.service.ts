@@ -2,7 +2,11 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { RbacService } from "@/common/rbac.service";
-import { parseNfseXml, type CanonicalNfse } from "@/nfse/nfse-document-parser";
+import {
+  isApprovedNfseStatus,
+  parseNfseXml,
+  type CanonicalNfse,
+} from "@/nfse/nfse-document-parser";
 
 function digits(value: string): string {
   return value.replace(/\D/g, "");
@@ -47,7 +51,7 @@ function nfseFields(parsed: CanonicalNfse, xml: string, xmlPath: string, source:
     tax_regime: parsed.taxRegime,
     special_tax_regime: parsed.specialTaxRegime,
     nfse_details: parsed.details,
-    sync_status: parsed.status === "100" ? "processed" : "cancelled",
+    sync_status: isApprovedNfseStatus(parsed.status) ? "processed" : "cancelled",
     last_sync_attempt_at: now,
     last_sync_success_at: now,
     processing_error: null,

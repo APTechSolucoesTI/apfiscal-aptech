@@ -39,6 +39,12 @@ export type CanonicalNfse = {
   details: Record<string, unknown>;
 };
 
+const APPROVED_NFSE_STATUS = new Set(["100", "102", "103", "107"]);
+
+export function isApprovedNfseStatus(status: string | null | undefined): boolean {
+  return APPROVED_NFSE_STATUS.has(String(status ?? "").trim());
+}
+
 const parser = new XMLParser({
   ignoreAttributes: false,
   removeNSPrefix: true,

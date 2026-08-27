@@ -14,6 +14,7 @@ import type { AuthenticatedRequest } from "@/common/request-user";
 import { FiscalDocumentsService } from "./fiscal-documents.service";
 import { NfseSyncService } from "@/nfse/nfse-sync.service";
 import { FiscalDocumentReconciliationService } from "@/fiscal/fiscal-document-reconciliation.service";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 @Controller("fiscal-documents")
 export class FiscalDocumentsController {
@@ -56,6 +57,23 @@ export class FiscalDocumentsController {
   ) {
     await this.documents.assertCompanyAccess(request.user.id, companyId);
     return this.nfeReconciliation.backfillMetadata(companyId);
+  }
+
+  @RequirePermission("documents.nfe.manage")
+  @Post("reconcile-totvs/:companyId")
+  async reconcileTotvs(@Param("companyId") companyId: string, @Req() request: AuthenticatedRequest) {
+    await this.documents.assertCompanyAccess(request.user.id, companyId);
+    const company = await supabaseAdmin
+      .from("companies")
+      .select("organization_id")
+      .eq("id", companyId)
+      .single();
+    if (company.error || !company.data)
+      throw new BadRequestException("Empresa não encontrada para reconciliação.");
+    return this.nfeReconciliation.reconcileExistingTotvs(
+      company.data.organization_id,
+      companyId,
+    );
   }
 
   @RequirePermission("documents.nfse.manage")

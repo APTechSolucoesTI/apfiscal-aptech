@@ -2,7 +2,8 @@ export type NfeStatus =
   | "pendente_confirmacao"
   | "aprovada"
   | "pronta_para_integracao"
-  | "integrado_totvs";
+  | "integrado_totvs"
+  | "ja_existente_totvs";
 
 export const NFE_STATUS_CONFIG: Record<NfeStatus, { label: string; badge: string; dot: string }> = {
   pendente_confirmacao: {
@@ -25,6 +26,11 @@ export const NFE_STATUS_CONFIG: Record<NfeStatus, { label: string; badge: string
     badge: "bg-green-100 text-green-700 hover:bg-green-100 border-green-200",
     dot: "bg-green-500",
   },
+  ja_existente_totvs: {
+    label: "Já existente no TOTVS",
+    badge: "bg-slate-100 text-slate-700 hover:bg-slate-100 border-slate-300",
+    dot: "bg-slate-500",
+  },
 };
 
 export const NFE_STATUS_ORDER: NfeStatus[] = [
@@ -32,6 +38,7 @@ export const NFE_STATUS_ORDER: NfeStatus[] = [
   "aprovada",
   "pronta_para_integracao",
   "integrado_totvs",
+  "ja_existente_totvs",
 ];
 
 export function statusConfig(status?: string | null) {
@@ -49,7 +56,7 @@ export function podeAprovar(status?: string | null) {
 
 /** NF-e integrada na TOTVS: totalmente bloqueada para alterações */
 export function nfeBloqueada(status?: string | null) {
-  return status === "integrado_totvs";
+  return status === "integrado_totvs" || status === "ja_existente_totvs";
 }
 
 /** Vínculos de produto/fornecedor podem ser revisados mesmo após a integração no RM. */
@@ -58,5 +65,7 @@ export function podeVincularProduto(status?: string | null) {
 }
 
 export function motivoBloqueioVinculo(_status?: string | null) {
+  if (_status === "ja_existente_totvs")
+    return "Esta NF-e já existia no TOTVS e está disponível somente para visualização.";
   return "Esta NF-e está pendente de confirmação. Aprove a NF-e antes de vincular produtos aos itens.";
 }

@@ -55,7 +55,7 @@ export class TotvsIntegrationService {
         supabaseAdmin
           .from("fiscal_documents")
           .select(
-            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, logradouro, numero, complemento, bairro, cep, municipio, uf, telefone, email, tipo_pessoa, erp_system, erp_code, erp_external_id), plano_contas:plano_contas_id(codigo), tipos_compra:tipo_compra_id(codigo)",
+            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, logradouro, numero, complemento, bairro, cep, municipio, uf, telefone, email, tipo_pessoa, erp_system, erp_code, erp_external_id), plano_contas:plano_contas_id(codigo), tipos_compra:tipo_compra_id(codigo), tipos_movimento:tipo_movimento_id(codigo, descricao)",
           )
           .eq("id", run.data.fiscal_document_id)
           .single(),
@@ -85,6 +85,11 @@ export class TotvsIntegrationService {
       if (document.data.status !== "pronta_para_integracao")
         throw new Error(
           "O documento fiscal precisa estar pronto para integração antes de entrar no TOTVS RM.",
+        );
+
+      if (!document.data.tipo_movimento_id || !document.data.tipos_movimento?.codigo)
+        throw new Error(
+          "Selecione o Tipo de Movimento correspondente antes de integrar o documento no TOTVS RM.",
         );
 
       const resolved = await this.scopes.company(run.data.organization_id, run.data.company_id);
@@ -239,9 +244,13 @@ export class TotvsIntegrationService {
           financialPlanCode: (document.data.plano_contas as RelatedCode)?.codigo ?? null,
           purchaseTypeCode: (document.data.tipos_compra as RelatedCode)?.codigo ?? null,
           integrationAt: run.data.created_at,
-          nfeCodTmv: setting(scope.connectionKey, "NFE_ENTRY_CODTMV", "1.2.11"),
-          nfseCodTmv: setting(scope.connectionKey, "NFSE_ENTRY_CODTMV", "1.2.30"),
-          user: setting(scope.connectionKey, "INTEGRATION_USER", "APFISCAL"),
+          nfeCodTmv:
+            document.data.tipos_movimento?.codigo ??
+            setting(scope.connectionKey, "NFE_ENTRY_CODTMV", "1.2.11"),
+          nfseCodTmv:
+            document.data.tipos_movimento?.codigo ??
+            setting(scope.connectionKey, "NFSE_ENTRY_CODTMV", "1.2.30"),
+          user: "APFISCAL",
         }),
       );
       const finishedAt = new Date().toISOString();
@@ -259,8 +268,11 @@ export class TotvsIntegrationService {
         supabaseAdmin
           .from("fiscal_documents")
           .update({
-            status: "integrado_totvs",
-            status_observacao: `Integrado ao TOTVS RM no movimento ${result.idMov}.`,
+            status: result.alreadyExisted ? "ja_existente_totvs" : "integrado_totvs",
+            totvs_integration_origin: result.alreadyExisted ? "preexisting" : "apfiscal",
+            status_observacao: result.alreadyExisted
+              ? `Documento já existente no TOTVS RM no movimento ${result.idMov}.`
+              : `Integrado ao TOTVS RM no movimento ${result.idMov}.`,
             status_updated_at: finishedAt,
           })
           .eq("id", run.data.fiscal_document_id),

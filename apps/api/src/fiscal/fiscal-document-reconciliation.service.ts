@@ -73,11 +73,32 @@ export class FiscalDocumentReconciliationService {
     private readonly scopes: TotvsScopeService,
   ) {}
 
+  async reconcileExistingTotvs(organizationId: string, companyId: string) {
+    await this.reconcileTotvs(organizationId, companyId);
+    await this.reconcileTotvsNfse(organizationId, companyId);
+
+    const result = await supabaseAdmin
+      .from("fiscal_documents")
+      .select("status")
+      .eq("company_id", companyId)
+      .in("status", ["integrado_totvs", "ja_existente_totvs"]);
+    if (result.error) throw result.error;
+
+    return (result.data ?? []).reduce(
+      (counts, row) => {
+        if (row.status === "integrado_totvs") counts.integratedByApfiscal += 1;
+        if (row.status === "ja_existente_totvs") counts.preexistingInTotvs += 1;
+        return counts;
+      },
+      { integratedByApfiscal: 0, preexistingInTotvs: 0 },
+    );
+  }
+
   private async reconcileTotvs(organizationId: string, companyId: string) {
     const scope = await this.scopes.company(organizationId, companyId);
     const documents = await supabaseAdmin
       .from("fiscal_documents")
-      .select("id, chave_acesso, valor_total")
+      .select("id, chave_acesso, valor_total, totvs_integration_origin")
       .eq("company_id", companyId)
       .eq("tipo", "nfe")
       .not("chave_acesso", "is", null)
@@ -95,6 +116,7 @@ export class FiscalDocumentReconciliationService {
       CHAVEACESSONFE: string;
       CODTB1FLX: string | null;
       CODCCUSTO: string | null;
+      CODTMV: string;
       VALORLIQUIDO: number;
     };
     const movements: RmMovement[] = [];
@@ -103,7 +125,7 @@ export class FiscalDocumentReconciliationService {
       const filial = scope.codFilial ? ` AND CODFILIAL=${scope.codFilial}` : "";
       movements.push(
         ...(await this.sqlServer.queryReadOnly<RmMovement>(
-          `SELECT mov.IDMOV,mov.CHAVEACESSONFE,mov.CODTB1FLX,
+          `SELECT mov.IDMOV,mov.CHAVEACESSONFE,mov.CODTB1FLX,mov.CODTMV,
              COALESCE((SELECT TOP 1 rat.CODCCUSTO FROM dbo.TMOVRATCCU rat WHERE rat.CODCOLIGADA=mov.CODCOLIGADA AND rat.IDMOV=mov.IDMOV ORDER BY rat.IDMOVRATCCU),mov.CODCCUSTO) AS CODCCUSTO,
              mov.VALORLIQUIDO
            FROM dbo.TMOV mov WHERE mov.CODCOLIGADA=${scope.codColigada}${filial} AND mov.CHAVEACESSONFE IN (${keys})`,
@@ -155,7 +177,8 @@ export class FiscalDocumentReconciliationService {
     const documentIds = movements
       .map((movement) => byKey.get(movement.CHAVEACESSONFE)?.id)
       .filter(Boolean) as string[];
-    const [plans, costCenters, localItems] = await Promise.all([
+    const movementCodes = [...new Set(movements.map((row) => row.CODTMV).filter(Boolean))];
+    const [plans, costCenters, localItems, movementTypes] = await Promise.all([
       planCodes.length
         ? supabaseAdmin
             .from("plano_contas")
@@ -174,13 +197,24 @@ export class FiscalDocumentReconciliationService {
         .from("fiscal_document_items")
         .select("id, document_id, numero_item, valor_bruto")
         .in("document_id", documentIds),
+      movementCodes.length
+        ? supabaseAdmin
+            .from("tipos_movimento_totvs")
+            .select("id, codigo")
+            .eq("company_id", companyId)
+            .in("codigo", movementCodes)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     if (plans.error) throw plans.error;
     if (costCenters.error) throw costCenters.error;
     if (localItems.error) throw localItems.error;
+    if (movementTypes.error) throw movementTypes.error;
     const planByCode = new Map((plans.data ?? []).map((row) => [row.codigo, row.id] as const));
     const costCenterByCode = new Map(
       (costCenters.data ?? []).map((row) => [row.codigo, row.id] as const),
+    );
+    const movementTypeByCode = new Map(
+      (movementTypes.data ?? []).map((row) => [row.codigo, row.id] as const),
     );
     const now = new Date().toISOString();
 
@@ -190,9 +224,18 @@ export class FiscalDocumentReconciliationService {
       const updated = await supabaseAdmin
         .from("fiscal_documents")
         .update({
-          status: "integrado_totvs",
-          status_observacao: `Reconciliado com o movimento TOTVS RM ${movement.IDMOV}.`,
+          status:
+            document.totvs_integration_origin === "apfiscal"
+              ? "integrado_totvs"
+              : "ja_existente_totvs",
+          totvs_integration_origin:
+            document.totvs_integration_origin === "apfiscal" ? "apfiscal" : "preexisting",
+          status_observacao:
+            document.totvs_integration_origin === "apfiscal"
+              ? `Integrado pelo APFiscal no movimento TOTVS RM ${movement.IDMOV}.`
+              : `Documento já existente no TOTVS RM no movimento ${movement.IDMOV}.`,
           status_updated_at: now,
+          tipo_movimento_id: movementTypeByCode.get(movement.CODTMV) ?? null,
           plano_contas_id: movement.CODTB1FLX ? (planByCode.get(movement.CODTB1FLX) ?? null) : null,
         })
         .eq("id", document.id);
@@ -274,7 +317,7 @@ export class FiscalDocumentReconciliationService {
     const scope = await this.scopes.company(organizationId, companyId);
     const documents = await supabaseAdmin
       .from("fiscal_documents")
-      .select("id, numero, serie, valor_total, emitente_cnpj, suppliers:supplier_id(cnpj_cpf)")
+      .select("id, numero, serie, valor_total, emitente_cnpj, totvs_integration_origin, suppliers:supplier_id(cnpj_cpf)")
       .eq("company_id", companyId)
       .eq("tipo", "nfse")
       .limit(1000);
@@ -290,15 +333,31 @@ export class FiscalDocumentReconciliationService {
     });
     if (!candidates.length) return;
     const key = scope.connectionKey;
-    const codTmv =
+    const fallbackCodTmv =
       process.env[`TOTVS_CONNECTION_${key}_NFSE_ENTRY_CODTMV`]?.trim() ||
       process.env.TOTVS_NFSE_ENTRY_CODTMV?.trim() ||
       "1.2.30";
+    const configuredMovementTypes = await supabaseAdmin
+      .from("tipos_movimento_totvs")
+      .select("codigo, tipos_movimento_documentos!inner(tipo_documento)")
+      .eq("company_id", companyId)
+      .eq("tipos_movimento_documentos.tipo_documento", "nfse")
+      .eq("ativo", true);
+    if (configuredMovementTypes.error) throw configuredMovementTypes.error;
+    const allowedMovementCodes = [
+      ...new Set(
+        (configuredMovementTypes.data ?? []).map((movement) => movement.codigo).concat(fallbackCodTmv),
+      ),
+    ];
+    const movementFilter = allowedMovementCodes
+      .map((code) => `'${code.replaceAll("'", "''")}'`)
+      .join(",");
     type Movement = {
       IDMOV: number;
       NUMEROMOV: string;
       TAXID: string;
       CODTB1FLX: string | null;
+      CODTMV: string;
       VALORLIQUIDO: number;
     };
     const movements: Movement[] = [];
@@ -311,9 +370,9 @@ export class FiscalDocumentReconciliationService {
         .join(" OR ");
       movements.push(
         ...(await this.sqlServer.queryReadOnly<Movement>(
-          `SELECT mov.IDMOV,mov.NUMEROMOV,REPLACE(REPLACE(REPLACE(cfo.CGCCFO,'.',''),'/',''),'-','') TAXID,mov.CODTB1FLX,mov.VALORLIQUIDO
+          `SELECT mov.IDMOV,mov.NUMEROMOV,REPLACE(REPLACE(REPLACE(cfo.CGCCFO,'.',''),'/',''),'-','') TAXID,mov.CODTB1FLX,mov.CODTMV,mov.VALORLIQUIDO
            FROM dbo.TMOV mov JOIN dbo.FCFO cfo ON cfo.CODCOLIGADA=mov.CODCOLCFO AND cfo.CODCFO=mov.CODCFO
-           WHERE mov.CODCOLIGADA=${scope.codColigada}${scope.codFilial ? ` AND mov.CODFILIAL=${scope.codFilial}` : ""} AND mov.CODTMV='${codTmv.replaceAll("'", "''")}' AND (${pairs})`,
+           WHERE mov.CODCOLIGADA=${scope.codColigada}${scope.codFilial ? ` AND mov.CODFILIAL=${scope.codFilial}` : ""} AND mov.CODTMV IN (${movementFilter}) AND (${pairs})`,
           {},
           key,
         )),
@@ -334,7 +393,8 @@ export class FiscalDocumentReconciliationService {
       ...new Set(movements.map((movement) => movement.CODTB1FLX).filter(Boolean)),
     ] as string[];
     const costCodes = [...new Set(rates.map((rate) => rate.CODCCUSTO))];
-    const [plans, costCenters] = await Promise.all([
+    const movementCodes = [...new Set(movements.map((movement) => movement.CODTMV))];
+    const [plans, costCenters, movementTypes] = await Promise.all([
       planCodes.length
         ? supabaseAdmin
             .from("plano_contas")
@@ -349,12 +409,23 @@ export class FiscalDocumentReconciliationService {
             .eq("organization_id", organizationId)
             .in("codigo", costCodes)
         : Promise.resolve({ data: [], error: null }),
+      movementCodes.length
+        ? supabaseAdmin
+            .from("tipos_movimento_totvs")
+            .select("id, codigo")
+            .eq("company_id", companyId)
+            .in("codigo", movementCodes)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     if (plans.error) throw plans.error;
     if (costCenters.error) throw costCenters.error;
+    if (movementTypes.error) throw movementTypes.error;
     const planByCode = new Map((plans.data ?? []).map((row) => [row.codigo, row.id] as const));
     const costByCode = new Map(
       (costCenters.data ?? []).map((row) => [row.codigo, row.id] as const),
+    );
+    const movementByCode = new Map(
+      (movementTypes.data ?? []).map((row) => [row.codigo, row.id] as const),
     );
     const now = new Date().toISOString();
     for (const movement of movements) {
@@ -366,9 +437,18 @@ export class FiscalDocumentReconciliationService {
       const updated = await supabaseAdmin
         .from("fiscal_documents")
         .update({
-          status: "integrado_totvs",
-          status_observacao: `Reconciliado com o movimento TOTVS RM ${movement.IDMOV}.`,
+          status:
+            document.totvs_integration_origin === "apfiscal"
+              ? "integrado_totvs"
+              : "ja_existente_totvs",
+          totvs_integration_origin:
+            document.totvs_integration_origin === "apfiscal" ? "apfiscal" : "preexisting",
+          status_observacao:
+            document.totvs_integration_origin === "apfiscal"
+              ? `Integrado pelo APFiscal no movimento TOTVS RM ${movement.IDMOV}.`
+              : `Documento já existente no TOTVS RM no movimento ${movement.IDMOV}.`,
           status_updated_at: now,
+          tipo_movimento_id: movementByCode.get(movement.CODTMV) ?? null,
           plano_contas_id: movement.CODTB1FLX ? (planByCode.get(movement.CODTB1FLX) ?? null) : null,
         })
         .eq("id", document.id);

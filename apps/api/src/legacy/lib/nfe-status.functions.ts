@@ -8,7 +8,7 @@ async function getDocOrThrow(context: any, documentId: string) {
   const { data: doc, error } = await context.supabase
     .from("fiscal_documents")
     .select(
-      "id, company_id, tipo, status, plano_contas_id, local_estoque_id, companies(organization_id)",
+      "id, company_id, tipo, status, plano_contas_id, local_estoque_id, tipo_movimento_id, companies(organization_id)",
     )
     .eq("id", documentId)
     .maybeSingle();
@@ -117,8 +117,9 @@ export async function reavaliarApontamentos(
 
   const completo =
     doc.tipo === "nfse"
-      ? !!doc.plano_contas_id && (count ?? 0) > 0
-      : !!doc.plano_contas_id &&
+      ? !!doc.tipo_movimento_id && !!doc.plano_contas_id && (count ?? 0) > 0
+      : !!doc.tipo_movimento_id &&
+        !!doc.plano_contas_id &&
         !!doc.local_estoque_id &&
         (count ?? 0) > 0 &&
         (itensSemTipo ?? 0) === 0 &&
@@ -126,9 +127,10 @@ export async function reavaliarApontamentos(
   const alvo: NfeStatus = completo ? "pronta_para_integracao" : "aprovada";
   const observacao = completo
     ? doc.tipo === "nfse"
-      ? "Apontamentos obrigatórios concluídos (Plano de Contas e Centro de Custo)"
-      : "Apontamentos obrigatórios concluídos (Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
+      ? "Apontamentos obrigatórios concluídos (Tipo de Movimento, Plano de Contas e Centro de Custo)"
+      : "Apontamentos obrigatórios concluídos (Tipo de Movimento, Plano de Contas, Local de Estoque, Centro de Custo e Tipo de Compra)"
     : (itensSemProduto ?? 0) > 0 &&
+        !!doc.tipo_movimento_id &&
         !!doc.plano_contas_id &&
         !!doc.local_estoque_id &&
         (count ?? 0) > 0 &&
@@ -136,7 +138,9 @@ export async function reavaliarApontamentos(
       ? `A única pendência é vincular ${itensSemProduto} produto(s) ao fornecedor.`
       : (itensSemTipo ?? 0) > 0
         ? `Existem ${itensSemTipo} item(ns) sem Tipo de Compra apontado.`
-        : "Apontamentos obrigatórios incompletos";
+        : !doc.tipo_movimento_id
+          ? "Selecione o Tipo de Movimento para concluir os apontamentos."
+          : "Apontamentos obrigatórios incompletos";
   if (alvo !== doc.status) {
     await updateStatus(context, documentId, alvo, observacao);
   } else {

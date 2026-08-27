@@ -78,6 +78,7 @@ const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""'
 const successfulTotvsStatuses = new Set(["completed", "success", "succeeded"]);
 
 function effectiveTotvsStatus(item: NfseListItem): string | null {
+  if (item.status === "ja_existente_totvs") return "preexisting";
   if (item.status === "integrado_totvs" || successfulTotvsStatuses.has(item.totvs?.status ?? ""))
     return "succeeded";
   return item.totvs?.status ?? null;
@@ -86,11 +87,12 @@ function effectiveTotvsStatus(item: NfseListItem): string | null {
 function matchesTotvsFilter(item: NfseListItem, filter: string): boolean {
   if (filter === "all") return true;
   if (filter === "integrated") return effectiveTotvsStatus(item) === "succeeded";
+  if (filter === "preexisting") return effectiveTotvsStatus(item) === "preexisting";
   if (filter === "pending_confirmation") return item.status === "pendente_confirmacao";
   if (filter === "approved") return item.status === "aprovada";
   if (filter === "ready") return item.status === "pronta_para_integracao";
   if (filter === "not_started")
-    return effectiveTotvsStatus(item) === null && item.status !== "integrado_totvs";
+    return effectiveTotvsStatus(item) === null && !["integrado_totvs", "ja_existente_totvs"].includes(item.status);
   return effectiveTotvsStatus(item) === filter;
 }
 
@@ -444,6 +446,7 @@ export default function NfsePage() {
                 <SelectItem value="approved">Aprovadas</SelectItem>
                 <SelectItem value="ready">Prontas para integrar</SelectItem>
                 <SelectItem value="integrated">Integradas</SelectItem>
+                <SelectItem value="preexisting">Já existentes no TOTVS</SelectItem>
                 <SelectItem value="not_started">Sem execução no TOTVS</SelectItem>
                 <SelectItem value="queued">Na fila</SelectItem>
                 <SelectItem value="blocked">Bloqueadas</SelectItem>

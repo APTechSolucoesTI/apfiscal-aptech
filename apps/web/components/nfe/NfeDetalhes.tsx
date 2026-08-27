@@ -7,7 +7,6 @@ import {
   Copy,
   Download,
   Mail,
-  XCircle,
   Clock,
   Truck,
   CreditCard,
@@ -301,9 +300,6 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           <Button variant="outline" size="sm">
             <Mail className="mr-2 h-4 w-4" /> Reenviar
           </Button>
-          <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10">
-            <XCircle className="mr-2 h-4 w-4" /> Cancelar
-          </Button>
           <Button variant="outline" size="sm">
             <History className="mr-2 h-4 w-4" /> Eventos
           </Button>
@@ -530,6 +526,9 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                         {items.map((item) => {
                           const pendente = item.status_vinculo !== "vinculado";
                           const vinculoLiberado = podeVincularProduto(doc.status);
+                          const vinculoImutavel =
+                            doc.status === "ja_existente_totvs" ||
+                            (doc.status === "integrado_totvs" && !pendente);
                           const motivoBloqueio = motivoBloqueioVinculo(doc.status);
                           const produto = item.produtos as any | null;
                           const sugestao = pendente ? sugestoes[item.id] : null;
@@ -633,12 +632,22 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                     size="sm"
                                     variant="outline"
                                     className="h-8"
-                                    disabled={!vinculoLiberado}
-                                    title={!vinculoLiberado ? motivoBloqueio : undefined}
+                                    disabled={!vinculoLiberado || vinculoImutavel}
+                                    title={
+                                      vinculoImutavel
+                                        ? "O vínculo já enviado ao TOTVS não pode ser alterado."
+                                        : !vinculoLiberado
+                                          ? motivoBloqueio
+                                          : undefined
+                                    }
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (!vinculoLiberado) {
-                                        toast.error(motivoBloqueio);
+                                      if (!vinculoLiberado || vinculoImutavel) {
+                                        toast.error(
+                                          vinculoImutavel
+                                            ? "O vínculo já enviado ao TOTVS não pode ser alterado."
+                                            : motivoBloqueio,
+                                        );
                                         return;
                                       }
                                       setLinkItemId(item.id);
@@ -652,12 +661,24 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
                                       size="sm"
                                       variant="ghost"
                                       className="h-8 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
-                                      disabled={unlinkMut.isPending || !vinculoLiberado}
-                                      title={!vinculoLiberado ? motivoBloqueio : undefined}
+                                      disabled={
+                                        unlinkMut.isPending || !vinculoLiberado || vinculoImutavel
+                                      }
+                                      title={
+                                        vinculoImutavel
+                                          ? "O vínculo já enviado ao TOTVS não pode ser removido."
+                                          : !vinculoLiberado
+                                            ? motivoBloqueio
+                                            : undefined
+                                      }
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (!vinculoLiberado) {
-                                          toast.error(motivoBloqueio);
+                                        if (!vinculoLiberado || vinculoImutavel) {
+                                          toast.error(
+                                            vinculoImutavel
+                                              ? "O vínculo já enviado ao TOTVS não pode ser removido."
+                                              : motivoBloqueio,
+                                          );
                                           return;
                                         }
                                         if (

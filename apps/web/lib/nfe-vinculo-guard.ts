@@ -28,7 +28,7 @@ export async function assertNenhumaIntegrada(supabase: any, ids: string[]) {
     .from("fiscal_documents")
     .select("id")
     .in("id", ids)
-    .eq("status", "integrado_totvs")
+    .in("status", ["integrado_totvs", "ja_existente_totvs"])
     .limit(1);
   if (data && data.length > 0) {
     throw new Error("Existem NF-e já integradas na TOTVS na seleção. Elas não podem ser alteradas ou excluídas.");

@@ -13,6 +13,7 @@ import * as chartAccounts from "@/legacy/lib/plano-contas.functions";
 import * as products from "@/legacy/lib/products.functions";
 import * as suppliers from "@/legacy/lib/suppliers.functions";
 import * as purchaseTypes from "@/legacy/lib/tipos-compra.functions";
+import * as movementTypes from "@/legacy/lib/tipos-movimento.functions";
 
 const modules = [
   apfiscal,
@@ -29,6 +30,7 @@ const modules = [
   products,
   suppliers,
   purchaseTypes,
+  movementTypes,
 ];
 
 export const actionRegistry = Object.fromEntries(
@@ -45,6 +47,7 @@ const readActions = new Set([
   "getNfeItemLinkContext", "searchProductsForLink", "listStatusHistorico", "listSuppliers",
   "listSupplierFiscalDocuments",
   "listTiposCompra", "fetchCompanyByCnpj", "fetchAddressByCep", "baixarXmlDocumento",
+  "listTiposMovimento",
 ]);
 
 const specialPermissions: Record<string, string> = {
@@ -64,7 +67,7 @@ export function permissionForAction(name: string): string {
   if (specialPermissions[name]) return specialPermissions[name];
   if (name.toLowerCase().includes("product")) return readActions.has(name) ? "products.view" : "products.manage";
   if (name.toLowerCase().includes("supplier")) return readActions.has(name) ? "suppliers.view" : "suppliers.manage";
-  if (/CentroCusto|PlanoContas|LocalEstoque|Alocac|TipoCompra/.test(name)) {
+  if (/CentroCusto|PlanoContas|LocalEstoque|Alocac|TipoCompra|TipoMovimento/.test(name)) {
     return readActions.has(name) ? "finance.cost_centers.view" : "finance.cost_centers.manage";
   }
   if (/Classification/.test(name)) return readActions.has(name) ? "classifications.view" : "classifications.manage";

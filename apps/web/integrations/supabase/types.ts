@@ -2050,6 +2050,7 @@ export type Database = {
         | "aprovada"
         | "pronta_para_integracao"
         | "integrado_totvs"
+        | "ja_existente_totvs"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2194,6 +2195,7 @@ export const Constants = {
         "aprovada",
         "pronta_para_integracao",
         "integrado_totvs",
+        "ja_existente_totvs",
       ],
     },
   },

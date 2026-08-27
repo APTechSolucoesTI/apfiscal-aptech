@@ -429,6 +429,45 @@ export class TotvsSyncService {
     return materialized;
   }
 
+  private async materializeMovementTypes(
+    organizationId: string,
+    connectionKey: string,
+    rows: Record<string, unknown>[],
+    companies: CompanyScopes,
+  ) {
+    let materialized = 0;
+    for (const company of companies) {
+      const companyRows = rowsForTotvsScope(rows, company, (row) => text(row.code), false).filter(
+        (row) => text(row.code),
+      );
+      const inactive = await supabaseAdmin
+        .from("tipos_movimento_totvs")
+        .update({ ativo: false, synced_at: new Date().toISOString() })
+        .eq("company_id", company.companyId);
+      if (inactive.error) throw inactive.error;
+      for (let offset = 0; offset < companyRows.length; offset += 250) {
+        const now = new Date().toISOString();
+        const records = companyRows.slice(offset, offset + 250).map((row) => ({
+          organization_id: organizationId,
+          company_id: company.companyId,
+          connection_key: connectionKey,
+          coligada_id: company.codColigada,
+          codigo: text(row.code),
+          descricao: text(row.description) || text(row.code),
+          ativo: true,
+          synced_at: now,
+          updated_at: now,
+        }));
+        const result = await supabaseAdmin
+          .from("tipos_movimento_totvs")
+          .upsert(records, { onConflict: "company_id,codigo" });
+        if (result.error) throw result.error;
+        materialized += records.length;
+      }
+    }
+    return materialized;
+  }
+
   private async materialize(organizationId: string, definition: TotvsQueryDefinition, rows: Record<string, unknown>[], companies: CompanyScopes) {
     if (definition.entity === "suppliers") return this.materializeSuppliers(organizationId, rows, companies);
     if (definition.entity === "supplier_addresses") return this.materializeAddresses(organizationId, rows, companies);
@@ -437,6 +476,13 @@ export class TotvsSyncService {
     if (definition.entity === "products") return this.materializeProducts(organizationId, rows, companies);
     if (definition.entity === "financial_plan") return this.materializeFinancialPlan(organizationId, rows, companies);
     if (definition.entity === "stock_locations") return this.materializeStockLocations(organizationId, rows, companies);
+    if (definition.entity === "movement_types")
+      return this.materializeMovementTypes(
+        organizationId,
+        companies[0]?.connectionKey ?? this.sqlServer.defaultKey(),
+        rows,
+        companies,
+      );
     return 0;
   }
 

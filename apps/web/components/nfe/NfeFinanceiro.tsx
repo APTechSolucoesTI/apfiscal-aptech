@@ -6,17 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
+import { SearchableSelect } from "@/components/common/SearchableSelect";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +32,7 @@ import {
   Tags,
   RotateCcw,
   Sparkles,
+  ArrowRightLeft,
 } from "lucide-react";
 import { listPlanoContas } from "@/lib/client-actions";
 import { listCentrosCusto } from "@/lib/client-actions";
@@ -55,6 +50,8 @@ import {
   setTipoCompraItem,
   restaurarTipoCompraItem,
   sugerirApontamentosFinanceiros,
+  listTiposMovimento,
+  setTipoMovimentoFiscal,
 } from "@/lib/client-actions";
 import {
   recalcularAlocacaoCabecalho,
@@ -128,6 +125,8 @@ export function NfeFinanceiro({
   const setTCItemFn = useServerFn(setTipoCompraItem);
   const restaurarTCFn = useServerFn(restaurarTipoCompraItem);
   const suggestFn = useServerFn(sugerirApontamentosFinanceiros);
+  const listMovementTypesFn = useServerFn(listTiposMovimento);
+  const setMovementTypeFn = useServerFn(setTipoMovimentoFiscal);
 
   const { data: planos = [] } = useQuery({
     queryKey: ["plano-contas-lanc", companyId],
@@ -146,6 +145,13 @@ export function NfeFinanceiro({
     queryFn: () => listTCFn() as any,
     staleTime: 60 * 60 * 1000,
   });
+  const { data: tiposMovimento = [] } = useQuery<any[]>({
+    queryKey: ["tipos-movimento-documento", companyId, doc.tipo],
+    queryFn: () =>
+      listMovementTypesFn({
+        data: { companyId, tipoDocumento: doc.tipo, apenasVinculados: true },
+      }),
+  });
 
   const { data: alocacao } = useQuery({
     queryKey: ["nfe-alocacao", documentId],
@@ -163,6 +169,15 @@ export function NfeFinanceiro({
       );
       qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
       qc.invalidateQueries({ queryKey: ["nfe-alocacao", documentId] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const movementTypeMut = useMutation({
+    mutationFn: (tipoMovimentoId: string | null) =>
+      setMovementTypeFn({ data: { documentId, tipoMovimentoId } }),
+    onSuccess: () => {
+      toast.success("Tipo de Movimento atualizado.");
+      qc.invalidateQueries({ queryKey: ["nfe-details", documentId] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -353,6 +368,26 @@ export function NfeFinanceiro({
 
   const ccOptions = ccs as any[];
   const leOptions = (locais as any[]).filter((l) => l.tipo === "analitico");
+  const movementOptions = (tiposMovimento as any[]).map((movement) => ({
+    value: movement.id,
+    label: `${movement.codigo} · ${movement.descricao}`,
+  }));
+  const planOptions = (planos as any[]).map((plan) => ({
+    value: plan.id,
+    label: `${plan.codigo} · ${plan.descricao}`,
+  }));
+  const stockOptions = leOptions.map((location) => ({
+    value: location.id,
+    label: `${location.codigo} · ${location.descricao}`,
+  }));
+  const costCenterOptions = ccOptions.map((center) => ({
+    value: center.id,
+    label: `${center.codigo} · ${center.descricao}`,
+  }));
+  const purchaseTypeOptions = (tiposCompra as TipoCompra[]).map((type) => ({
+    value: type.id,
+    label: `${type.codigo} · ${type.descricao}`,
+  }));
 
   function addCabRow() {
     setCabAllocs((p) => [...p, { centro_custo_id: ccOptions[0]?.id ?? "", valor: 0 }]);
@@ -377,7 +412,7 @@ export function NfeFinanceiro({
   );
 
   const aviso =
-    doc.status === "integrado_totvs"
+    doc.status === "integrado_totvs" || doc.status === "ja_existente_totvs"
       ? "NF-e já integrada na TOTVS. Os apontamentos estão encerrados e não podem mais ser alterados."
       : "Esta NF-e precisa ser aprovada antes de realizar os apontamentos.";
 
@@ -416,26 +451,30 @@ export function NfeFinanceiro({
       <fieldset disabled={readOnly} className={readOnly ? "space-y-6 opacity-60" : "space-y-6"}>
         <Card>
           <CardHeader className="flex flex-row items-center gap-2">
+            <ArrowRightLeft className="h-4 w-4 text-primary" />
+            <CardTitle className="text-lg">Tipo de Movimento</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <SearchableSelect
+              value={doc.tipo_movimento_id}
+              onValueChange={(value) => movementTypeMut.mutate(value)}
+              options={movementOptions}
+              placeholder="Selecione o Tipo de Movimento"
+              disabled={readOnly || movementTypeMut.isPending}
+              className="max-w-xl w-full"
+            />
+            <p className="text-xs text-slate-500">
+              Exibe somente movimentos vinculados a {doc.tipo === "nfse" ? "NFS-e" : "NF-e"} em Cadastros Financeiros.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
             <BookOpen className="h-4 w-4 text-primary" />
             <CardTitle className="text-lg">Plano de Contas (cabeçalho)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Select
-              value={doc.plano_contas_id ?? "__none__"}
-              onValueChange={(v) => alterarPCCabecalho(v === "__none__" ? null : v)}
-            >
-              <SelectTrigger className="max-w-xl">
-                <SelectValue placeholder="Selecione um Plano de Contas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">— sem plano de contas —</SelectItem>
-                {(planos as any[]).map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.codigo} · {p.descricao}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={doc.plano_contas_id} onValueChange={alterarPCCabecalho} options={planOptions} placeholder="Selecione um Plano de Contas" className="max-w-xl w-full" />
             <ProgressoApontamento
               apontados={apontadosPC}
               total={totalItens}
@@ -496,23 +535,14 @@ export function NfeFinanceiro({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="max-w-xl">
-                    <Select
+                    <SearchableSelect
                       disabled={readOnly}
-                      value={doc.tipo_compra_id ?? "__none__"}
-                      onValueChange={(v) => alterarTCCabecalho(v === "__none__" ? null : v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um Tipo de Compra" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— sem tipo de compra —</SelectItem>
-                        {(tiposCompra as TipoCompra[]).map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.codigo} - {t.descricao}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      value={doc.tipo_compra_id}
+                      onValueChange={alterarTCCabecalho}
+                      options={purchaseTypeOptions}
+                      placeholder="Selecione um Tipo de Compra"
+                      className="w-full"
+                    />
                   </div>
                 </TooltipTrigger>
                 {readOnly && <TooltipContent>{aviso}</TooltipContent>}
@@ -546,22 +576,7 @@ export function NfeFinanceiro({
             <CardTitle className="text-lg">Local de Estoque (cabeçalho)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Select
-              value={doc.local_estoque_id ?? "__none__"}
-              onValueChange={(v) => alterarLECabecalho(v === "__none__" ? null : v)}
-            >
-              <SelectTrigger className="max-w-xl">
-                <SelectValue placeholder="Selecione um Local de Estoque" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">— sem local de estoque —</SelectItem>
-                {leOptions.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    {l.codigo} · {l.descricao}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect value={doc.local_estoque_id} onValueChange={alterarLECabecalho} options={stockOptions} placeholder="Selecione um Local de Estoque" className="max-w-xl w-full" />
             <ProgressoApontamento
               apontados={apontadosLE}
               total={totalItens}
@@ -619,25 +634,17 @@ export function NfeFinanceiro({
             />
             {cabAllocs.map((a, idx) => (
               <div key={idx} className="flex items-center gap-2">
-                <Select
+                <SearchableSelect
                   value={a.centro_custo_id}
                   onValueChange={(v) =>
                     setCabAllocs((p) =>
                       p.map((x, i) => (i === idx ? { ...x, centro_custo_id: v } : x)),
                     )
                   }
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ccOptions.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.codigo} · {c.descricao}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={costCenterOptions}
+                  placeholder="Selecione o Centro de Custo"
+                  className="flex-1"
+                />
                 <div className="relative w-40">
                   <Input
                     type="number"
@@ -726,27 +733,18 @@ export function NfeFinanceiro({
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-64">
-                        <Select
-                          value={it.plano_contas_id ?? "__none__"}
+                        <SearchableSelect
+                          value={it.plano_contas_id}
                           onValueChange={(v) =>
                             setPCItemMut.mutate({
                               itemId: it.id,
-                              planoContasId: v === "__none__" ? null : v,
+                              planoContasId: v,
                             })
                           }
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Plano de Contas do item" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— herdar do cabeçalho —</SelectItem>
-                            {(planos as any[]).map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.codigo} · {p.descricao}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={planOptions}
+                          placeholder="Plano de Contas do item"
+                          className="h-8 w-full text-xs"
+                        />
                       </div>
                       {it.plano_contas_alterado_manualmente && (
                         <Badge
@@ -757,27 +755,18 @@ export function NfeFinanceiro({
                         </Badge>
                       )}
                       <div className="w-64">
-                        <Select
-                          value={it.local_estoque_id ?? "__none__"}
+                        <SearchableSelect
+                          value={it.local_estoque_id}
                           onValueChange={(v) =>
                             setLEItemMut.mutate({
                               itemId: it.id,
-                              localEstoqueId: v === "__none__" ? null : v,
+                              localEstoqueId: v,
                             })
                           }
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Local de Estoque do item" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— herdar do cabeçalho —</SelectItem>
-                            {leOptions.map((l) => (
-                              <SelectItem key={l.id} value={l.id}>
-                                {l.codigo} · {l.descricao}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={stockOptions}
+                          placeholder="Local de Estoque do item"
+                          className="h-8 w-full text-xs"
+                        />
                       </div>
                       {it.local_estoque_alterado_manualmente && (
                         <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200">
@@ -785,27 +774,18 @@ export function NfeFinanceiro({
                         </Badge>
                       )}
                       <div className="w-64">
-                        <Select
-                          value={it.tipo_compra_id ?? "__none__"}
+                        <SearchableSelect
+                          value={it.tipo_compra_id}
                           onValueChange={(v) =>
                             setTCItemMut.mutate({
                               itemId: it.id,
-                              tipoCompraId: v === "__none__" ? null : v,
+                              tipoCompraId: v,
                             })
                           }
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Tipo de Compra do item" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— herdar do cabeçalho —</SelectItem>
-                            {(tiposCompra as TipoCompra[]).map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.codigo} - {t.descricao}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={purchaseTypeOptions}
+                          placeholder="Tipo de Compra do item"
+                          className="h-8 w-full text-xs"
+                        />
                       </div>
                       {it.tipo_compra_alterado_manualmente && (
                         <>
@@ -836,7 +816,7 @@ export function NfeFinanceiro({
                   </div>
                   {rateio.map((a, idx) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <Select
+                      <SearchableSelect
                         value={a.centro_custo_id}
                         onValueChange={(v) =>
                           setItemAllocs((p) => ({
@@ -846,18 +826,10 @@ export function NfeFinanceiro({
                             ),
                           }))
                         }
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ccOptions.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.codigo} · {c.descricao}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        options={costCenterOptions}
+                        placeholder="Selecione o Centro de Custo"
+                        className="flex-1"
+                      />
                       <div className="relative w-40">
                         <Input
                           type="number"

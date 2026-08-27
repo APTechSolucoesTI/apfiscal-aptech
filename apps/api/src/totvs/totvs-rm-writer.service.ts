@@ -299,11 +299,14 @@ export class TotvsRmWriterService {
         ID: idPrd,
         CODIGOPRD: item.productErpCode,
         CODIGOREDUZIDO: String(reduced.recordset[0].value).padStart(4, "0"),
+        CODIGOAUXILIAR: item.productErpCode,
         NOMEFANTASIA: item.productDescription ?? item.productErpCode,
         DESCRICAO: item.productDescription ?? item.productErpCode,
         DESCRICAOAUX: item.productDescription ?? item.productErpCode,
         DTCADASTRAMENTO: now,
         DATAULTALTERACAO: now,
+        CODUSUARIO: input.user,
+        USUARIOCRIACAO: input.user,
         RECCREATEDBY: input.user,
         RECCREATEDON: now,
         RECMODIFIEDBY: input.user,
@@ -475,7 +478,7 @@ export class TotvsRmWriterService {
       const nextCode = await new sql.Request(transaction).query<{ value: number }>(`
         SELECT ISNULL(MAX(TRY_CONVERT(int,SUBSTRING(CODCFO,2,20))),0)+1 AS value
         FROM dbo.FCFO WITH (UPDLOCK,HOLDLOCK)
-        WHERE CODCOLIGADA=0 AND CODCFO LIKE 'C%'
+        WHERE CODCOLIGADA=0 AND CODCFO LIKE 'C%' AND CODCFO<>'C222286'
       `);
       supplierCode = `C${String(nextCode.recordset[0].value).padStart(6, "0")}`;
       const rows = await this.clone(

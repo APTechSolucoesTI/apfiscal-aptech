@@ -2,21 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Save, Send, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, Loader2, Save, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { NfeAprovacaoDialog } from "@/components/nfe/NfeAprovacaoDialog";
 import { NfeCobrancaEditor } from "@/components/nfe/NfeCobrancaEditor";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/common/SearchableSelect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useServerFn } from "@/lib/api-action";
 import { backendFetch } from "@/lib/backend";
 import {
@@ -27,6 +21,8 @@ import {
   setAlocacoesCabecalho,
   setPlanoContasCabecalho,
   sugerirApontamentosFinanceiros,
+  listTiposMovimento,
+  setTipoMovimentoFiscal,
 } from "@/lib/client-actions";
 import type { NfseDetail, TotvsRunSummary } from "@/services/fiscalDocumentsService";
 
@@ -51,6 +47,8 @@ export function NfseTotvsPanel({
   const setAllocation = useServerFn(setAlocacoesCabecalho);
   const reevaluate = useServerFn(reavaliarStatusApontamentos);
   const suggest = useServerFn(sugerirApontamentosFinanceiros);
+  const listMovementTypes = useServerFn(listTiposMovimento);
+  const setMovementType = useServerFn(setTipoMovimentoFiscal);
 
   const plans = useQuery({
     queryKey: ["plano-contas-lanc", document.company_id],
@@ -67,6 +65,13 @@ export function NfseTotvsPanel({
   const allocation = useQuery({
     queryKey: ["nfe-alocacao", document.id],
     queryFn: () => getAllocation({ data: { documentId: document.id } }),
+  });
+  const movementTypes = useQuery<any[]>({
+    queryKey: ["tipos-movimento-documento", document.company_id, "nfse"],
+    queryFn: () =>
+      listMovementTypes({
+        data: { companyId: document.company_id, tipoDocumento: "nfse", apenasVinculados: true },
+      }),
   });
 
   useEffect(() => {
@@ -99,6 +104,15 @@ export function NfseTotvsPanel({
     },
     onSuccess: () => {
       toast.success("Apontamentos da NFS-e salvos. O documento está pronto para integração.");
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const movement = useMutation({
+    mutationFn: (tipoMovimentoId: string) =>
+      setMovementType({ data: { documentId: document.id, tipoMovimentoId } }),
+    onSuccess: () => {
+      toast.success("Tipo de Movimento atualizado.");
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -164,7 +178,9 @@ export function NfseTotvsPanel({
   });
 
   const editable = document.status === "aprovada" || document.status === "pronta_para_integracao";
-  const integrated = document.status === "integrado_totvs" || latestRun?.status === "succeeded";
+  const alreadyExisting = document.status === "ja_existente_totvs";
+  const integrated =
+    document.status === "integrado_totvs" || alreadyExisting || latestRun?.status === "succeeded";
 
   return (
     <div className="space-y-4">
@@ -190,48 +206,25 @@ export function NfseTotvsPanel({
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2"><ArrowRightLeft className="h-4 w-4" />Tipo de Movimento</Label>
+            <SearchableSelect
+              value={(document as any).tipo_movimento_id}
+              onValueChange={(value) => movement.mutate(value)}
+              options={(movementTypes.data ?? []).map((item) => ({ value: item.id, label: `${item.codigo} · ${item.descricao}` }))}
+              placeholder="Selecione o Tipo de Movimento da NFS-e"
+              disabled={!editable || integrated || movement.isPending}
+              className="w-full"
+            />
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Plano de Contas</Label>
-              <Select
-                value={planId}
-                onValueChange={setPlanId}
-                disabled={!editable || save.isPending || integrated}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a conta" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(plans.data ?? []).map(
-                    (item: { id: string; codigo: string; descricao: string }) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.codigo} · {item.descricao}
-                      </SelectItem>
-                    ),
-                  )}
-                </SelectContent>
-              </Select>
+              <SearchableSelect value={planId} onValueChange={setPlanId} options={(plans.data ?? []).map((item: { id: string; codigo: string; descricao: string }) => ({ value: item.id, label: `${item.codigo} · ${item.descricao}` }))} placeholder="Selecione a conta" disabled={!editable || save.isPending || integrated} className="w-full" />
             </div>
             <div className="space-y-2">
               <Label>Centro de Custo</Label>
-              <Select
-                value={costCenterId}
-                onValueChange={setCostCenterId}
-                disabled={!editable || save.isPending || integrated}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o centro" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(costCenters.data ?? []).map(
-                    (item: { id: string; codigo: string; descricao: string }) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {item.codigo} · {item.descricao}
-                      </SelectItem>
-                    ),
-                  )}
-                </SelectContent>
-              </Select>
+              <SearchableSelect value={costCenterId} onValueChange={setCostCenterId} options={(costCenters.data ?? []).map((item: { id: string; codigo: string; descricao: string }) => ({ value: item.id, label: `${item.codigo} · ${item.descricao}` }))} placeholder="Selecione o centro" disabled={!editable || save.isPending || integrated} className="w-full" />
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -291,9 +284,11 @@ export function NfseTotvsPanel({
       {integrated && (
         <Alert className="border-emerald-200 bg-emerald-50 text-emerald-950">
           <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle>NFS-e integrada com sucesso</AlertTitle>
+          <AlertTitle>{alreadyExisting ? "NFS-e já existente no TOTVS" : "NFS-e integrada com sucesso"}</AlertTitle>
           <AlertDescription>
-            Movimento RM: {latestRun?.rm_record_id ?? "registrado"}.
+            {alreadyExisting
+              ? "Documento reconciliado com o RM e disponível somente para visualização."
+              : `Movimento RM: ${latestRun?.rm_record_id ?? "registrado"}.`}
           </AlertDescription>
         </Alert>
       )}

@@ -183,7 +183,11 @@ function NFeList() {
     });
   }, [sortedDocs]);
 
-  const allChecked = sortedDocs.length > 0 && sortedDocs.every((d) => selectedIds.has(d.id));
+  const selectableDocs = sortedDocs.filter(
+    (d) => !["integrado_totvs", "ja_existente_totvs"].includes(d.status ?? ""),
+  );
+  const allChecked =
+    selectableDocs.length > 0 && selectableDocs.every((d) => selectedIds.has(d.id));
   const someChecked = selectedIds.size > 0 && !allChecked;
 
   const bulkDelMut = useMutation({
@@ -240,7 +244,16 @@ function NFeList() {
 
   function toggleAll() {
     if (allChecked) setSelectedIds(new Set());
-    else setSelectedIds(new Set(sortedDocs.map((d) => d.id)));
+    else
+      setSelectedIds(
+        new Set(
+          sortedDocs
+            .filter((d) =>
+              !["integrado_totvs", "ja_existente_totvs"].includes(d.status ?? ""),
+            )
+            .map((d) => d.id),
+        ),
+      );
   }
   function toggleRow(id: string) {
     setSelectedIds((prev) => {
@@ -861,6 +874,9 @@ function NFeList() {
                       <Checkbox
                         checked={selectedIds.has(doc.id)}
                         onCheckedChange={() => toggleRow(doc.id)}
+                        disabled={["integrado_totvs", "ja_existente_totvs"].includes(
+                          doc.status ?? "",
+                        )}
                         aria-label={`Selecionar NF-e ${doc.numero ?? doc.id}`}
                       />
                     </TableCell>
@@ -883,6 +899,9 @@ function NFeList() {
                       <Checkbox
                         checked={selectedIds.has(doc.id)}
                         onCheckedChange={() => toggleRow(doc.id)}
+                        disabled={["integrado_totvs", "ja_existente_totvs"].includes(
+                          doc.status ?? "",
+                        )}
                         aria-label={`Selecionar NF-e ${doc.numero ?? doc.id}`}
                       />
                       <div className="min-w-0 flex-1">

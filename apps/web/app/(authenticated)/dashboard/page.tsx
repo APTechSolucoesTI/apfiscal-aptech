@@ -51,6 +51,7 @@ const STATUS_COLORS: Record<NfeStatus, string> = {
   aprovada: "#f97316",
   pronta_para_integracao: "#eab308",
   integrado_totvs: "#22c55e",
+  ja_existente_totvs: "#64748b",
 };
 
 const STATUS_ICONS: Record<NfeStatus, typeof FileText> = {
@@ -58,6 +59,7 @@ const STATUS_ICONS: Record<NfeStatus, typeof FileText> = {
   aprovada: ClipboardCheck,
   pronta_para_integracao: TrendingUp,
   integrado_totvs: CheckCircle2,
+  ja_existente_totvs: CheckCircle2,
 };
 
 function Dashboard() {

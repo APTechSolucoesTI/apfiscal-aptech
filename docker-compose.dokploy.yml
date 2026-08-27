@@ -2,8 +2,6 @@ services:
   apfiscal-redis:
     image: redis:7-alpine
     restart: unless-stopped
-    environment:
-      TZ: America/Sao_Paulo
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
     volumes:
       - apfiscal-redis-data:/data
@@ -26,7 +24,6 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      TZ: America/Sao_Paulo
       PORT: 3001
       SUPABASE_URL: ${SUPABASE_URL:?obrigatoria}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?obrigatoria}
@@ -114,7 +111,6 @@ services:
       - "3000"
     environment:
       NODE_ENV: production
-      TZ: America/Sao_Paulo
       PORT: 3000
       INTERNAL_API_URL: http://apfiscal-api:3001
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?obrigatoria}

@@ -20,6 +20,7 @@ RUN pnpm --filter @apfiscal/shared build && pnpm --filter @apfiscal/api build &&
 FROM node:24-bookworm-slim AS runner
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV TZ=America/Sao_Paulo
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl \

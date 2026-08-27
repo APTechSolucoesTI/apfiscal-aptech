@@ -478,7 +478,13 @@ export class TotvsRmWriterService {
       const nextCode = await new sql.Request(transaction).query<{ value: number }>(`
         SELECT ISNULL(MAX(TRY_CONVERT(int,SUBSTRING(CODCFO,2,20))),0)+1 AS value
         FROM dbo.FCFO WITH (UPDLOCK,HOLDLOCK)
-        WHERE CODCOLIGADA=0 AND CODCFO LIKE 'C%' AND CODCFO<>'C222286'
+        WHERE CODCOLIGADA=0
+          AND CODCFO LIKE 'C%'
+          AND CODCFO<>'C222286'
+          AND NOT (
+            RECCREATEDBY='APFISCAL'
+            AND TRY_CONVERT(int,SUBSTRING(CODCFO,2,20))>222286
+          )
       `);
       supplierCode = `C${String(nextCode.recordset[0].value).padStart(6, "0")}`;
       const rows = await this.clone(

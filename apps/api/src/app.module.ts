@@ -30,6 +30,7 @@ import { TotvsRmWriterService } from "@/totvs/totvs-rm-writer.service";
 import { SuperadminController } from "@/superadmin/superadmin.controller";
 import { SuperadminBootstrapService } from "@/superadmin/superadmin-bootstrap.service";
 import { PlanLimitsService } from "@/plans/plan-limits.service";
+import { PublicPlansController } from "@/plans/public-plans.controller";
 import { NacionalAdnNfseProvider } from "@/nfse/nacional-adn-nfse.provider";
 import { NfseSyncService } from "@/nfse/nfse-sync.service";
 import { FiscalDocumentsController } from "@/fiscal-documents/fiscal-documents.controller";
@@ -49,6 +50,7 @@ import { FiscalDocumentsService } from "@/fiscal-documents/fiscal-documents.serv
     TotvsController,
     SuperadminController,
     FiscalDocumentsController,
+    PublicPlansController,
   ],
   providers: [
     AuthService,

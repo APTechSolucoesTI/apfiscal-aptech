@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import * as sql from "mssql";
+import { financialInstallmentAllocations } from "./totvs-financial-allocation";
 
 const CLONEABLE_TABLES = new Set([
   "TMOV",
@@ -14,6 +15,10 @@ const CLONEABLE_TABLES = new Set([
   "TMOVRATCCU",
   "TITMMOVRATCCU",
   "FLAN",
+  "FLANCOMPL",
+  "FLANHST",
+  "FLANRATCCU",
+  "TMOVLAN",
   "FCFO",
   "FCFOHISTORICO",
   "TPRODUTO",
@@ -409,7 +414,7 @@ export class TotvsRmWriterService {
 
   private async nextTableValue(
     transaction: sql.Transaction,
-    table: "FLAN" | "TMOVRATCCU" | "TITMMOVRATCCU",
+    table: "FLAN" | "FLANHST" | "TMOVRATCCU" | "TITMMOVRATCCU",
     column: "ID" | "IDHISTORICO" | "IDMOVRATCCU",
   ) {
     const result = await new sql.Request(transaction).query<{ value: number }>(
@@ -587,6 +592,11 @@ export class TotvsRmWriterService {
       input.items.some((item) => !Number.isSafeInteger(item.numero_item) || item.numero_item <= 0)
     )
       throw new Error("Todos os itens precisam ter um número sequencial inteiro positivo.");
+    if (
+      !input.costCenterCode?.trim() &&
+      !input.allocations.some((allocation) => allocation.costCenterCode.trim().length > 0)
+    )
+      throw new Error("O centro de custo ou o rateio financeiro é obrigatório para integrar no RM.");
 
     const formattedNumber = movementNumber(input.document.numero);
     const duplicate = await new sql.Request(transaction)
@@ -632,14 +642,37 @@ export class TotvsRmWriterService {
     const template = await new sql.Request(transaction)
       .input("coligada", sql.SmallInt, input.coligada)
       .input("filial", sql.SmallInt, input.filial)
-      .input("codTmv", sql.VarChar, codTmv).query<{ IDMOV: number }>(`
-        SELECT TOP 1 IDMOV FROM dbo.TMOV WITH (HOLDLOCK)
-        WHERE CODCOLIGADA=@coligada AND CODTMV=@codTmv
-        ORDER BY CASE WHEN CODFILIAL=@filial THEN 0 ELSE 1 END, IDMOV DESC
+      .input("codTmv", sql.VarChar, codTmv).query<{ IDMOV: number; IDLAN: number }>(`
+        SELECT TOP 1 mov.IDMOV,lan.IDLAN
+        FROM dbo.TMOV mov WITH (HOLDLOCK)
+        INNER JOIN dbo.FLAN lan WITH (HOLDLOCK)
+          ON lan.CODCOLIGADA=mov.CODCOLIGADA AND lan.IDMOV=mov.IDMOV
+        WHERE mov.CODCOLIGADA=@coligada AND mov.CODTMV=@codTmv
+          AND EXISTS (
+            SELECT 1 FROM dbo.FLANCOMPL compl
+            WHERE compl.CODCOLIGADA=lan.CODCOLIGADA AND compl.IDLAN=lan.IDLAN
+          )
+          AND EXISTS (
+            SELECT 1 FROM dbo.FLANHST hist
+            WHERE hist.CODCOLIGADA=lan.CODCOLIGADA AND hist.IDLAN=lan.IDLAN AND hist.PROCESSO=1
+          )
+          AND EXISTS (
+            SELECT 1 FROM dbo.FLANRATCCU rate
+            WHERE rate.CODCOLIGADA=lan.CODCOLIGADA AND rate.IDLAN=lan.IDLAN
+          )
+          AND EXISTS (
+            SELECT 1 FROM dbo.TMOVLAN relation
+            WHERE relation.CODCOLIGADA=mov.CODCOLIGADA
+              AND relation.IDMOV=mov.IDMOV AND relation.IDLAN=lan.IDLAN
+          )
+        ORDER BY CASE WHEN mov.CODFILIAL=@filial THEN 0 ELSE 1 END, mov.IDMOV DESC, lan.IDLAN
       `);
     const templateId = template.recordset[0]?.IDMOV;
-    if (!templateId)
-      throw new Error(`Não existe movimento-modelo ${codTmv} na coligada ${input.coligada}.`);
+    const templateLanId = template.recordset[0]?.IDLAN;
+    if (!templateId || !templateLanId)
+      throw new Error(
+        `Não existe movimento-modelo ${codTmv} com financeiro completo na coligada ${input.coligada}.`,
+      );
 
     const supplier = await this.ensureSupplier(transaction, input, supplierTaxId);
     const supplierCode = supplier.CODCFO;
@@ -927,6 +960,18 @@ export class TotvsRmWriterService {
 
     const schedule = installments(input.document.cobranca, total, issueDate);
     let nextFlanId = await this.nextTableValue(transaction, "FLAN", "ID");
+    let nextFlanHistoryId = await this.nextTableValue(transaction, "FLANHST", "IDHISTORICO");
+    const configuredFinancialRates = input.allocations.filter(
+      (allocation) => allocation.costCenterCode.trim().length > 0,
+    );
+    const financialRates = configuredFinancialRates.length
+      ? configuredFinancialRates
+      : input.costCenterCode
+        ? [{ costCenterCode: input.costCenterCode, value: total }]
+        : [];
+    const financialCostCenterCode = input.costCenterCode?.trim()
+      ? input.costCenterCode
+      : financialRates[0].costCenterCode;
     for (let index = 0; index < schedule.length; index += 1) {
       const installment = schedule[index];
       const idLan = await this.nextGenerator(transaction, input.coligada, "F", "IDLAN");
@@ -934,8 +979,8 @@ export class TotvsRmWriterService {
       const financialRows = await this.clone(
         transaction,
         "FLAN",
-        "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId AND src.IDLAN=(SELECT MIN(IDLAN) FROM dbo.FLAN WHERE CODCOLIGADA=@sourceColigada AND IDMOV=@sourceId)",
-        { sourceColigada: input.coligada, sourceId: templateId },
+        "src.CODCOLIGADA=@sourceColigada AND src.IDLAN=@sourceLanId",
+        { sourceColigada: input.coligada, sourceLanId: templateLanId },
         {
           IDLAN: idLan,
           ID: nextFlanId++,
@@ -951,7 +996,7 @@ export class TotvsRmWriterService {
           DATAVENCIMENTO: installment.due,
           DATAPREVBAIXA: installment.due,
           VALORORIGINAL: installment.value,
-          CODCCUSTO: input.costCenterCode,
+          CODCCUSTO: financialCostCenterCode,
           CODTB1FLX: input.financialPlanCode,
           USUARIO: input.user,
           USUARIOCRIACAO: input.user,
@@ -965,6 +1010,97 @@ export class TotvsRmWriterService {
         throw new Error(
           `O movimento-modelo ${templateId} não possui lançamento FLAN para gerar a parcela ${index + 1}.`,
         );
+
+      const complementRows = await this.clone(
+        transaction,
+        "FLANCOMPL",
+        "src.CODCOLIGADA=@sourceColigada AND src.IDLAN=@sourceLanId",
+        { sourceColigada: input.coligada, sourceLanId: templateLanId },
+        {
+          IDLAN: idLan,
+          RECCREATEDBY: input.user,
+          RECCREATEDON: now,
+          RECMODIFIEDBY: input.user,
+          RECMODIFIEDON: now,
+        },
+      );
+      if (complementRows !== 1)
+        throw new Error(`Não foi possível criar o FLANCOMPL da parcela ${index + 1}.`);
+
+      const historyRows = await this.clone(
+        transaction,
+        "FLANHST",
+        "src.CODCOLIGADA=@sourceColigada AND src.IDLAN=@sourceLanId AND src.IDHISTORICO=(SELECT MIN(hist.IDHISTORICO) FROM dbo.FLANHST hist WHERE hist.CODCOLIGADA=@sourceColigada AND hist.IDLAN=@sourceLanId AND hist.PROCESSO=1)",
+        { sourceColigada: input.coligada, sourceLanId: templateLanId },
+        {
+          IDHISTORICO: nextFlanHistoryId++,
+          IDLAN: idLan,
+          PROCESSO: 1,
+          DATAPROCESSO: issueDate,
+          DATAOPERACAO: now,
+          NUMERODOCUMENTO: documentNumber,
+          CODFILIAL: input.filial,
+          CODCCUSTO: financialCostCenterCode,
+          CODCOLCFO: 0,
+          CODCFO: supplierCode,
+          DATAEMISSAO: issueDate,
+          DATAVENCIMENTO: installment.due,
+          VALORORIGINAL: installment.value,
+          VALORBAIXADO: 0,
+          USUARIOCRIACAO: input.user,
+          DATACRIACAO: now,
+          CODSISTEMAEXECUTOR: "F",
+          OPERACAOREGISTRO: "I",
+          CODTB1FLX: input.financialPlanCode,
+          RECCREATEDBY: input.user,
+          RECCREATEDON: now,
+          RECMODIFIEDBY: input.user,
+          RECMODIFIEDON: now,
+        },
+      );
+      if (historyRows !== 1)
+        throw new Error(`Não foi possível criar o histórico FLANHST da parcela ${index + 1}.`);
+
+      const installmentRates = financialInstallmentAllocations(financialRates, installment.value);
+      for (const rate of installmentRates) {
+        const rateRows = await this.clone(
+          transaction,
+          "FLANRATCCU",
+          "src.CODCOLIGADA=@sourceColigada AND src.IDLAN=@sourceLanId AND src.IDRATCCU=(SELECT MIN(sourceRate.IDRATCCU) FROM dbo.FLANRATCCU sourceRate WHERE sourceRate.CODCOLIGADA=@sourceColigada AND sourceRate.IDLAN=@sourceLanId)",
+          { sourceColigada: input.coligada, sourceLanId: templateLanId },
+          {
+            IDLAN: idLan,
+            IDRATCCU: await this.nextGenerator(transaction, 0, "F", "IDRATCCU"),
+            CODCCUSTO: rate.costCenterCode,
+            VALOR: rate.value,
+            PERCENTUAL: rate.percentage,
+            RECCREATEDBY: input.user,
+            RECCREATEDON: now,
+            RECMODIFIEDBY: input.user,
+            RECMODIFIEDON: now,
+          },
+        );
+        if (rateRows !== 1)
+          throw new Error(`Não foi possível criar o rateio FLANRATCCU da parcela ${index + 1}.`);
+      }
+
+      const relationRows = await this.clone(
+        transaction,
+        "TMOVLAN",
+        "src.CODCOLIGADA=@sourceColigada AND src.IDMOV=@sourceId AND src.IDLAN=@sourceLanId",
+        { sourceColigada: input.coligada, sourceId: templateId, sourceLanId: templateLanId },
+        {
+          IDMOV: idMov,
+          IDLAN: idLan,
+          STATUSBAIXA: 0,
+          RECCREATEDBY: input.user,
+          RECCREATEDON: now,
+          RECMODIFIEDBY: input.user,
+          RECMODIFIEDON: now,
+        },
+      );
+      if (relationRows !== 1)
+        throw new Error(`Não foi possível vincular TMOVLAN na parcela ${index + 1}.`);
     }
     await new sql.Request(transaction)
       .input("coligada", sql.SmallInt, input.coligada)

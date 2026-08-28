@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sefazEventTimestamp } from "./sefaz-date";
+import { nfeWizardFiscalRejection } from "./nfewizard-error";
 
 describe("sefazEventTimestamp", () => {
   it("formats the manifestation with the raw local time and runtime offset", () => {
@@ -16,5 +17,21 @@ describe("sefazEventTimestamp", () => {
     expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
     expect(timestamp).not.toContain(".");
     expect(timestamp.endsWith("Z")).toBe(false);
+  });
+});
+
+describe("nfeWizardFiscalRejection", () => {
+  it("preserves a fiscal rejection instead of reporting a transport failure", () => {
+    expect(
+      nfeWizardFiscalRejection(
+        "NFE_RecepcaoEvento: Rejeicao: Evento apresentado apos o prazo permitido para o evento: [10 dias]",
+      ),
+    ).toBe(
+      "A SEFAZ recusou esta manifestação porque o prazo fiscal permitido já expirou (10 dias). Esta NF-e não pode mais ser manifestada; selecione uma nota dentro do prazo.",
+    );
+  });
+
+  it("does not classify a network failure as a fiscal rejection", () => {
+    expect(nfeWizardFiscalRejection("read ECONNRESET")).toBeNull();
   });
 });

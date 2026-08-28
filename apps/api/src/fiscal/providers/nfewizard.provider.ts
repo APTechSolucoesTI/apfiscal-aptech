@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import NFeWizard from "nfewizard-io";
 import type { DistributionCheckpoint, DistributionResult, NfeProvider } from "@apfiscal/shared";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -13,6 +13,7 @@ import {
   isSefazConsumptionLimit,
 } from "@/common/sync-feedback";
 import { sefazEventTimestamp } from "./sefaz-date";
+import { nfeWizardFiscalRejection } from "./nfewizard-error";
 
 const UF_CODE: Record<string, number> = {
   RO: 11,
@@ -66,6 +67,11 @@ export class NfeWizardProvider implements NfeProvider {
         const retryAt = new Date(Date.now() + 60 * 60_000);
         this.logger.warn(`Consulta bloqueada pela regra de consumo da SEFAZ atÃ© ${retryAt.toISOString()}.`);
         throw new ExternalRateLimitError(cooldownMessage("A SEFAZ", retryAt), retryAt, "A SEFAZ");
+      }
+      const fiscalRejection = nfeWizardFiscalRejection(detail);
+      if (fiscalRejection) {
+        this.logger.warn(fiscalRejection);
+        throw new BadRequestException(fiscalRejection, { cause: error });
       }
       this.logger.warn(`Falha de transporte com a SEFAZ (${code}): ${detail}`);
       throw new ProviderUnavailableError(

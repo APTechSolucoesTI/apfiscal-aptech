@@ -20,6 +20,7 @@ import {
   Clock3,
   Send,
   FileSearch,
+  MoreHorizontal,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,12 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TablePagination } from "@/components/common/TablePagination";
 import { ColumnSettings } from "@/components/common/ColumnSettings";
 import { useColumnPreferences, type ColumnDef } from "@/hooks/use-column-preferences";
@@ -105,6 +112,7 @@ type Col = ColumnDef & {
   sortKey?: keyof Row;
   className?: string;
   headClassName?: string;
+  widthClassName?: string;
   render: (r: Row) => ReactNode;
 };
 
@@ -369,6 +377,7 @@ function NfeIntegracao() {
         key: "numero",
         label: "NF-e",
         sortKey: "numero",
+        widthClassName: "w-[58px]",
         render: (doc) => (
           <div>
             <div className="font-semibold text-slate-900">{doc.numero || "Sem número"}</div>
@@ -380,37 +389,42 @@ function NfeIntegracao() {
         key: "nsu",
         label: "NSU",
         sortKey: "nsu",
-        className: "font-mono text-xs",
+        widthClassName: "w-[72px]",
+        className: "truncate font-mono text-[10px]",
         render: (doc) => doc.nsu,
       },
       {
         key: "chave",
         label: "Chave",
         sortKey: "chave",
-        className: "font-mono text-xs",
-        render: (doc) => doc.chave,
+        widthClassName: "w-[108px]",
+        className: "truncate font-mono text-[10px]",
+        render: (doc) => <span title={doc.chave}>{doc.chave}</span>,
       },
       {
         key: "emitente",
         label: "Emitente",
         sortKey: "emitente_nome",
+        widthClassName: "w-[122px]",
         render: (doc) => (
-          <>
-            <div className="text-sm font-medium text-slate-800">{doc.emitente_nome ?? "—"}</div>
-            <div className="text-xs text-slate-500">{doc.emitente_cnpj ?? ""}</div>
-          </>
+          <div className="min-w-0" title={doc.emitente_nome ?? undefined}>
+            <div className="truncate font-medium text-slate-800">{doc.emitente_nome ?? "—"}</div>
+            <div className="truncate text-[10px] text-slate-500">{doc.emitente_cnpj ?? ""}</div>
+          </div>
         ),
       },
       {
         key: "empresa",
         label: "Empresa",
         sortKey: "company_id",
+        widthClassName: "w-[94px]",
         render: (doc) => {
           const c = companies.find((e) => e.id === doc.company_id);
           return (
             <Badge
               variant="outline"
-              className="bg-slate-50 text-slate-600 border-slate-200 truncate max-w-[180px]"
+              className="block max-w-full truncate border-slate-200 bg-slate-50 px-1.5 text-[10px] text-slate-600"
+              title={c ? c.nome_fantasia || c.razao_social : undefined}
             >
               {c ? c.nome_fantasia || c.razao_social : "—"}
             </Badge>
@@ -421,31 +435,35 @@ function NfeIntegracao() {
         key: "emissao",
         label: "Emissão",
         sortKey: "data_num",
-        className: "text-sm whitespace-nowrap",
+        widthClassName: "w-[82px]",
+        className: "text-[10px] leading-tight",
         render: (doc) => fmtData(doc.data_emissao),
       },
       {
         key: "valor",
         label: "Valor",
         sortKey: "valor_num",
+        widthClassName: "w-[78px]",
         headClassName: "text-right",
-        className: "text-right text-sm",
+        className: "whitespace-nowrap text-right text-[10px]",
         render: (doc) => fmtMoeda(doc.valor_nota),
       },
       {
         key: "tipo",
         label: "Tipo",
         sortKey: "tipo_documento",
-        className: "text-sm",
+        widthClassName: "w-[42px]",
+        className: "truncate text-[10px]",
         render: (doc) => doc.tipo_documento ?? "NF-e",
       },
       {
         key: "fiscal",
         label: "Situação fiscal",
         sortKey: "situacao",
+        widthClassName: "w-[84px]",
         render: (doc) => (
           <div className="space-y-1">
-            <Badge variant="outline" className="bg-slate-50">
+            <Badge variant="outline" className="max-w-full truncate bg-slate-50 px-1.5 text-[10px]">
               {doc.situacao || "Não informada"}
             </Badge>
             {doc.tipo_evento && (
@@ -458,6 +476,7 @@ function NfeIntegracao() {
         key: "situacao",
         label: "Situação",
         sortKey: "status",
+        widthClassName: "w-[100px]",
         render: (doc) =>
           doc.status === "erro" ? (
             <TooltipProvider>
@@ -486,23 +505,22 @@ function NfeIntegracao() {
         key: "protocolo",
         label: "Protocolo",
         sortKey: "protocolo",
-        className: "font-mono text-xs",
-        render: (doc) => doc.protocolo || "—",
+        widthClassName: "w-[82px]",
+        className: "truncate font-mono text-[10px]",
+        render: (doc) => <span title={doc.protocolo ?? undefined}>{doc.protocolo || "—"}</span>,
       },
       {
         key: "xml",
         label: "XML / manifestação",
+        widthClassName: "w-[94px]",
         render: (doc) => (
-          <div className="space-y-1 text-xs">
-            <p>
-              <span className="font-medium">XML:</span>{" "}
-              {doc.status_download || (doc.xml_completo_path ? "Completo" : "Resumido")}
+          <div className="space-y-0.5 text-[10px] leading-tight">
+            <p className="truncate" title={doc.status_download ?? undefined}>
+              <span className="font-medium">XML:</span> {doc.status_download || "Resumido"}
             </p>
-            <p>
-              <span className="font-medium">Manifestação:</span>{" "}
-              {doc.status_manifestacao || "Pendente"}
+            <p className="truncate" title={doc.status_manifestacao ?? "Pendente"}>
+              <span className="font-medium">Manifest.:</span> {doc.status_manifestacao || "Pendente"}
             </p>
-            <p className="text-slate-500">Schema {doc.schema_documento || "—"}</p>
           </div>
         ),
       },
@@ -510,61 +528,63 @@ function NfeIntegracao() {
         key: "atualizado",
         label: "Última sincronização",
         sortKey: "ultima_sincronizacao",
-        className: "text-sm whitespace-nowrap",
+        widthClassName: "w-[84px]",
+        className: "text-[10px] leading-tight",
         render: (doc) => fmtData(doc.ultima_sincronizacao || doc.updated_at),
       },
       {
         key: "actions",
         label: "Ações",
         alwaysVisible: true,
+        widthClassName: "w-[44px]",
         headClassName: "text-right",
         className: "text-right",
         render: (doc) => (
-          <div className="flex justify-end gap-1">
-            {!((manifestacoesPorChave.get(doc.chave) ?? []).some(
-              (event) => event.status === "accepted" && ["confirmacao", "desconhecimento", "nao_realizada"].includes(event.tipo),
-            )) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setAlvo(doc);
-                  setTipoEvento(
-                    (manifestacoesPorChave.get(doc.chave) ?? []).some(
-                      (event) => event.status === "accepted" && event.tipo === "ciencia",
-                    ) ? "210200" : "210210",
-                  );
-                  setJustificativa("");
-                }}
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                aria-label={`Ações da NF-e ${doc.numero ?? doc.chave}`}
               >
-                <FileCheck2 className="mr-1 h-3.5 w-3.5" />
-                Manifestar
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-            )}
-            {doc.xml_resumido_path && (
-              <Button size="sm" variant="outline" onClick={() => handleBaixar(doc, "resumido")}>
-                <Download className="mr-1 h-3.5 w-3.5" />
-                Resumido
-              </Button>
-            )}
-            {doc.status === "completa" && doc.xml_completo_path && (
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={() => handleBaixar(doc, "completo")}
-              >
-                <Download className="mr-1 h-3.5 w-3.5" />
-                Completo
-              </Button>
-            )}
-            {doc.fiscal_document_id && (
-              <Button size="sm" variant="outline" asChild>
-                <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.fiscal_document_id }}>
-                  Abrir completa
-                </Link>
-              </Button>
-            )}
-          </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              {!((manifestacoesPorChave.get(doc.chave) ?? []).some(
+                (event) => event.status === "accepted" && ["confirmacao", "desconhecimento", "nao_realizada"].includes(event.tipo),
+              )) && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setAlvo(doc);
+                    setTipoEvento(
+                      (manifestacoesPorChave.get(doc.chave) ?? []).some(
+                        (event) => event.status === "accepted" && event.tipo === "ciencia",
+                      ) ? "210200" : "210210",
+                    );
+                    setJustificativa("");
+                  }}
+                >
+                  <FileCheck2 className="mr-2 h-4 w-4" />
+                  Manifestar
+                </DropdownMenuItem>
+              )}
+              {doc.xml_resumido_path && (
+                <DropdownMenuItem onSelect={() => void handleBaixar(doc, "resumido")}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Baixar resumo
+                </DropdownMenuItem>
+              )}
+              {doc.fiscal_document_id && (
+                <DropdownMenuItem asChild>
+                  <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.fiscal_document_id }}>
+                    Abrir NF-e completa
+                  </Link>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ),
       },
     ],
@@ -769,29 +789,29 @@ function NfeIntegracao() {
                 />
               </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table className="min-w-[960px]">
+            <CardContent className="px-3 pb-4 sm:px-4">
+              <Table className="table-fixed text-[11px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10">
+                    <TableHead className="h-8 w-8 px-1">
                       <Checkbox
                         checked={todosMarcados ? true : algunsMarcados ? "indeterminate" : false}
                         onCheckedChange={alternarTodos}
                         aria-label="Selecionar todas"
                       />
                     </TableHead>
-                    <TableHead className="w-8" />
+                    <TableHead className="h-8 w-6 px-0" />
                     {visibleCols.map((c) => (
                       <TableHead
                         key={c.key}
-                        className={`${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer select-none" : ""}`}
+                        className={`h-8 px-1 text-[10px] leading-tight ${c.widthClassName ?? ""} ${c.headClassName ?? ""} ${c.sortKey ? "cursor-pointer select-none" : ""}`}
                         onClick={c.sortKey ? () => requestSort(c.sortKey as keyof Row) : undefined}
                       >
                         <div
-                          className={`flex items-center gap-1 ${c.headClassName?.includes("text-right") ? "justify-end" : ""}`}
+                          className={`flex min-w-0 items-center gap-0.5 ${c.headClassName?.includes("text-right") ? "justify-end" : ""}`}
                         >
-                          {c.label}
-                          {c.sortKey && <ArrowUpDown className="h-3 w-3" />}
+                          <span className="line-clamp-2">{c.label}</span>
+                          {c.sortKey && <ArrowUpDown className="h-3 w-3 shrink-0" />}
                         </div>
                       </TableHead>
                     ))}
@@ -818,14 +838,14 @@ function NfeIntegracao() {
                     paginados.map((doc) => (
                       <Fragment key={doc.id}>
                         <TableRow data-state={selecionados.has(doc.id) ? "selected" : undefined}>
-                          <TableCell>
+                          <TableCell className="w-8 p-1">
                             <Checkbox
                               checked={selecionados.has(doc.id)}
                               onCheckedChange={() => alternarLinha(doc.id)}
                               aria-label={`Selecionar NF-e ${doc.chave}`}
                             />
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="w-6 p-0.5">
                             <button
                               onClick={() => setExpandida(expandida === doc.id ? null : doc.id)}
                               aria-label="Detalhes"
@@ -839,7 +859,10 @@ function NfeIntegracao() {
                             </button>
                           </TableCell>
                           {visibleCols.map((c) => (
-                            <TableCell key={c.key} className={c.className}>
+                            <TableCell
+                              key={c.key}
+                              className={`overflow-hidden p-1 ${c.widthClassName ?? ""} ${c.className ?? ""}`}
+                            >
                               {c.render(doc)}
                             </TableCell>
                           ))}

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import * as sql from "mssql";
 import { financialInstallmentAllocations } from "./totvs-financial-allocation";
+import { discountPercentage, icmsOrigin, merchandiseSituation } from "./totvs-rm-field-mapping";
 
 const CLONEABLE_TABLES = new Set([
   "TMOV",
@@ -23,6 +24,7 @@ const CLONEABLE_TABLES = new Set([
   "FCFOHISTORICO",
   "TPRODUTO",
   "TPRODUTODEF",
+  "TPRDFISCAL",
 ]);
 
 type SqlValue = string | number | boolean | Date | Buffer | null;
@@ -286,6 +288,27 @@ export class TotvsRmWriterService {
           `)
       : null;
     const productUnit = validUnit?.recordset[0]?.CODUND ?? source.recordset[0].CODUNDVENDA;
+    const origin = input.document.tipo === "nfe" ? icmsOrigin(item.taxes) : null;
+    if (input.document.tipo === "nfe" && origin === null)
+      throw new Error(
+        `A origem do ICMS (tag orig) não foi localizada para criar o produto ${item.productErpCode}.`,
+      );
+    const situation = merchandiseSituation(input.purchaseTypeCode);
+    if (!situation)
+      throw new Error(
+        `O Tipo de Compra ${input.purchaseTypeCode ?? "não informado"} não possui Situação da Mercadoria mapeada no RM.`,
+      );
+    const fiscalSource = await new sql.Request(transaction)
+      .input("coligada", sql.SmallInt, input.coligada)
+      .input("taxType", sql.SmallInt, input.document.tipo === "nfse" ? 1 : 0).query<{
+      IDPRD: number;
+    }>(`
+      SELECT TOP 1 IDPRD FROM dbo.TPRDFISCAL WITH (HOLDLOCK)
+      WHERE CODCOLIGADA=@coligada
+      ORDER BY CASE WHEN TIPOTRIBUTACAO=@taxType THEN 0 ELSE 1 END,IDPRD DESC
+    `);
+    if (!fiscalSource.recordset[0])
+      throw new Error(`Não existe produto-modelo fiscal na coligada ${input.coligada}.`);
     const idPrd = await this.nextGenerator(transaction, 0, "T", "IDPRD");
     const reduced = await new sql.Request(transaction).query<{ value: number }>(`
       SELECT ISNULL(MAX(TRY_CONVERT(int,CODIGOREDUZIDO)),0)+1 AS value
@@ -303,6 +326,7 @@ export class TotvsRmWriterService {
         CODIGOPRD: item.productErpCode,
         CODIGOREDUZIDO: String(reduced.recordset[0].value).padStart(4, "0"),
         CODIGOAUXILIAR: item.productErpCode,
+        REFERENCIACP: origin,
         NOMEFANTASIA: item.productDescription ?? item.productErpCode,
         DESCRICAO: item.productDescription ?? item.productErpCode,
         DESCRICAOAUX: item.productDescription ?? item.productErpCode,
@@ -325,12 +349,30 @@ export class TotvsRmWriterService {
         IDPRD: idPrd,
         CODUNDVENDA: productUnit,
         CODUNDCOMPRA: productUnit,
+        NUMNOFABRIC: item.productErpCode,
         RECCREATEDBY: input.user,
         RECCREATEDON: now,
         RECMODIFIEDBY: input.user,
         RECMODIFIEDON: now,
       },
     );
+    const fiscalRows = await this.clone(
+      transaction,
+      "TPRDFISCAL",
+      "src.CODCOLIGADA=@sourceColigada AND src.IDPRD=@sourceId",
+      { sourceColigada: input.coligada, sourceId: fiscalSource.recordset[0].IDPRD },
+      {
+        IDPRD: idPrd,
+        TIPOTRIBUTACAO: input.document.tipo === "nfse" ? 1 : 0,
+        SITUACAOMERCADORIA: situation,
+        RECCREATEDBY: input.user,
+        RECCREATEDON: now,
+        RECMODIFIEDBY: input.user,
+        RECMODIFIEDON: now,
+      },
+    );
+    if (fiscalRows !== 1)
+      throw new Error(`Não foi possível criar os dados fiscais do produto ${item.productErpCode}.`);
     return {
       IDPRD: idPrd,
       CODUNDVENDA: productUnit,
@@ -708,6 +750,7 @@ export class TotvsRmWriterService {
         SERIE: input.document.serie ?? "",
         CHAVEACESSONFE: input.document.chave_acesso,
         DATAEMISSAO: issueDate,
+        HORARIOEMISSAO: now,
         DATASAIDA: now,
         DATAMOVIMENTO: now,
         DATALANCAMENTO: now,
@@ -722,6 +765,7 @@ export class TotvsRmWriterService {
         VALORFRETE: number(input.document.valor_frete),
         VALORSEGURO: number(input.document.valor_seguro),
         VALORDESC: number(input.document.valor_desconto),
+        PERCENTUALDESC: discountPercentage(number(input.document.valor_desconto), total),
         VALOROUTROS: number(input.document.valor_outros),
         NUMEROLCTGERADO: 0,
         NUMEROLCTABERTO: 0,
@@ -789,6 +833,8 @@ export class TotvsRmWriterService {
           ? await this.nature(transaction, input.coligada, item.purchaseTypeCode, item.cfop)
           : null;
       const itemValue = number(item.valor_total, number(item.valor_bruto));
+      const itemGrossValue = number(item.valor_bruto, itemValue);
+      const itemDiscount = number(item.valor_desconto);
       const quantity = number(item.quantidade_comercial, 1);
       const unitPrice = number(
         item.valor_unitario_comercial,
@@ -817,9 +863,10 @@ export class TotvsRmWriterService {
           PRECOUNITARIO: unitPrice,
           VALORTOTALITEM: itemValue,
           VALORLIQUIDO: itemValue,
-          VALORBRUTOITEM: number(item.valor_bruto, itemValue),
-          VALORBRUTOITEMORIG: number(item.valor_bruto, itemValue),
-          VALORDESC: number(item.valor_desconto),
+          VALORBRUTOITEM: itemGrossValue,
+          VALORBRUTOITEMORIG: itemGrossValue,
+          VALORDESC: itemDiscount,
+          PERCENTUALDESC: discountPercentage(itemDiscount, itemGrossValue),
           RATEIOFRETE: number(item.valor_frete),
           RATEIOSEGURO: number(item.valor_seguro),
           RATEIODESP: number(item.valor_outros),

@@ -416,6 +416,7 @@ export type Database = {
           fallback_provider: string | null
           id: string
           organization_id: string
+          nfse_default_product_code: string
           primary_provider: string
           sync_interval_minutes: number
           ultimo_nsu: number
@@ -447,6 +448,7 @@ export type Database = {
           fallback_provider?: string | null
           id?: string
           organization_id: string
+          nfse_default_product_code?: string
           primary_provider?: string
           sync_interval_minutes?: number
           ultimo_nsu?: number
@@ -478,6 +480,7 @@ export type Database = {
           fallback_provider?: string | null
           id?: string
           organization_id?: string
+          nfse_default_product_code?: string
           primary_provider?: string
           sync_interval_minutes?: number
           ultimo_nsu?: number

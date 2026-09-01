@@ -51,7 +51,7 @@ export class TotvsIntegrationService {
       .eq("id", runId);
 
     try {
-      const [document, items, headerAllocations] = await Promise.all([
+      const [document, items, headerAllocations, fiscalSettings] = await Promise.all([
         supabaseAdmin
           .from("fiscal_documents")
           .select(
@@ -70,10 +70,16 @@ export class TotvsIntegrationService {
           .from("nfe_centro_custo")
           .select("centro_custo_id, valor, centros_custo(codigo, descricao)")
           .eq("document_id", run.data.fiscal_document_id),
+        supabaseAdmin
+          .from("empresa_integracoes_fiscais")
+          .select("nfse_default_product_code")
+          .eq("company_id", run.data.company_id)
+          .maybeSingle(),
       ]);
       if (document.error) throw document.error;
       if (items.error) throw items.error;
       if (headerAllocations.error) throw headerAllocations.error;
+      if (fiscalSettings.error) throw fiscalSettings.error;
       const itemIds = (items.data ?? []).map((item) => item.id);
       const itemAllocations = itemIds.length
         ? await supabaseAdmin
@@ -107,6 +113,15 @@ export class TotvsIntegrationService {
         const code = (allocation.centros_custo as RelatedCode)?.codigo;
         return code ? [{ costCenterCode: code, value: Number(allocation.valor) }] : [];
       });
+      if (isNfse) {
+        const expectedTotal = Number(document.data.valor_total ?? 0);
+        const allocatedTotal = headerRates.reduce((total, rate) => total + rate.value, 0);
+        if (Math.abs(expectedTotal - allocatedTotal) > 0.005) {
+          throw new Error(
+            `O rateio da NFS-e deve fechar o valor total de R$ ${expectedTotal.toFixed(2)} antes da integração.`,
+          );
+        }
+      }
       const itemRates = new Map<string, Array<{ costCenterCode: string; value: number }>>();
       for (const allocation of (itemAllocations.data ?? []) as Array<{
         document_item_id: string;
@@ -124,7 +139,9 @@ export class TotvsIntegrationService {
             {
               numero_item: 1,
               codigo: document.data.service_code_municipal ?? document.data.numero,
-              productErpCode: setting(scope.connectionKey, "NFSE_PRODUCT_CODE", "001.01.01.000001"),
+              productErpCode:
+                fiscalSettings.data?.nfse_default_product_code?.trim() ||
+                setting(scope.connectionKey, "NFSE_PRODUCT_CODE", "001.01.01.000001"),
               purchaseTypeCode: null,
               cfop: null,
               unidade_comercial: "SV",

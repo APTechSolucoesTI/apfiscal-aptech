@@ -64,6 +64,7 @@ type FormState = {
     enabled: boolean;
     intervalMinutes: number;
     provider: "nacional_adn" | "sigiss" | "municipal";
+    defaultProductCode: string;
   }>;
 };
 
@@ -149,6 +150,7 @@ export default function TotvsSettingsPage() {
           enabled: schedule?.nfse_automatic_sync_enabled ?? false,
           intervalMinutes: schedule?.nfse_sync_interval_minutes ?? 60,
           provider: schedule?.nfse_provider ?? "nacional_adn",
+          defaultProductCode: schedule?.nfse_default_product_code ?? "001.01.01.000001",
         };
       }),
     });
@@ -740,6 +742,32 @@ export default function TotvsSettingsPage() {
                             }
                           />
                         </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`nfse-product-${company.id}`}>
+                          Produto padrão no TOTVS
+                        </Label>
+                        <Input
+                          id={`nfse-product-${company.id}`}
+                          value={schedule?.defaultProductCode ?? "001.01.01.000001"}
+                          maxLength={50}
+                          placeholder="001.01.01.000001"
+                          className="font-mono"
+                          onChange={(event) =>
+                            setForm({
+                              ...form,
+                              nfseSchedules: form.nfseSchedules.map((item) =>
+                                item.companyId === company.id
+                                  ? { ...item, defaultProductCode: event.target.value }
+                                  : item,
+                              ),
+                            })
+                          }
+                        />
+                        <p className="text-xs text-slate-500">
+                          Código de produto/serviço já cadastrado no RM e utilizado em todas as
+                          integrações de NFS-e desta empresa.
+                        </p>
                       </div>
                       <div className="rounded-md bg-slate-50 p-3 text-xs">
                         <p>Última: {when(stored?.nfse_last_sync_at)}</p>

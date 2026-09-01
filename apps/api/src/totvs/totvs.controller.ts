@@ -56,6 +56,7 @@ const settingsSchema = z.object({
         enabled: z.boolean(),
         intervalMinutes: z.number().int().min(15).max(1440),
         provider: z.enum(["nacional_adn", "sigiss", "municipal"]),
+        defaultProductCode: z.string().trim().min(1).max(50),
       }),
     )
     .default([]),
@@ -188,7 +189,7 @@ export class TotvsController {
       supabaseAdmin
         .from("empresa_integracoes_fiscais")
         .select(
-          "company_id, ativo, automatic_sync_enabled, sync_interval_minutes, primary_provider, nfse_provider, nfse_automatic_sync_enabled, nfse_sync_interval_minutes, nfse_last_sync_at, nfse_last_error, nfse_next_allowed_sync_at",
+          "company_id, ativo, automatic_sync_enabled, sync_interval_minutes, primary_provider, nfse_provider, nfse_automatic_sync_enabled, nfse_sync_interval_minutes, nfse_default_product_code, nfse_last_sync_at, nfse_last_error, nfse_next_allowed_sync_at",
         )
         .eq("organization_id", organizationId)
         .order("company_id"),
@@ -397,6 +398,7 @@ export class TotvsController {
           nfse_provider: schedule.provider,
           nfse_automatic_sync_enabled: schedule.enabled,
           nfse_sync_interval_minutes: schedule.intervalMinutes,
+          nfse_default_product_code: schedule.defaultProductCode,
         },
         { onConflict: "company_id" },
       );

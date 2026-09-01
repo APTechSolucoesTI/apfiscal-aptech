@@ -66,6 +66,7 @@ export type TotvsSettingsPayload = {
     nfse_provider: "nacional_adn" | "sigiss" | "municipal";
     nfse_automatic_sync_enabled: boolean;
     nfse_sync_interval_minutes: number;
+    nfse_default_product_code: string;
     nfse_last_sync_at: string | null;
     nfse_last_error: string | null;
     nfse_next_allowed_sync_at: string | null;
@@ -143,6 +144,7 @@ export function saveTotvsSettings(input: {
     enabled: boolean;
     intervalMinutes: number;
     provider: "nacional_adn" | "sigiss" | "municipal";
+    defaultProductCode: string;
   }>;
 }) {
   return backendFetch<{ ok: true }>("/synchronizations/settings", {

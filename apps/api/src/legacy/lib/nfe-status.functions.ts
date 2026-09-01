@@ -8,7 +8,7 @@ async function getDocOrThrow(context: any, documentId: string) {
   const { data: doc, error } = await context.supabase
     .from("fiscal_documents")
     .select(
-      "id, company_id, tipo, status, plano_contas_id, local_estoque_id, tipo_movimento_id, companies(organization_id)",
+      "id, company_id, tipo, status, valor_total, plano_contas_id, local_estoque_id, tipo_movimento_id, companies(organization_id)",
     )
     .eq("id", documentId)
     .maybeSingle();
@@ -97,10 +97,16 @@ export async function reavaliarApontamentos(
   const doc = await getDocOrThrow(context, documentId);
   if (doc.status !== "aprovada" && doc.status !== "pronta_para_integracao") return doc.status;
 
-  const { count } = await context.supabase
+  const { data: headerAllocations, count } = await context.supabase
     .from("nfe_centro_custo")
-    .select("id", { count: "exact", head: true })
+    .select("id, valor", { count: "exact" })
     .eq("document_id", documentId);
+  const nfseAllocationTotal = (headerAllocations ?? []).reduce(
+    (total: number, allocation: { valor: number | string }) => total + Number(allocation.valor),
+    0,
+  );
+  const nfseAllocationClosed =
+    (count ?? 0) > 0 && Math.abs(nfseAllocationTotal - Number(doc.valor_total ?? 0)) <= 0.005;
 
   // Todos os itens precisam ter Tipo de Compra apontado
   const { count: itensSemTipo } = await (context.supabase as any)
@@ -117,7 +123,7 @@ export async function reavaliarApontamentos(
 
   const completo =
     doc.tipo === "nfse"
-      ? !!doc.tipo_movimento_id && !!doc.plano_contas_id && (count ?? 0) > 0
+      ? !!doc.tipo_movimento_id && !!doc.plano_contas_id && nfseAllocationClosed
       : !!doc.tipo_movimento_id &&
         !!doc.plano_contas_id &&
         !!doc.local_estoque_id &&

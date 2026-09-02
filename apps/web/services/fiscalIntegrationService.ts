@@ -33,6 +33,7 @@ export function saveFiscalSettings(
     fallbackProvider: NfeProviderKind | null;
     fallbackEnabled: boolean;
     active: boolean;
+    lastNsu: number;
   },
 ) {
   return backendFetch<{ ok: true; fallbackEnabled: boolean; warning: string | null }>(

@@ -56,17 +56,6 @@ function Field({ label, value, mono = false }: { label: string; value: unknown; 
   );
 }
 
-function Payload({ title, value }: { title: string; value: RecordValue | null | undefined }) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-medium text-slate-500">{title}</p>
-      <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950 p-4 font-mono text-xs leading-5 text-slate-200">
-        {value ? JSON.stringify(value, null, 2) : "Nenhum payload registrado."}
-      </pre>
-    </div>
-  );
-}
-
 function EntityCard({
   title,
   icon: Icon,
@@ -464,12 +453,6 @@ export function NfseDetails({ id }: { id: string }) {
                   <AlertTitle>Erro da integração</AlertTitle>
                   <AlertDescription>{latestRun.error_message}</AlertDescription>
                 </Alert>
-              )}
-              {latestRun && (
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  <Payload title="Dados enviados" value={latestRun.request_payload} />
-                  <Payload title="Retorno do TOTVS" value={latestRun.response_payload} />
-                </div>
               )}
             </CardContent>
           </Card>

@@ -30,6 +30,7 @@ const settingsSchema = z.object({
   fallbackProvider: providerSchema.nullable().default("apifiscal"),
   fallbackEnabled: z.boolean().default(false),
   active: z.boolean().default(true),
+  lastNsu: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
 });
 const manifestationSchema = z.object({
   accessKey: z.string().regex(/^\d{44}$/),
@@ -134,16 +135,24 @@ export class FiscalIntegrationController {
       input.fallbackProvider === "apifiscal" && Boolean(current.data.api_key_encrypted);
     const fallbackEnabled =
       input.primaryProvider === "nfewizard" && input.fallbackEnabled && fallbackConfigured;
-    const update = await supabaseAdmin
-      .from("empresa_integracoes_fiscais")
-      .update({
-        primary_provider: input.primaryProvider,
-        fallback_provider: input.fallbackProvider,
-        fallback_enabled: fallbackEnabled,
-        ativo: input.active,
-      })
-      .eq("company_id", companyId);
-    if (update.error) throw update.error;
+    const [integrationUpdate, checkpointUpdate] = await Promise.all([
+      supabaseAdmin
+        .from("empresa_integracoes_fiscais")
+        .update({
+          primary_provider: input.primaryProvider,
+          fallback_provider: input.fallbackProvider,
+          fallback_enabled: fallbackEnabled,
+          ativo: input.active,
+          ultimo_nsu: input.lastNsu,
+        })
+        .eq("company_id", companyId),
+      supabaseAdmin
+        .from("fiscal_distribution_state")
+        .update({ last_nsu: input.lastNsu, updated_at: new Date().toISOString() })
+        .eq("company_id", companyId),
+    ]);
+    if (integrationUpdate.error) throw integrationUpdate.error;
+    if (checkpointUpdate.error) throw checkpointUpdate.error;
     return {
       ok: true,
       fallbackEnabled,

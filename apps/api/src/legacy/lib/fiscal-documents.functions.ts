@@ -58,6 +58,16 @@ export const getNfeDetails = createApiAction({ method: "GET" })
     if (manifestationsResult.error) throw new Error(manifestationsResult.error.message);
     if (ctesResult.error) throw new Error(ctesResult.error.message);
 
+    const { data: totvsRun, error: totvsRunError } = await context.supabase
+      .from("totvs_integration_runs")
+      .select("status, rm_record_id, finished_at, created_at")
+      .eq("fiscal_document_id", data.id)
+      .eq("status", "succeeded")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (totvsRunError) throw new Error(totvsRunError.message);
+
     type TimelineEvent = {
       id: string;
       tipo_evento: string;
@@ -249,5 +259,11 @@ export const getNfeDetails = createApiAction({ method: "GET" })
       }
     }
 
-    return { document: doc, items: items ?? [], events: events ?? [], suggestions };
+    return {
+      document: doc,
+      items: items ?? [],
+      events: events ?? [],
+      suggestions,
+      totvsRun: totvsRun ?? null,
+    };
   });

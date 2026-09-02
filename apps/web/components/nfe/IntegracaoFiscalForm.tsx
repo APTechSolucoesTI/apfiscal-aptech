@@ -68,6 +68,7 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
   const [provider, setProvider] = useState<NfeProviderKind>("nfewizard");
   const [active, setActive] = useState(true);
   const [fallback, setFallback] = useState(false);
+  const [lastNsu, setLastNsu] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
@@ -85,6 +86,7 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
     setProvider(settings.data.primary_provider);
     setActive(settings.data.ativo);
     setFallback(settings.data.fallback_enabled && settings.data.apifiscalConfigured);
+    setLastNsu(settings.data.checkpoint?.last_nsu ?? 0);
   }, [settings.data]);
 
   if (!companyId)
@@ -103,6 +105,7 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
         fallbackEnabled:
           provider === "nfewizard" && fallback && Boolean(settings.data?.apifiscalConfigured),
         active,
+        lastNsu,
       });
       await queryClient.invalidateQueries({ queryKey: ["fiscal-provider-settings", companyId] });
       toast.success("Configuração fiscal salva.");
@@ -357,9 +360,26 @@ export function IntegracaoFiscalForm({ companyId, cnpj }: Props) {
       )}
 
       <div className="grid gap-3 rounded-xl border p-4 text-sm sm:grid-cols-3">
-        <div>
-          <p className="text-xs text-muted-foreground">Último NSU</p>
-          <p className="mt-1 font-mono font-medium">{settings.data?.checkpoint?.last_nsu ?? 0}</p>
+        <div className="space-y-2">
+          <Label htmlFor="fiscal-last-nsu" className="text-xs text-muted-foreground">
+            Último NSU
+          </Label>
+          <Input
+            id="fiscal-last-nsu"
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            value={lastNsu}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              setLastNsu(Number.isSafeInteger(value) && value >= 0 ? value : 0);
+            }}
+            className="h-9 font-mono"
+          />
+          <p className="text-xs text-muted-foreground">
+            A próxima sincronização continuará a partir deste NSU.
+          </p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Última consulta</p>

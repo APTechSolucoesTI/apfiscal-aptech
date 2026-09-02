@@ -19,6 +19,7 @@ import {
   Link2,
   Unlink,
   Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";
 import { getTotaisIbsCbs } from "@/lib/nfe-ibscbs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const doc_ = (v: unknown) => {
   const s = String(v ?? "").trim();
@@ -199,6 +201,10 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const totais = (doc.totais ?? {}) as any;
   const ibscbsTotais = getTotaisIbsCbs(totais, doc.raw_payload, items);
   const transp = (doc.transporte ?? {}) as any;
+  const totvsRun = (data as any).totvsRun as {
+    status: string;
+    rm_record_id: string | null;
+  } | null;
 
   const cobr = (doc.cobranca ?? null) as any;
   const pag = (doc.pagamentos ?? null) as any;
@@ -311,6 +317,24 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
           </Button>
         </div>
       </div>
+
+      {["integrado_totvs", "ja_existente_totvs"].includes(doc.status) && (
+        <Alert className="border-emerald-200 bg-emerald-50 text-emerald-950">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertTitle>
+            {doc.status === "ja_existente_totvs"
+              ? "NF-e já existente no TOTVS"
+              : "NF-e integrada com sucesso"}
+          </AlertTitle>
+          <AlertDescription>
+            Movimento RM:{" "}
+            <span className="font-mono font-semibold">
+              {totvsRun?.rm_record_id ?? "registrado"}
+            </span>
+            .
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Dialog
         open={!!danfePreview}

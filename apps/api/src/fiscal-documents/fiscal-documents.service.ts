@@ -148,7 +148,7 @@ export class FiscalDocumentsService {
       supabaseAdmin
         .from("totvs_integration_runs")
         .select(
-          "id, status, attempt, rm_record_id, request_payload, response_payload, error_message, started_at, finished_at, created_at",
+          "id, status, attempt, rm_record_id, error_message, started_at, finished_at, created_at",
         )
         .eq("fiscal_document_id", id)
         .order("created_at", { ascending: false }),

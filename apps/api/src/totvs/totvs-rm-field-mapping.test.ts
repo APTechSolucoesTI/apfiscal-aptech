@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { discountPercentage, icmsOrigin, merchandiseSituation } from "./totvs-rm-field-mapping";
+import {
+  discountPercentage,
+  icmsOrigin,
+  merchandiseSituation,
+  nfseNatureCode,
+} from "./totvs-rm-field-mapping";
 
 describe("TOTVS RM field mappings", () => {
   it("maps APFiscal purchase types to RM merchandise situations", () => {
@@ -18,5 +23,11 @@ describe("TOTVS RM field mappings", () => {
     expect(icmsOrigin({ ICMS: { ICMS00: { orig: "0", CST: "00" } } })).toBe(0);
     expect(icmsOrigin({ ICMS: { ICMSSN102: { orig: 2 } } })).toBe(2);
     expect(icmsOrigin({ ISS: { vISSQN: 10 } })).toBeNull();
+  });
+
+  it("maps the NFSe nature from the company and supplier states", () => {
+    expect(nfseNatureCode("SP", "sp")).toBe("1.933.001");
+    expect(nfseNatureCode("SP", "MG")).toBe("2.933.001");
+    expect(nfseNatureCode("SP", null)).toBeNull();
   });
 });

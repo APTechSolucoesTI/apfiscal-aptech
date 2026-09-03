@@ -941,12 +941,30 @@ function NFeList() {
                           })}
                         </p>
                       </div>
-                      <Button size="sm" variant="outline" asChild>
-                        <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Abrir
-                        </Link>
-                      </Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {podeAprovar(doc.status) && (
+                          <Button size="sm" variant="outline" onClick={() => setAprovarId(doc.id)}>
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Aprovar
+                          </Button>
+                        )}
+                        {doc.status === "pronta_para_integracao" && (
+                          <Button
+                            size="sm"
+                            onClick={() => integrarMut.mutate(doc.id)}
+                            disabled={integrarMut.isPending}
+                          >
+                            <PlugZap className="mr-2 h-4 w-4" />
+                            Integrar
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" asChild>
+                          <Link to="/documents/nfe/$nfeId" params={{ nfeId: doc.id }}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Abrir
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </article>
                 );

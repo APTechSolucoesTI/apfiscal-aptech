@@ -20,6 +20,8 @@ import {
   Unlink,
   Sparkles,
   CheckCircle2,
+  PlugZap,
+  ShieldCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -32,7 +34,9 @@ import {
   podeEditarApontamentos,
   podeVincularProduto,
   motivoBloqueioVinculo,
+  podeAprovar,
 } from "@/lib/nfe-status";
+import { NfeAprovacaoDialog } from "./NfeAprovacaoDialog";
 import { NfeStatusTimeline } from "./NfeStatusTimeline";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@/lib/api-action";
@@ -49,6 +53,7 @@ import {
 import { maskCnpjCpf, maskCep } from "@/lib/br-format";
 import { getTotaisIbsCbs } from "@/lib/nfe-ibscbs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { backendFetch } from "@/lib/backend";
 
 const doc_ = (v: unknown) => {
   const s = String(v ?? "").trim();
@@ -125,6 +130,8 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const [danfePreview, setDanfePreview] = useState<{ url: string; filename: string } | null>(null);
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const fetchFn = useServerFn(getNfeDetails);
   const unlinkFn = useServerFn(unlinkNfeItem);
   const linkFn = useServerFn(linkNfeItemToProduct);
@@ -146,6 +153,48 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  const integrate = useMutation({
+    mutationFn: () =>
+      backendFetch<{ runId: string; status: string; idempotent: boolean }>(
+        `/totvs/integrate/${nfeId}`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
+      toast.success("NF-e enviada para a fila de integração TOTVS.");
+      setActiveRunId(result.runId);
+      qc.invalidateQueries({ queryKey: ["nfe-details", nfeId] });
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const integrationRun = useQuery({
+    queryKey: ["totvs-integration-run", activeRunId],
+    queryFn: () =>
+      backendFetch<{ status: string; rm_record_id: string | null; error_message: string | null }>(
+        `/totvs/integrate/run/${activeRunId}`,
+      ),
+    enabled: Boolean(activeRunId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "succeeded" || status === "failed" ? false : 1200;
+    },
+  });
+  useEffect(() => {
+    if (!activeRunId || !integrationRun.data) return;
+    if (integrationRun.data.status === "succeeded") {
+      toast.success(`NF-e integrada no movimento RM ${integrationRun.data.rm_record_id}.`);
+      qc.invalidateQueries({ queryKey: ["nfe-details", nfeId] });
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+      setActiveRunId(null);
+    } else if (integrationRun.data.status === "failed") {
+      toast.error(
+        integrationRun.data.error_message || "Não foi possível integrar a NF-e no TOTVS.",
+      );
+      qc.invalidateQueries({ queryKey: ["nfe-details", nfeId] });
+      qc.invalidateQueries({ queryKey: ["fiscal_documents"] });
+      setActiveRunId(null);
+    }
+  }, [activeRunId, integrationRun.data, nfeId, qc]);
 
   useEffect(() => {
     return () => {
@@ -243,8 +292,8 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
 
   return (
     <div className="flex flex-col h-full space-y-4 p-6">
-      <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 p-4 border-b">
-        <div className="flex items-center gap-4">
+      <div className="sticky top-0 z-10 flex flex-col gap-3 border-b bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
           <Button variant="outline" onClick={() => window.history.back()}>
             Voltar
           </Button>
@@ -271,7 +320,22 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          {podeAprovar(doc.status) && (
+            <Button size="sm" variant="outline" onClick={() => setApprovalOpen(true)}>
+              <ShieldCheck className="mr-2 h-4 w-4" /> Aprovar NF-e
+            </Button>
+          )}
+          {doc.status === "pronta_para_integracao" && (
+            <Button size="sm" onClick={() => integrate.mutate()} disabled={integrate.isPending}>
+              {integrate.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <PlugZap className="mr-2 h-4 w-4" />
+              )}
+              Integrar no TOTVS
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -1117,6 +1181,7 @@ export const NfeDetalhes = ({ nfeId }: { nfeId: string }) => {
         onOpenChange={(open) => !open && setLinkItemId(null)}
         onLinked={() => setLinkItemId(null)}
       />
+      <NfeAprovacaoDialog documentId={nfeId} open={approvalOpen} onOpenChange={setApprovalOpen} />
     </div>
   );
 };

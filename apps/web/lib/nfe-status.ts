@@ -41,8 +41,13 @@ export const NFE_STATUS_ORDER: NfeStatus[] = [
   "ja_existente_totvs",
 ];
 
-export function statusConfig(status?: string | null) {
-  return NFE_STATUS_CONFIG[(status ?? "pendente_confirmacao") as NfeStatus] ?? NFE_STATUS_CONFIG.pendente_confirmacao;
+export function statusConfig(status?: string | null, documentType: "NF-e" | "NFS-e" = "NF-e") {
+  const item =
+    NFE_STATUS_CONFIG[(status ?? "pendente_confirmacao") as NfeStatus] ??
+    NFE_STATUS_CONFIG.pendente_confirmacao;
+  return documentType === "NFS-e" && item.label === "NF-e Aprovada"
+    ? { ...item, label: "NFS-e Aprovada" }
+    : item;
 }
 
 /** Apontamentos (Plano de Contas / Local de Estoque / Centro de Custo) editáveis? */
@@ -61,7 +66,9 @@ export function nfeBloqueada(status?: string | null) {
 
 /** Vínculos de produto/fornecedor podem ser revisados mesmo após a integração no RM. */
 export function podeVincularProduto(status?: string | null) {
-  return status === "aprovada" || status === "pronta_para_integracao" || status === "integrado_totvs";
+  return (
+    status === "aprovada" || status === "pronta_para_integracao" || status === "integrado_totvs"
+  );
 }
 
 export function motivoBloqueioVinculo(_status?: string | null) {

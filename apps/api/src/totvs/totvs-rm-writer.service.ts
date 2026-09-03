@@ -63,6 +63,8 @@ export type RmItem = {
   productDescription?: string | null;
   purchaseTypeCode?: string | null;
   cfop?: string | null;
+  natureCode?: string | null;
+  supplierProductDescription?: string | null;
   unidade_comercial: string | null;
   quantidade_comercial: number | null;
   valor_unitario_comercial: number | null;
@@ -148,8 +150,7 @@ function formatTaxId(value: string) {
   const digits = value.replace(/\D/g, "");
   if (digits.length === 14)
     return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-  if (digits.length === 11)
-    return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+  if (digits.length === 11) return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
   return value;
 }
 
@@ -246,6 +247,21 @@ export class TotvsRmWriterService {
     return { header, item };
   }
 
+  private async natureByCode(transaction: sql.Transaction, coligada: number, code: string) {
+    const result = await new sql.Request(transaction)
+      .input("coligada", sql.SmallInt, coligada)
+      .input("code", sql.VarChar, code).query<{ IDNAT: number; CODNAT: string }>(`
+        SELECT TOP 1 IDNAT,CODNAT FROM dbo.DCFOP WITH (HOLDLOCK)
+        WHERE CODCOLIGADA=@coligada AND ATIVO=1 AND CODNAT=@code
+      `);
+    const nature = result.recordset[0];
+    if (!nature)
+      throw new Error(
+        `A natureza ${code} não está cadastrada/ativa na DCFOP da coligada ${coligada}.`,
+      );
+    return nature;
+  }
+
   private async resolveProduct(transaction: sql.Transaction, input: RmWriteInput, item: RmItem) {
     const existing = await new sql.Request(transaction)
       .input("productCode", sql.VarChar, item.productErpCode)
@@ -280,9 +296,9 @@ export class TotvsRmWriterService {
       );
     const requestedUnit = item.unidade_comercial?.trim() || null;
     const validUnit = requestedUnit
-      ? await new sql.Request(transaction)
-          .input("unit", sql.VarChar, requestedUnit)
-          .query<{ CODUND: string }>(`
+      ? await new sql.Request(transaction).input("unit", sql.VarChar, requestedUnit).query<{
+          CODUND: string;
+        }>(`
             SELECT TOP 1 CODUND FROM dbo.TUND WITH (HOLDLOCK)
             WHERE CODUND=@unit
           `)
@@ -487,8 +503,7 @@ export class TotvsRmWriterService {
       ORDER BY CASE WHEN cfo.CODCFO=@supplierCode THEN 0 ELSE 1 END
     `);
     const existing = existingResult.recordset[0];
-    if (existing?.IDHISTORICO)
-      return { ...existing, IDHISTORICO: existing.IDHISTORICO };
+    if (existing?.IDHISTORICO) return { ...existing, IDHISTORICO: existing.IDHISTORICO };
 
     const template = await new sql.Request(transaction).query<{
       IDCFO: number;
@@ -599,7 +614,8 @@ export class TotvsRmWriterService {
         RECMODIFIEDON: now,
       },
     );
-    if (historyRows !== 1) throw new Error("Não foi possível criar o histórico do fornecedor no RM.");
+    if (historyRows !== 1)
+      throw new Error("Não foi possível criar o histórico do fornecedor no RM.");
     return { IDCFO: idCfo!, CODCFO: supplierCode!, IDHISTORICO: historyId };
   }
 
@@ -638,7 +654,9 @@ export class TotvsRmWriterService {
       !input.costCenterCode?.trim() &&
       !input.allocations.some((allocation) => allocation.costCenterCode.trim().length > 0)
     )
-      throw new Error("O centro de custo ou o rateio financeiro é obrigatório para integrar no RM.");
+      throw new Error(
+        "O centro de custo ou o rateio financeiro é obrigatório para integrar no RM.",
+      );
 
     const formattedNumber = movementNumber(input.document.numero);
     const duplicate = await new sql.Request(transaction)
@@ -830,8 +848,10 @@ export class TotvsRmWriterService {
         createdProducts.push({ localProductId: item.localProductId, erpCode: item.productErpCode });
       const itemNature =
         input.document.tipo === "nfe"
-          ? await this.nature(transaction, input.coligada, item.purchaseTypeCode, item.cfop)
-          : null;
+          ? (await this.nature(transaction, input.coligada, item.purchaseTypeCode, item.cfop)).item
+          : item.natureCode
+            ? await this.natureByCode(transaction, input.coligada, item.natureCode)
+            : null;
       const itemValue = number(item.valor_total, number(item.valor_bruto));
       const itemGrossValue = number(item.valor_bruto, itemValue);
       const itemDiscount = number(item.valor_desconto);
@@ -874,7 +894,10 @@ export class TotvsRmWriterService {
           CODLOC: item.localEstoqueCode,
           CODCCUSTO: costCenter,
           CODTB1FLX: input.financialPlanCode,
-          IDNAT: itemNature?.item.IDNAT ?? null,
+          IDNAT: itemNature?.IDNAT ?? null,
+          ...(item.supplierProductDescription
+            ? { DESCRICAOPRDCFO: item.supplierProductDescription }
+            : {}),
           DATAEMISSAO: issueDate,
           RATEIOCCUSTODEPTO: itemValue,
           RECCREATEDBY: input.user,

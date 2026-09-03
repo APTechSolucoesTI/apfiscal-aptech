@@ -19,8 +19,19 @@ export function merchandiseSituation(purchaseTypeCode: string | null | undefined
 }
 
 export function discountPercentage(discount: number, basis: number) {
-  if (!Number.isFinite(discount) || !Number.isFinite(basis) || discount <= 0 || basis <= 0) return 0;
+  if (!Number.isFinite(discount) || !Number.isFinite(basis) || discount <= 0 || basis <= 0)
+    return 0;
   return Math.round(((discount * 100) / basis + Number.EPSILON) * 10_000) / 10_000;
+}
+
+export function nfseNatureCode(
+  companyState: string | null | undefined,
+  supplierState: string | null | undefined,
+) {
+  const company = companyState?.trim().toUpperCase();
+  const supplier = supplierState?.trim().toUpperCase();
+  if (!company || !supplier) return null;
+  return company === supplier ? "1.933.001" : "2.933.001";
 }
 
 export function icmsOrigin(value: unknown): number | null {

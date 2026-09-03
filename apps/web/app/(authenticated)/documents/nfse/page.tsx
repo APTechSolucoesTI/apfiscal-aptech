@@ -9,6 +9,7 @@ import {
   AlertCircle,
   ArrowUpDown,
   Building2,
+  CheckCircle2,
   Download,
   Eye,
   FileArchive,
@@ -17,6 +18,7 @@ import {
   FilterX,
   Loader2,
   MapPin,
+  PlugZap,
   RefreshCw,
   Search,
   Trash2,
@@ -53,7 +55,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FiscalStatusBadge, TotvsStatusBadge } from "@/components/fiscal/FiscalStatusBadge";
+import { TotvsStatusBadge } from "@/components/fiscal/FiscalStatusBadge";
+import { NfeAprovacaoDialog } from "@/components/nfe/NfeAprovacaoDialog";
 import { FiscalSummaryCards } from "@/components/fiscal/FiscalSummaryCards";
 import { TablePagination } from "@/components/common/TablePagination";
 import { useSortableData } from "@/hooks/use-sortable-data";
@@ -68,6 +71,8 @@ import {
 import { enqueueNfseSync } from "@/services/totvsService";
 import { useServerFn } from "@/lib/api-action";
 import { deleteFiscalDocuments } from "@/lib/client-actions";
+import { backendFetch } from "@/lib/backend";
+import { NFE_STATUS_ORDER, podeAprovar, statusConfig } from "@/lib/nfe-status";
 
 type Row = NfseListItem & { emissionTime: number; totalValue: number; companyName: string };
 const money = (value: number | null | undefined) =>
@@ -92,8 +97,21 @@ function matchesTotvsFilter(item: NfseListItem, filter: string): boolean {
   if (filter === "approved") return item.status === "aprovada";
   if (filter === "ready") return item.status === "pronta_para_integracao";
   if (filter === "not_started")
-    return effectiveTotvsStatus(item) === null && !["integrado_totvs", "ja_existente_totvs"].includes(item.status);
+    return (
+      effectiveTotvsStatus(item) === null &&
+      !["integrado_totvs", "ja_existente_totvs"].includes(item.status)
+    );
   return effectiveTotvsStatus(item) === filter;
+}
+
+function NfseFlowStatusBadge({ status }: { status: string | null | undefined }) {
+  const item = statusConfig(status, "NFS-e");
+  return (
+    <Badge variant="secondary" className={`border font-medium ${item.badge}`}>
+      <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${item.dot}`} />
+      {item.label}
+    </Badge>
+  );
 }
 
 function downloadCsv(rows: Row[]) {
@@ -129,7 +147,7 @@ function downloadCsv(rows: Row[]) {
       row.service_gross_value,
       row.service_net_value,
       row.iss_value,
-      row.sync_status,
+      statusConfig(row.status, "NFS-e").label,
       effectiveTotvsStatus(row) ?? "nao_iniciada",
       row.chave_acesso,
     ]),
@@ -160,6 +178,8 @@ export default function NfsePage() {
   const [pageSize, setPageSize] = useState(20);
   const [importOpen, setImportOpen] = useState(false);
   const [importFiles, setImportFiles] = useState<File[]>([]);
+  const [approveId, setApproveId] = useState<string | null>(null);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const documents = useQuery({ queryKey: ["nfse-documents"], queryFn: listNfse });
   const companies = useQuery({
     queryKey: ["companies-min"],
@@ -194,7 +214,7 @@ export default function NfsePage() {
         return (
           (!query || searchable.includes(query)) &&
           (companyId === "all" || item.company_id === companyId) &&
-          (status === "all" || item.sync_status === status) &&
+          (status === "all" || item.status === status) &&
           matchesTotvsFilter(item, totvsStatus) &&
           (!start || emission >= start) &&
           (!end || emission <= end)
@@ -240,6 +260,45 @@ export default function NfsePage() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const integrateMutation = useMutation({
+    mutationFn: (documentId: string) =>
+      backendFetch<{ runId: string; status: string; idempotent: boolean }>(
+        `/totvs/integrate/${documentId}`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
+      toast.success("NFS-e enviada para a fila de integração TOTVS.");
+      setActiveRunId(result.runId);
+      queryClient.invalidateQueries({ queryKey: ["nfse-documents"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const integrationRun = useQuery({
+    queryKey: ["totvs-integration-run", activeRunId],
+    queryFn: () =>
+      backendFetch<{ status: string; rm_record_id: string | null; error_message: string | null }>(
+        `/totvs/integrate/run/${activeRunId}`,
+      ),
+    enabled: Boolean(activeRunId),
+    refetchInterval: (query) => {
+      const runStatus = query.state.data?.status;
+      return runStatus === "succeeded" || runStatus === "failed" ? false : 1200;
+    },
+  });
+  useEffect(() => {
+    if (!activeRunId || !integrationRun.data) return;
+    if (integrationRun.data.status === "succeeded") {
+      toast.success(`NFS-e integrada no movimento RM ${integrationRun.data.rm_record_id}.`);
+      queryClient.invalidateQueries({ queryKey: ["nfse-documents"] });
+      setActiveRunId(null);
+    } else if (integrationRun.data.status === "failed") {
+      toast.error(
+        integrationRun.data.error_message || "Não foi possível integrar a NFS-e no TOTVS.",
+      );
+      queryClient.invalidateQueries({ queryKey: ["nfse-documents"] });
+      setActiveRunId(null);
+    }
+  }, [activeRunId, integrationRun.data, queryClient]);
   const xmlMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       const downloads = await Promise.allSettled(ids.map(getFiscalXml));
@@ -296,8 +355,8 @@ export default function NfsePage() {
   const errors = rows.filter(
     (item) => item.sync_status === "error" || item.processing_error,
   ).length;
-  const integratedTotvs = rows.filter(
-    (item) => effectiveTotvsStatus(item) === "succeeded",
+  const integratedTotvs = rows.filter((item) =>
+    ["succeeded", "preexisting"].includes(effectiveTotvsStatus(item) ?? ""),
   ).length;
   const pendingTotvs = rows.length - integratedTotvs;
 
@@ -426,14 +485,15 @@ export default function NfsePage() {
             </Select>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="bg-white">
-                <SelectValue placeholder="Situação" />
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as situações</SelectItem>
-                <SelectItem value="processed">Processadas</SelectItem>
-                <SelectItem value="cancelled">Canceladas</SelectItem>
-                <SelectItem value="replaced">Substituídas</SelectItem>
-                <SelectItem value="error">Com erro</SelectItem>
+                <SelectItem value="all">Todos os status</SelectItem>
+                {NFE_STATUS_ORDER.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {statusConfig(value, "NFS-e").label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={totvsStatus} onValueChange={setTotvsStatus}>
@@ -573,8 +633,24 @@ export default function NfsePage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pl-8">
-                  <FiscalStatusBadge status={item.sync_status} />
+                  <NfseFlowStatusBadge status={item.status} />
                   <TotvsStatusBadge status={effectiveTotvsStatus(item)} />
+                  {podeAprovar(item.status) && (
+                    <Button size="sm" variant="outline" onClick={() => setApproveId(item.id)}>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Aprovar
+                    </Button>
+                  )}
+                  {item.status === "pronta_para_integracao" && (
+                    <Button
+                      size="sm"
+                      onClick={() => integrateMutation.mutate(item.id)}
+                      disabled={integrateMutation.isPending}
+                    >
+                      <PlugZap className="mr-2 h-4 w-4" />
+                      Integrar
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" className="ml-auto" asChild>
                     <Link to="/documents/nfse/$nfseId" params={{ nfseId: item.id }}>
                       <Eye className="mr-2 h-4 w-4" />
@@ -606,7 +682,7 @@ export default function NfsePage() {
                   ["companyName", "Tomador / empresa"],
                   ["service_municipality_name", "Município"],
                   ["totalValue", "Valores"],
-                  ["sync_status", "Situação"],
+                  ["status", "Status"],
                   ["totvs", "TOTVS"],
                 ].map(([key, label]) => (
                   <TableHead
@@ -737,7 +813,7 @@ export default function NfsePage() {
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <FiscalStatusBadge status={item.sync_status} />
+                        <NfseFlowStatusBadge status={item.status} />
                         {item.xml_available ? (
                           <Badge
                             variant="outline"
@@ -765,6 +841,29 @@ export default function NfsePage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
+                        {podeAprovar(item.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-emerald-600 hover:bg-emerald-50"
+                            title="Aprovar NFS-e"
+                            onClick={() => setApproveId(item.id)}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {item.status === "pronta_para_integracao" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-green-600 hover:bg-green-50"
+                            title="Integrar no TOTVS"
+                            disabled={integrateMutation.isPending}
+                            onClick={() => integrateMutation.mutate(item.id)}
+                          >
+                            <PlugZap className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -853,6 +952,15 @@ export default function NfsePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <NfeAprovacaoDialog
+        documentId={approveId}
+        documentType="NFS-e"
+        invalidateQueryKey={["nfse-documents"]}
+        open={Boolean(approveId)}
+        onOpenChange={(open) => {
+          if (!open) setApproveId(null);
+        }}
+      />
     </div>
   );
 }

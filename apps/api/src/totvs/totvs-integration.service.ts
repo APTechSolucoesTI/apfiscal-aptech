@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TotvsRmWriterService, type RmDocument, type RmItem } from "./totvs-rm-writer.service";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
 import { TotvsScopeService } from "./totvs-scope.service";
+import { nfseNatureCode } from "./totvs-rm-field-mapping";
 
 type RelatedCode = { codigo?: string | null } | null;
 function setting(key: string, suffix: string, fallback: string) {
@@ -55,7 +56,7 @@ export class TotvsIntegrationService {
         supabaseAdmin
           .from("fiscal_documents")
           .select(
-            "*, companies(id, organization_id), suppliers:supplier_id(id, cnpj_cpf, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, logradouro, numero, complemento, bairro, cep, municipio, uf, telefone, email, tipo_pessoa, erp_system, erp_code, erp_external_id), plano_contas:plano_contas_id(codigo), tipos_compra:tipo_compra_id(codigo), tipos_movimento:tipo_movimento_id(codigo, descricao)",
+            "*, companies(id, organization_id, uf), suppliers:supplier_id(id, cnpj_cpf, razao_social, nome_fantasia, inscricao_estadual, inscricao_municipal, logradouro, numero, complemento, bairro, cep, municipio, uf, telefone, email, tipo_pessoa, erp_system, erp_code, erp_external_id), plano_contas:plano_contas_id(codigo), tipos_compra:tipo_compra_id(codigo), tipos_movimento:tipo_movimento_id(codigo, descricao)",
           )
           .eq("id", run.data.fiscal_document_id)
           .single(),
@@ -104,6 +105,32 @@ export class TotvsIntegrationService {
         connectionKey: run.data.connection_key ?? resolved.connectionKey,
       };
       const isNfse = document.data.tipo === "nfse";
+      const issuer =
+        document.data.emitente && typeof document.data.emitente === "object"
+          ? (document.data.emitente as Record<string, unknown>)
+          : {};
+      const issuerAddressCandidate = issuer.enderEmit ?? issuer.endereco;
+      const issuerAddress =
+        issuerAddressCandidate && typeof issuerAddressCandidate === "object"
+          ? (issuerAddressCandidate as Record<string, unknown>)
+          : {};
+      const issuerText = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = issuerAddress[key] ?? issuer[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+        }
+        return null;
+      };
+      const nfseNature = isNfse
+        ? nfseNatureCode(
+            document.data.companies?.uf,
+            document.data.suppliers?.uf ?? issuerText("UF", "uf"),
+          )
+        : null;
+      if (isNfse && !nfseNature)
+        throw new Error(
+          "Não foi possível determinar a natureza da NFS-e: confira a UF da empresa e do fornecedor.",
+        );
       const unlinked = (items.data ?? []).filter((item) => !item.product_id);
       if (!isNfse && unlinked.length)
         throw new Error(`${unlinked.length} item(ns) não possuem produto vinculado.`);
@@ -144,6 +171,12 @@ export class TotvsIntegrationService {
                 setting(scope.connectionKey, "NFSE_PRODUCT_CODE", "001.01.01.000001"),
               purchaseTypeCode: null,
               cfop: null,
+              natureCode: nfseNature,
+              supplierProductDescription:
+                (document.data.service_description?.trim() || document.data.emitente_nome)?.slice(
+                  0,
+                  120,
+                ) ?? null,
               unidade_comercial: "SV",
               quantidade_comercial: 1,
               valor_unitario_comercial:
@@ -211,23 +244,6 @@ export class TotvsIntegrationService {
         .update({ request_payload: payload, status: "running" })
         .eq("id", runId);
 
-      const issuer =
-        document.data.emitente && typeof document.data.emitente === "object"
-          ? (document.data.emitente as Record<string, unknown>)
-          : {};
-      const issuerAddressCandidate = issuer.enderEmit ?? issuer.endereco;
-      const issuerAddress =
-        issuerAddressCandidate && typeof issuerAddressCandidate === "object"
-          ? (issuerAddressCandidate as Record<string, unknown>)
-          : {};
-      const issuerText = (...keys: string[]) => {
-        for (const key of keys) {
-          const value = issuerAddress[key] ?? issuer[key];
-          if (typeof value === "string" && value.trim()) return value.trim();
-        }
-        return null;
-      };
-
       const result = await this.sqlServer.writeTransaction(scope.connectionKey, (transaction) =>
         this.writer.write(transaction, {
           coligada: scope.codColigada,
@@ -244,8 +260,7 @@ export class TotvsIntegrationService {
               document.data.suppliers?.inscricao_municipal ?? issuerText("IM", "im"),
             street: document.data.suppliers?.logradouro ?? issuerText("xLgr", "logradouro"),
             number: document.data.suppliers?.numero ?? issuerText("nro", "numero"),
-            complement:
-              document.data.suppliers?.complemento ?? issuerText("xCpl", "complemento"),
+            complement: document.data.suppliers?.complemento ?? issuerText("xCpl", "complemento"),
             district: document.data.suppliers?.bairro ?? issuerText("xBairro", "bairro"),
             zipCode: document.data.suppliers?.cep ?? issuerText("CEP", "cep"),
             city: document.data.suppliers?.municipio ?? issuerText("xMun", "municipio"),

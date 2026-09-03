@@ -749,7 +749,15 @@ export class TotvsRmWriterService {
             input.purchaseTypeCode,
             input.items[0].cfop,
           )
-        : null;
+        : input.items[0].natureCode
+          ? {
+              header: await this.natureByCode(
+                transaction,
+                input.coligada,
+                input.items[0].natureCode,
+              ),
+            }
+          : null;
     await this.clone(
       transaction,
       "TMOV",
@@ -780,6 +788,10 @@ export class TotvsRmWriterService {
         VALORLIQUIDO: total,
         VALORBRUTOORIG: total,
         VALORLIQUIDOORIG: total,
+        VALORBRUTOINTERNO: total,
+        RATEIOCCUSTODEPTO: total,
+        VALORRATEIOLAN: total,
+        VALORRATEIOLANORIG: total,
         VALORFRETE: number(input.document.valor_frete),
         VALORSEGURO: number(input.document.valor_seguro),
         VALORDESC: number(input.document.valor_desconto),

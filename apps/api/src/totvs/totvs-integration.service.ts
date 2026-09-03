@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { TotvsRmWriterService, type RmDocument, type RmItem } from "./totvs-rm-writer.service";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
 import { TotvsScopeService } from "./totvs-scope.service";
-import { nfseNatureCode } from "./totvs-rm-field-mapping";
+import { nfseIssuerState, nfseNatureCode } from "./totvs-rm-field-mapping";
 
 type RelatedCode = { codigo?: string | null } | null;
 function setting(key: string, suffix: string, fallback: string) {
@@ -124,7 +124,11 @@ export class TotvsIntegrationService {
       const nfseNature = isNfse
         ? nfseNatureCode(
             document.data.companies?.uf,
-            document.data.suppliers?.uf ?? issuerText("UF", "uf"),
+            nfseIssuerState(
+              document.data.suppliers?.uf,
+              document.data.nfse_details,
+              document.data.emitente,
+            ),
           )
         : null;
       if (isNfse && !nfseNature)

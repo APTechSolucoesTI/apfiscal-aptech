@@ -34,6 +34,32 @@ export function nfseNatureCode(
   return company === supplier ? "1.933.001" : "2.933.001";
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function state(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim().toUpperCase() : null;
+}
+
+export function nfseIssuerState(
+  supplierState: string | null | undefined,
+  nfseDetails: unknown,
+  rawIssuer: unknown,
+) {
+  const detailsIssuer = record(record(nfseDetails).issuer);
+  const detailsAddress = record(detailsIssuer.address);
+  const issuer = record(rawIssuer);
+  const rawAddress = record(issuer.enderNac ?? issuer.enderEmit ?? issuer.endereco ?? issuer.end);
+  const nestedNational = record(rawAddress.endNac);
+  return (
+    state(supplierState) ??
+    state(detailsAddress.state ?? detailsAddress.UF ?? detailsAddress.uf) ??
+    state(rawAddress.UF ?? rawAddress.uf ?? nestedNational.UF ?? nestedNational.uf) ??
+    state(issuer.UF ?? issuer.uf)
+  );
+}
+
 export function icmsOrigin(value: unknown): number | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;

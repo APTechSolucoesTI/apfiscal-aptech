@@ -3,6 +3,7 @@ import {
   discountPercentage,
   icmsOrigin,
   merchandiseSituation,
+  nfseIssuerState,
   nfseNatureCode,
 } from "./totvs-rm-field-mapping";
 
@@ -29,5 +30,11 @@ describe("TOTVS RM field mappings", () => {
     expect(nfseNatureCode("SP", "sp")).toBe("1.933.001");
     expect(nfseNatureCode("SP", "MG")).toBe("2.933.001");
     expect(nfseNatureCode("SP", null)).toBeNull();
+  });
+
+  it("reads the NFSe issuer state from the canonical persisted details", () => {
+    expect(nfseIssuerState(null, { issuer: { address: { state: "SP" } } }, null)).toBe("SP");
+    expect(nfseIssuerState(null, null, { enderNac: { UF: "MG" } })).toBe("MG");
+    expect(nfseIssuerState("pr", { issuer: { address: { state: "SP" } } }, null)).toBe("PR");
   });
 });

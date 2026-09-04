@@ -148,14 +148,18 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
   const retainedCofins = firstDecimal(pisCofins.vRetCofins, federalTax.vRetCofins);
   const inssValue = firstDecimal(federalTax.vRetCP, federalTax.vINSS, values.vINSS);
   const irValue = firstDecimal(federalTax.vRetIRRF, federalTax.vIR, values.vIR);
-  const csllValue = firstDecimal(federalTax.vRetCSLL, federalTax.vCSLL, values.vCSLL);
+  const pisCofinsWithholdingType = text(pisCofins.tpRetPisCofins);
+  const socialContributionsRetention = firstDecimal(federalTax.vRetCSLL);
+  const csllValue = pisCofinsWithholdingType
+    ? null
+    : firstDecimal(federalTax.vRetCSLL, federalTax.vCSLL, values.vCSLL);
   const issValue = decimal(values.vISSQN);
   const calculatedRetentions = sumDecimals(
     retainedPis,
     retainedCofins,
     inssValue,
     irValue,
-    csllValue,
+    socialContributionsRetention ?? csllValue,
   );
   const service = object(dps.serv);
   const serviceCode = object(service.cServ);
@@ -184,7 +188,7 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
       cofinsValue ?? retainedCofins,
       inssValue,
       irValue,
-      csllValue,
+      socialContributionsRetention ?? csllValue,
     ),
     status: text(info.cStat),
     serviceDescription: text(serviceCode.xDescServ ?? info.xTribMun ?? info.xTribNac),
@@ -250,14 +254,14 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
         pisBase: firstDecimal(pisCofins.vBCPisCofins, federalTax.vBCPIS, values.vBCPIS),
         pisRate: firstDecimal(pisCofins.pAliqPis, federalTax.pPIS, values.pPIS),
         pisCst: text(pisCofins.CST),
-        pisWithholdingType: text(pisCofins.tpRetPisCofins),
+        pisWithholdingType: pisCofinsWithholdingType,
         pisRetained: retainedPis,
         cofins: cofinsValue ?? retainedCofins,
         cofinsValue,
         cofinsBase: firstDecimal(pisCofins.vBCPisCofins, federalTax.vBCCOFINS, values.vBCCOFINS),
         cofinsRate: firstDecimal(pisCofins.pAliqCofins, federalTax.pCOFINS, values.pCOFINS),
         cofinsCst: text(pisCofins.CST),
-        cofinsWithholdingType: text(pisCofins.tpRetPisCofins),
+        cofinsWithholdingType: pisCofinsWithholdingType,
         cofinsRetained: retainedCofins,
         inss: inssValue,
         inssBase: firstDecimal(federalTax.vBCRetCP, federalTax.vBCINSS),
@@ -268,6 +272,7 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
         csll: csllValue,
         csllBase: firstDecimal(federalTax.vBCRetCSLL, federalTax.vBCCSLL),
         csllRate: firstDecimal(federalTax.pRetCSLL, federalTax.pCSLL),
+        socialContributionsRetained: pisCofinsWithholdingType ? socialContributionsRetention : null,
         totalRetentions: firstDecimal(values.vTotalRet) ?? calculatedRetentions,
       }),
       source: compact({

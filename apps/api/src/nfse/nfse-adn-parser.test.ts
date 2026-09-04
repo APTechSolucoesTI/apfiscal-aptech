@@ -81,4 +81,18 @@ describe("ADN NFS-e", () => {
       },
     });
   });
+
+  it("não atribui a retenção social agregada exclusivamente à CSLL", () => {
+    const retained = `<?xml version="1.0"?><NFSe><infNFSe Id="NFS${"4".repeat(50)}"><nNFSe>10</nNFSe><cStat>100</cStat><emit><CNPJ>21103412000127</CNPJ></emit><valores><vLiq>985.00</vLiq></valores><DPS><infDPS><toma><CNPJ>08168210000286</CNPJ></toma><valores><vServPrest><vServ>1000.00</vServ></vServPrest><trib><tribFed><piscofins><CST>01</CST><tpRetPisCofins>3</tpRetPisCofins></piscofins><vRetCSLL>15.00</vRetCSLL></tribFed></trib></valores></infDPS></DPS></infNFSe></NFSe>`;
+    expect(parseNfseXml(retained, "4".repeat(50))).toMatchObject({
+      retentionsValue: 15,
+      details: {
+        taxes: {
+          socialContributionsRetained: 15,
+          totalRetentions: 15,
+        },
+      },
+    });
+    expect(parseNfseXml(retained, "4".repeat(50)).details.taxes).not.toHaveProperty("csll");
+  });
 });

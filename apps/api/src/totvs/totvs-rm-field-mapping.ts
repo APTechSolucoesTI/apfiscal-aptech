@@ -42,6 +42,96 @@ function state(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim().toUpperCase() : null;
 }
 
+function numeric(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function taxNode(
+  base: unknown,
+  rate: unknown,
+  value: unknown,
+  fields: { base: string; rate: string; value: string },
+  cst?: unknown,
+) {
+  return {
+    [fields.base]: numeric(base),
+    [fields.rate]: numeric(rate),
+    [fields.value]: numeric(value),
+    ...(cst === null || cst === undefined || cst === "" ? {} : { CST: String(cst) }),
+  };
+}
+
+export function nfseRmTaxes(
+  nfseDetails: unknown,
+  issFallback: { base: unknown; rate: unknown; value: unknown },
+) {
+  const taxes = record(record(nfseDetails).taxes);
+  const pisRegular = taxes.pisValue ?? (taxes.pisRetained == null ? taxes.pis : null);
+  const cofinsRegular = taxes.cofinsValue ?? (taxes.cofinsRetained == null ? taxes.cofins : null);
+  return {
+    ISS: taxNode(
+      taxes.issBase ?? issFallback.base,
+      taxes.issRate ?? issFallback.rate,
+      taxes.iss ?? issFallback.value,
+      { base: "vBC", rate: "pISSQN", value: "vISSQN" },
+    ),
+    PIS: taxNode(
+      taxes.pisBase,
+      taxes.pisRate,
+      pisRegular,
+      {
+        base: "vBC",
+        rate: "pPIS",
+        value: "vPIS",
+      },
+      taxes.pisCst,
+    ),
+    COFINS: taxNode(
+      taxes.cofinsBase,
+      taxes.cofinsRate,
+      cofinsRegular,
+      {
+        base: "vBC",
+        rate: "pCOFINS",
+        value: "vCOFINS",
+      },
+      taxes.cofinsCst,
+    ),
+    "PIS-RF": taxNode(taxes.pisRetainedBase, taxes.pisRetainedRate, taxes.pisRetained, {
+      base: "vBCRetPIS",
+      rate: "pRetPIS",
+      value: "vRetPIS",
+    }),
+    "COF-RF": taxNode(taxes.cofinsRetainedBase, taxes.cofinsRetainedRate, taxes.cofinsRetained, {
+      base: "vBCRetCOFINS",
+      rate: "pRetCOFINS",
+      value: "vRetCOFINS",
+    }),
+    INSS: taxNode(taxes.inssBase, taxes.inssRate, taxes.inss, {
+      base: "vBCINSS",
+      rate: "pINSS",
+      value: "vINSS",
+    }),
+    IRRFPJ: taxNode(taxes.irBase, taxes.irRate, taxes.ir, {
+      base: "vBCIR",
+      rate: "pIR",
+      value: "vIR",
+    }),
+    "CSL-RF": taxNode(taxes.csllBase, taxes.csllRate, taxes.csll, {
+      base: "vBCCSLL",
+      rate: "pCSLL",
+      value: "vCSLL",
+    }),
+    "TRB-RF": taxNode(null, null, taxes.totalRetentions, {
+      base: "vBCTotalRet",
+      rate: "pTotalRet",
+      value: "vTotalRet",
+    }),
+  };
+}
+
 export function nfseIssuerState(
   supplierState: string | null | undefined,
   nfseDetails: unknown,

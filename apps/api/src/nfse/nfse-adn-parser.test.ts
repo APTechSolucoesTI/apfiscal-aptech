@@ -58,4 +58,27 @@ describe("ADN NFS-e", () => {
       serviceDescription: "Manutencao de bomba",
     });
   });
+
+  it("extrai PIS e COFINS devidos do grupo piscofins da DPS", () => {
+    const taxed = `<?xml version="1.0"?><NFSe><infNFSe Id="NFS${"3".repeat(50)}"><nNFSe>7164</nNFSe><cStat>100</cStat><emit><CNPJ>21103412000127</CNPJ><xNome>Prestador</xNome></emit><valores><vBC>1498.50</vBC><pAliqAplic>5.00</pAliqAplic><vISSQN>74.92</vISSQN><vLiq>1498.50</vLiq></valores><DPS><infDPS><serie>00100</serie><toma><CNPJ>08168210000286</CNPJ></toma><serv><cServ><xDescServ>Servico tributado</xDescServ></cServ></serv><valores><vServPrest><vServ>1498.50</vServ></vServPrest><trib><tribMun><tpRetISSQN>1</tpRetISSQN></tribMun><tribFed><piscofins><CST>01</CST><vBCPisCofins>1498.50</vBCPisCofins><pAliqPis>1.65</pAliqPis><pAliqCofins>7.60</pAliqCofins><vPis>24.73</vPis><vCofins>113.89</vCofins><tpRetPisCofins>0</tpRetPisCofins></piscofins></tribFed></trib></valores></infDPS></DPS></infNFSe></NFSe>`;
+    expect(parseNfseXml(taxed, "3".repeat(50))).toMatchObject({
+      taxTotal: 213.54,
+      details: {
+        taxes: {
+          iss: 74.92,
+          pis: 24.73,
+          pisValue: 24.73,
+          pisBase: 1498.5,
+          pisRate: 1.65,
+          pisCst: "01",
+          pisWithholdingType: "0",
+          cofins: 113.89,
+          cofinsValue: 113.89,
+          cofinsBase: 1498.5,
+          cofinsRate: 7.6,
+          cofinsCst: "01",
+        },
+      },
+    });
+  });
 });

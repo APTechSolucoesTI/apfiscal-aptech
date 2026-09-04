@@ -168,11 +168,17 @@ function records(value: unknown): Record<string, unknown>[] {
   return [record, ...Object.values(record).flatMap(records)];
 }
 
-function taxValues(value: unknown, code: string) {
+export function rmTaxValues(value: unknown, code: string) {
   const aliases: Record<string, { value: string; rate: string; base: string }> = {
     ICMS: { value: "vICMS", rate: "pICMS", base: "vBC" },
     PIS: { value: "vPIS", rate: "pPIS", base: "vBC" },
     COFINS: { value: "vCOFINS", rate: "pCOFINS", base: "vBC" },
+    "PIS-RF": { value: "vRetPIS", rate: "pRetPIS", base: "vBCRetPIS" },
+    "COF-RF": { value: "vRetCOFINS", rate: "pRetCOFINS", base: "vBCRetCOFINS" },
+    "CSL-RF": { value: "vCSLL", rate: "pCSLL", base: "vBCCSLL" },
+    IRRFPJ: { value: "vIR", rate: "pIR", base: "vBCIR" },
+    INSS: { value: "vINSS", rate: "pINSS", base: "vBCINSS" },
+    "TRB-RF": { value: "vTotalRet", rate: "pTotalRet", base: "vBCTotalRet" },
     IPI: { value: "vIPI", rate: "pIPI", base: "vBC" },
     II: { value: "vII", rate: "pII", base: "vBC" },
     ISS: { value: "vISSQN", rate: "pISSQN", base: "vBC" },
@@ -945,7 +951,7 @@ export class TotvsRmWriterService {
           CODTRB: string;
         }>("SELECT CODTRB FROM dbo.TTRBMOV WHERE CODCOLIGADA=@coligada AND IDMOV=@templateId AND NSEQITMMOV=@templateSeq");
       for (const templateTax of templateTaxes.recordset) {
-        const tax = taxValues(item.taxes, templateTax.CODTRB);
+        const tax = rmTaxValues(item.taxes, templateTax.CODTRB);
         await this.clone(
           transaction,
           "TTRBMOV",

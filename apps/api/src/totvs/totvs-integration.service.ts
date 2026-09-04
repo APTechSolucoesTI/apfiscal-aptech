@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { parseNfseXml } from "@/nfse/nfse-document-parser";
 import { TotvsRmWriterService, type RmDocument, type RmItem } from "./totvs-rm-writer.service";
 import { TotvsSqlServerService } from "./totvs-sql-server.service";
 import { TotvsScopeService } from "./totvs-scope.service";
-import { nfseIssuerState, nfseNatureCode } from "./totvs-rm-field-mapping";
+import { nfseIssuerState, nfseNatureCode, nfseRmTaxes } from "./totvs-rm-field-mapping";
 
 type RelatedCode = { codigo?: string | null } | null;
 function setting(key: string, suffix: string, fallback: string) {
@@ -105,6 +106,25 @@ export class TotvsIntegrationService {
         connectionKey: run.data.connection_key ?? resolved.connectionKey,
       };
       const isNfse = document.data.tipo === "nfse";
+      const parsedNfse =
+        isNfse && typeof document.data.xml_content === "string" && document.data.xml_content.trim()
+          ? parseNfseXml(document.data.xml_content, document.data.chave_acesso)
+          : null;
+      const nfseDetails = parsedNfse?.details ?? document.data.nfse_details;
+      if (parsedNfse) {
+        const refreshed = await supabaseAdmin
+          .from("fiscal_documents")
+          .update({
+            nfse_details: parsedNfse.details,
+            valor_impostos: parsedNfse.taxTotal,
+            retentions_value: parsedNfse.retentionsValue,
+            iss_base_value: parsedNfse.issBaseValue,
+            iss_rate: parsedNfse.issRate,
+            iss_value: parsedNfse.issValue,
+          })
+          .eq("id", document.data.id);
+        if (refreshed.error) throw refreshed.error;
+      }
       const issuer =
         document.data.emitente && typeof document.data.emitente === "object"
           ? (document.data.emitente as Record<string, unknown>)
@@ -124,11 +144,7 @@ export class TotvsIntegrationService {
       const nfseNature = isNfse
         ? nfseNatureCode(
             document.data.companies?.uf,
-            nfseIssuerState(
-              document.data.suppliers?.uf,
-              document.data.nfse_details,
-              document.data.emitente,
-            ),
+            nfseIssuerState(document.data.suppliers?.uf, nfseDetails, document.data.emitente),
           )
         : null;
       if (isNfse && !nfseNature)
@@ -194,13 +210,11 @@ export class TotvsIntegrationService {
               localEstoqueCode: null,
               costCenterCode: headerCostCenter?.codigo ?? null,
               allocations: headerRates,
-              taxes: {
-                ISS: {
-                  vBC: document.data.iss_base_value,
-                  pISSQN: document.data.iss_rate,
-                  vISSQN: document.data.iss_value,
-                },
-              },
+              taxes: nfseRmTaxes(nfseDetails, {
+                base: parsedNfse?.issBaseValue ?? document.data.iss_base_value,
+                rate: parsedNfse?.issRate ?? document.data.iss_rate,
+                value: parsedNfse?.issValue ?? document.data.iss_value,
+              }),
             },
           ]
         : (items.data ?? []).map((item) => ({

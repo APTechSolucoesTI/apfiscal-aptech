@@ -67,8 +67,26 @@ function taxId(entity: XmlObject): string | null {
 }
 
 function decimal(value: unknown): number | null {
-  const parsed = Number(String(value ?? "").replace(",", "."));
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function firstDecimal(...values: unknown[]): number | null {
+  for (const value of values) {
+    const parsed = decimal(value);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+}
+
+function sumDecimals(...values: Array<number | null>): number | null {
+  const present = values.filter((value): value is number => value !== null);
+  if (!present.length) return null;
+  const total = present.reduce((sum, value) => sum + value, 0);
+  return Math.round((total + Number.EPSILON) * 100) / 100;
 }
 
 function compact(record: Record<string, unknown>): Record<string, unknown> {
@@ -109,6 +127,36 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
   const tax = object(dpsValues.trib);
   const municipalTax = object(tax.tribMun);
   const federalTax = object(tax.tribFed);
+  const pisCofins = object(federalTax.piscofins ?? federalTax.PISCOFINS);
+  const pisValue = firstDecimal(
+    pisCofins.vPis,
+    pisCofins.vPIS,
+    federalTax.vPis,
+    federalTax.vPIS,
+    values.vPis,
+    values.vPIS,
+  );
+  const cofinsValue = firstDecimal(
+    pisCofins.vCofins,
+    pisCofins.vCOFINS,
+    federalTax.vCofins,
+    federalTax.vCOFINS,
+    values.vCofins,
+    values.vCOFINS,
+  );
+  const retainedPis = firstDecimal(pisCofins.vRetPIS, federalTax.vRetPIS);
+  const retainedCofins = firstDecimal(pisCofins.vRetCofins, federalTax.vRetCofins);
+  const inssValue = firstDecimal(federalTax.vRetCP, federalTax.vINSS, values.vINSS);
+  const irValue = firstDecimal(federalTax.vRetIRRF, federalTax.vIR, values.vIR);
+  const csllValue = firstDecimal(federalTax.vRetCSLL, federalTax.vCSLL, values.vCSLL);
+  const issValue = decimal(values.vISSQN);
+  const calculatedRetentions = sumDecimals(
+    retainedPis,
+    retainedCofins,
+    inssValue,
+    irValue,
+    csllValue,
+  );
   const service = object(dps.serv);
   const serviceCode = object(service.cServ);
   const serviceLocation = object(service.locPrest);
@@ -130,7 +178,14 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
     recipientTaxId: taxId(recipient),
     recipientName: text(recipient.xNome),
     total: decimal(values.vLiq ?? serviceValues.vServ ?? values.vServPrest ?? values.vTotalRet),
-    taxTotal: decimal(values.vISSQN),
+    taxTotal: sumDecimals(
+      issValue,
+      pisValue ?? retainedPis,
+      cofinsValue ?? retainedCofins,
+      inssValue,
+      irValue,
+      csllValue,
+    ),
     status: text(info.cStat),
     serviceDescription: text(serviceCode.xDescServ ?? info.xTribMun ?? info.xTribNac),
     externalId: text(info["@_Id"]),
@@ -145,10 +200,10 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
     deductionsValue: decimal(serviceValues.vDedRed ?? values.vDedRed),
     unconditionalDiscountValue: decimal(serviceValues.vDescIncond ?? values.vDescIncond),
     conditionalDiscountValue: decimal(serviceValues.vDescCond ?? values.vDescCond),
-    retentionsValue: decimal(values.vTotalRet ?? federalTax.vRetCP ?? federalTax.vRetIRRF),
+    retentionsValue: firstDecimal(values.vTotalRet) ?? calculatedRetentions,
     issBaseValue: decimal(values.vBC),
     issRate: decimal(values.pAliqAplic ?? municipalTax.pAliq),
-    issValue: decimal(values.vISSQN),
+    issValue,
     serviceCodeNational: text(serviceCode.cTribNac),
     serviceCodeMunicipal: text(serviceCode.cTribMun ?? serviceCode.cIntContrib),
     cnaeCode: text(serviceCode.CNAE ?? serviceCode.cCNAE),
@@ -186,16 +241,34 @@ export function parseNfseXml(xml: string, suppliedAccessKey?: string | null): Ca
         incidenceMunicipalityName: text(info.xLocIncid),
       }),
       taxes: compact({
-        iss: decimal(values.vISSQN),
+        iss: issValue,
         issBase: decimal(values.vBC),
         issRate: decimal(values.pAliqAplic ?? municipalTax.pAliq),
         issWithholdingType: text(municipalTax.tpRetISSQN),
-        inss: decimal(federalTax.vRetCP ?? values.vINSS),
-        ir: decimal(federalTax.vRetIRRF ?? values.vIR),
-        csll: decimal(federalTax.vRetCSLL ?? values.vCSLL),
-        pis: decimal(federalTax.vRetPIS ?? values.vPIS),
-        cofins: decimal(federalTax.vRetCofins ?? values.vCOFINS),
-        totalRetentions: decimal(values.vTotalRet),
+        pis: pisValue ?? retainedPis,
+        pisValue,
+        pisBase: firstDecimal(pisCofins.vBCPisCofins, federalTax.vBCPIS, values.vBCPIS),
+        pisRate: firstDecimal(pisCofins.pAliqPis, federalTax.pPIS, values.pPIS),
+        pisCst: text(pisCofins.CST),
+        pisWithholdingType: text(pisCofins.tpRetPisCofins),
+        pisRetained: retainedPis,
+        cofins: cofinsValue ?? retainedCofins,
+        cofinsValue,
+        cofinsBase: firstDecimal(pisCofins.vBCPisCofins, federalTax.vBCCOFINS, values.vBCCOFINS),
+        cofinsRate: firstDecimal(pisCofins.pAliqCofins, federalTax.pCOFINS, values.pCOFINS),
+        cofinsCst: text(pisCofins.CST),
+        cofinsWithholdingType: text(pisCofins.tpRetPisCofins),
+        cofinsRetained: retainedCofins,
+        inss: inssValue,
+        inssBase: firstDecimal(federalTax.vBCRetCP, federalTax.vBCINSS),
+        inssRate: firstDecimal(federalTax.pRetCP, federalTax.pINSS),
+        ir: irValue,
+        irBase: firstDecimal(federalTax.vBCRetIRRF, federalTax.vBCIR),
+        irRate: firstDecimal(federalTax.pRetIRRF, federalTax.pIR),
+        csll: csllValue,
+        csllBase: firstDecimal(federalTax.vBCRetCSLL, federalTax.vBCCSLL),
+        csllRate: firstDecimal(federalTax.pRetCSLL, federalTax.pCSLL),
+        totalRetentions: firstDecimal(values.vTotalRet) ?? calculatedRetentions,
       }),
       source: compact({
         applicationVersion: text(info.verAplic ?? dps.verAplic),
